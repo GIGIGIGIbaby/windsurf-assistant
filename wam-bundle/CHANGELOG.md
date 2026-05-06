@@ -1,5 +1,15 @@
 # Changelog
 
+> **v2.6.x 系 (当前)**: `wam-bundle/extension.js` 与 `packages/wam/extension.js` 同源 · 详见 [`packages/wam/CHANGELOG.md`](../packages/wam/CHANGELOG.md). 下方 v17.42.x 系为道极减法前的满载本体, 历史归档保留.
+
+## v2.6.8 (2026-05-06) · 同步自 packages/wam
+
+`extension.js` / `package.json` 与 `packages/wam` 同步至 v2.6.8 (settle 模型 · 防抖根治 · 部署归宿 · `_dao_*` 软部署套件).
+
+完整 v2.5.6 ~ v2.6.8 演化日志: [`packages/wam/CHANGELOG.md`](../packages/wam/CHANGELOG.md).
+
+---
+
 ## v17.42.19 · 深根固柢 · 长生久视
 
 > 反者道之动. — 治大国若烹小鲜, 不动声色, 添两道哨兵.

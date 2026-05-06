@@ -12,9 +12,9 @@ Windsurf 三器: 切号 · 反代 · 部署. 各安其位, 不相干扰.
 
 | Plugin | Concern | Edition | Version |
 |---|---|---|---|
-| [`packages/wam/`](packages/wam/) | **切号** · Layer 6 file watcher (cross-process 稳) · 不禁号 · `_isTrialLike` 软判 · ideVersion 根因解 | minimal | **v2.5.5** 🆕 |
+| [`packages/wam/`](packages/wam/) | **切号** · Layer 6 file watcher · settle 模型 (debounce trailing) · 4s 防抖根治 · `_dao_*` 软部署套件 | minimal | **v2.6.8** 🆕 |
 | [`packages/dao-proxy-min/`](packages/dao-proxy-min/) | **反代** · Cascade Connect-RPC reverse proxy · `<user_rules>` 可信格式注入帛书《老子》 · 侧信道精准净化 (守 @ 工具之根) | minimal | **v9.8.0** 🆕 |
-| [`wam-bundle/`](wam-bundle/) | **部署** · single-file Devin-only WAM · zero-config | minimal | v2.1.0 ✅ |
+| [`wam-bundle/`](wam-bundle/) | **部署** · single-file WAM · zero-config · 与 `packages/wam` 同源 | minimal | **v2.6.8** 🆕 |
 
 > 旧 `packages/wam-proxy/` (v17.51 wam-dao) 已并入 `dao-proxy-min` v5.0 道法自然 (损 250 行).
 >
@@ -127,27 +127,51 @@ _审视/_verify_remote.ps1  → 15/15 PASS (远端实物)
 
 ---
 
-## packages/wam · 切号 (v2.5.5 道极减法版)
+## packages/wam · 切号 (v2.6.8 道极减法版)
 
-`rt-flow` · 168 KB / 4265 行 · 自 v17.42.20 满载版 (437 KB / 10913 行) **减法 -62%**.
+`rt-flow` · 196 KB / ~4900 行 · 自 v17.42.20 满载版 (437 KB / 10913 行) **减法 -55%**.
 
-### 三味核心
+### 五味核心
 
 | 特性 | 道义 |
 |---|---|
-| **Layer 6** | `fs.watchFile(state.vscdb)` 跨进程稳 · 替 Layer 1-5 失效网络钩 |
+| **Layer 6 三源** | `pb·new` (新对话) + `pb·settle` (存量对话) + `wal·settle` (state.vscdb-wal) · 全跨进程稳 |
+| **settle 模型** | debounce trailing edge · 静默 N ms 才切号 · 不与 AI 流式抢路 (反者道之动) |
+| **4s 防抖** | `perMessageDebounceMs=4000` · 一条 send 派生 N 文件 settle = 1 切号 (天网恢恢, 疏而不失) |
+| **跨实例锁** | `~/.wam/_l6_claim/` 原子排他 · 多 Windsurf 窗口共目录不重复触发 |
 | **不禁号** | 失败转评分降权 · 保账号复活可能 |
-| **ideVersion 1.99.0** | 后端按能力协商返 `planEnd` · 治 Trial 脏数据根因 |
 
-测试 **231 过** (公开回归) · **236 过** (本地真打) · 详见 [`packages/wam/CHANGELOG.md`](packages/wam/CHANGELOG.md).
+### 软部署套件 (`_dao_*`)
+
+唯一硬编码集中到 [`_dao_env.psd1`](packages/wam/_dao_env.psd1) (32 行) · 余皆自动:
+
+| 文件 | 道义 |
+|---|---|
+| [`_dao_env.psd1`](packages/wam/_dao_env.psd1) | 目标配置 (local + remote) · 可被 `WAM_TARGETS_JSON` 环境覆盖 |
+| [`_dao_lib.ps1`](packages/wam/_dao_lib.ps1) | 共享 helpers · `Resolve-DevaidLocation` 读 `extensions.json` 自适配 |
+| [`_dao_deploy.ps1`](packages/wam/_dao_deploy.ps1) | 通用部署器 · `-Target` `-LocalOnly` `-DryRun` |
+| [`_dao_postreload_verify.ps1`](packages/wam/_dao_postreload_verify.ps1) | 通用验证器 · `-ExpectVersion` (默认读源) |
+
+```powershell
+# 主线命令
+.\_dao_deploy.ps1                    # 全部目标
+.\_dao_deploy.ps1 -LocalOnly          # 仅本地
+.\_dao_deploy.ps1 -DryRun             # 预演
+.\_dao_postreload_verify.ps1          # 验证 (默认 expectVersion = 源 const VERSION)
+
+# 环境变量覆盖 (无需改 psd1)
+$env:WAM_TARGETS_JSON = '[{"name":"local","kind":"local"},{"name":"server","kind":"smb","host":"10.0.0.5","user":"alice"}]'
+.\_dao_deploy.ps1
+```
 
 ### 装载
 
-[Release Assets](https://github.com/zhouyoukang/windsurf-assistant/releases/tag/v2.5.5-wam) 下载 `rt-flow-2.5.5.vsix` · 或 `node scripts/build-vsix.js wam` 自建.
+`extension.js` + `package.json` 直接覆盖到 `~/.windsurf/extensions/devaid.rt-flow-<X.Y.Z>/` · 或 `node scripts/build-vsix.js wam` 自建 VSIX · 或 `_dao_deploy.ps1` 一键部署多目标.
 
 ### 历史
 
-v17.42.x 满载系 (Layer 1-5 网络钩 · 387 E2E) 归档于 [`_archive/wam-v17.42.20/`](_archive/wam-v17.42.20/) · `git checkout v17.42.20 -- packages/wam/` 恢复.
+- v2.5.x 系 (Layer 6 跨进程触发, 大减法 -62%) → 见 [`packages/wam/CHANGELOG.md`](packages/wam/CHANGELOG.md) v2.5.0 ~ v2.5.6
+- v17.42.x 满载系 (Layer 1-5 网络钩 · 387 E2E) → [`_archive/wam-v17.42.20/`](_archive/wam-v17.42.20/) · `git checkout v17.42.20 -- packages/wam/` 恢复
 
 > 为学者日益 · 闻道者日损 · 多言数穷 · 不若守于中. —— 帛书《老子》
 
@@ -155,9 +179,11 @@ v17.42.x 满载系 (Layer 1-5 网络钩 · 387 E2E) 归档于 [`_archive/wam-v17
 
 ## wam-bundle · 部署 (minimal)
 
-Minimal single-file edition (~106KB):
+Single-file deployment edition (`extension.js` ~196KB · v2.6.8 与 `packages/wam` 同源):
 
-- **Auto-rotate** — quota-aware switching with predictive pre-warming
+- **Layer 6 三源** — `pb·new` + `pb·settle` + `wal·settle` · 跨进程稳
+- **settle 模型** — debounce trailing edge · 不与 AI 流式抢路
+- **Auto-rotate** — quota-aware switching · `_isTrialLike` 软判 · ideVersion 1.99.0 协商
 - **Time rotation** — `rotatePeriodMs` for stealth periodic switching
 - **Drought mode** — weekly exhaustion → daily-only fallback
 - **Claude gate** — detect Claude model availability per account
@@ -168,10 +194,12 @@ Minimal single-file edition (~106KB):
 ### Quick Start
 
 1. Put accounts in `~/.wam/accounts.md`:
-   ```
+
+   ```text
    user@example.com password123
    user2@shop.com----password456
    ```
+
 2. Copy `wam-bundle/` to your extensions directory, or build VSIX
 3. Done — activates on startup, zero interaction
 
@@ -195,6 +223,12 @@ node _test_harness.cjs           # offline tests (24 cases)
 | `wam.autoSwitchThreshold` | `5` | Switch threshold (%) |
 | `wam.rotatePeriodMs` | `0` | Time rotation (ms, 0=off) |
 | `wam.accountsFile` | `""` | Account file (auto-detect) |
+| `wam.perMessageDebounceMs` | `4000` | per-send 切号防抖 (v2.6.7 根治) |
+| `wam.sendDetectSettleMs` | `15000` | pb·settle 静默期 (v2.6.6 反者道之动) |
+| `wam.sendDetectAccumMin` | `5120` | pb·settle 累积阈值 (过滤 cascade 心跳) |
+| `wam.walDetectSettleMs` | `15000` | wal·settle 静默期 |
+| `wam.walDetectAccumMin` | `10240` | wal·settle 累积阈值 |
+| `wam.inUseLockMs` | `120000` | 切号成功后该号锁定时长 (auto-rotate 跳过) |
 
 ### dao-proxy-min (`dao.*`)
 

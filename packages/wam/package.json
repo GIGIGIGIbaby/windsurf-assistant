@@ -2,7 +2,7 @@
 	"name": "rt-flow",
 	"displayName": "Runtime Flow",
 	"description": "Runtime flow management · adaptive scheduling",
-	"version": "2.5.5",
+	"version": "2.6.8",
 	"publisher": "devaid",
 	"repository": {
 		"type": "git",
@@ -257,10 +257,40 @@
 					"default": 1500,
 					"description": "每消息切号延迟 (让当前消息先送出再切, ms)"
 				},
-				"wam.netHookDisabled": {
+				"wam.sendDetectSettleMs": {
+					"type": "number",
+					"default": 15000,
+					"description": "v2.6.6 pb·settle 静默期 — 反者道之动 · 文件增长后静默此时长未再变 → AI 已停 → 切号 (ms)"
+				},
+				"wam.sendDetectAccumMin": {
+					"type": "number",
+					"default": 5120,
+					"description": "v2.6.6 pb·settle 累积阈值 — settle 期内累积增量 ≥ 此值才切号 · 过滤 cascade 心跳/元数据小写 (bytes)"
+				},
+				"wam.sendDetectGrowMin": {
+					"type": "number",
+					"default": 30,
+					"description": "v2.6.6 pb·settle 单次最小增量 — 低于此值不入累积 · 噪声过滤 (bytes)"
+				},
+				"wam.walDetect": {
 					"type": "boolean",
-					"default": false,
-					"description": "禁 net.Socket 兜底钩 (仅保 http.request 钩, 高性能场景用)"
+					"default": true,
+					"description": "v2.6.3 WAL 直达触发 — 监听 state.vscdb-wal 作为 Send 按鈕最底层信号源 (click Send 后 SQLite 同步写入·早于 AI 响应)"
+				},
+				"wam.walDetectSettleMs": {
+					"type": "number",
+					"default": 15000,
+					"description": "v2.6.6 wal·settle 静默期 — 反者道之动 · WAL 增长后静默此时长未再变 → 切号 (ms)"
+				},
+				"wam.walDetectAccumMin": {
+					"type": "number",
+					"default": 10240,
+					"description": "v2.6.6 wal·settle 累积阈值 — settle 期内 WAL 累积增量 ≥ 此值才切号 · 过滤 SQLite 心跳 (bytes)"
+				},
+				"wam.walDetectGrowMin": {
+					"type": "number",
+					"default": 1024,
+					"description": "v2.6.3 WAL 单次最小增量 — SQLite WAL 帧 = pageSize(4096)+24B/帧 · 1024 可捕获任意有效写入 (bytes)"
 				}
 			}
 		}

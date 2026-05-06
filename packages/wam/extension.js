@@ -1,4 +1,4 @@
-// WAM · 万法归宗 v2.5 · 道极版 · 道法自然 · 太上下知有之
+// WAM · 万法归宗 v2.6.8 · 道极版 · 道法自然 · 太上下知有之
 //
 // 本源需求: 用户在 Cascade panel 发消息 → WAM 自动切健康号 (用户无为 · 插件无不为)
 //
@@ -8,6 +8,112 @@
 //   · 不禁账号   · 失败仅记数 · 号永远可选 · rate-limit 退让 30s 即回池
 //   · 上善如水   · 不 kill 进程 · 不抢路 · 等 cascade 流完再切
 //   · 大制无割   · 198KB → ~80KB · 一层 hook 一条真路 (从 v2.4.13b 损之又损)
+//
+// v2.6.0 · 底层软编码 · 唯变所适 · 水无常形 (2026-05-05):
+//   · RE_SESSION_TOKEN 常量统一 · "devin-session-token$" 两处字面量 → 单点定义
+//     windsurfPostAuth / healthCheck 均改用 RE_SESSION_TOKEN.test() · 后端格式变时单行修
+//   · buildHtml planTag 改用 _isTrialLike(h) · 与 _cleanseHealthOnLoad/_buildExpTag 全链对齐
+//   · _resolveCascadePbDir Linux fallback 改用 os.homedir() · 跨发行版自适应
+//   · startup recovery 阈值改用 _cfg("autoSwitchThreshold",5) · 与 Engine._tick 对齐 · 配置一源
+//
+// v2.6.1 · Layer 6 双信号 · 逆流到底 · 解构一切 (2026-05-05):
+//   · 信号① pb·new: 新 .pb 文件 = 新对话 → 立即切号 (原有逻辑保留)
+//   · 信号② pb·send: 存量 .pb 文件大小增量 + 安静期检测 = 已有对话用户发消息
+//     原理: 用户 send → 文件首次写入(小增量·安静后) · AI 流式续写 → 连续写(不安静)
+//     安静期 QUIET_MS(默认 3s): 距上次增长 >3s 的首次增量 → 视为用户 send
+//     每文件冷却 COOLOFF_MS(默认 8s): 触发后 8s 内同文件不再触发 · 防 AI 慢响应重触
+//     最小增量 GROW_MIN(默认 50B): 过滤元数据抖动
+//   · 效果: 新对话/已有对话 每发一条消息均触发切号 · 真正 per-send 级精度
+//
+// v2.6.2 · 跨实例声明锁 · 观复知常 · 万物并作 (2026-05-05):
+//   · 根因: 多 Windsurf 窗口各含独立 WAM 实例 · 共享同一 cascade 目录
+//     实证: wam.log 显示同一 pb 文件在 495ms 内被记录两次 → 2 次切号
+//   · 修法: ~/.wam/_l6_claim/ 声明目录 + flag:"wx" 原子排他创建
+//     pb·new → <uuid>.pb.new 声明文件 · 第一个实例到者得之 · 其余静默跳过
+//     pb·send → <prefix8>.<timebucket>.send 声明文件 · COOLOFF_MS 时间桶内唯一
+//   · 声明文件在 _installLayer6FileWatcher 启动时清理 >5min 旧文件 · 零积累
+//   · 效果: 无论几个 Windsurf 窗口同时运行 · 每个 send 事件精确触发一次切号
+//
+// v2.6.3 · WAL 直达触发 · 大道至简 · 回归本源 (2026-05-06):
+//   · 信号源: state.vscdb-wal (用户 click Send 后 SQLite 同步写入的 WAL 帧)
+//     实证: globalStorage/state.vscdb-wal 现已 11MB 且持续增长
+//     原理: cascade 写对话元数据到 SQLite → WAL 帧增长 (SQLite 页 4096B+24B/帧)
+//     这发生在向 AI 发出 HTTP 请求之前 —— 比 pb 文件增长早一个 IO 层
+//   · 实现: _installWalWatcher(context) · 300ms 轮询 · 比 pb 轮询快一倍
+//     quiet=2s (WAL 写入相对集中·AI 流连续写 pb 不安静)
+//     cooloff=6s · min=1024B (1 个 WAL 帧大小)
+//   · 参数: wam.walDetectQuietMs / wam.walDetectCooloffMs / wam.walDetectGrowMin
+//   · 大道至简: pb·send 需 3s 安静期延迟切号 · WAL 在 click Send 的第一个 300ms 轮询内即可检测
+//
+// v2.6.4 · 去芜存菁 + quietSec 哨兵修 · 无为而无不为 (2026-05-06):
+//   · 删 wam.netHookDisabled (v2.5.0 删 Layer 1-5 net.Socket hook 后遗留死配置·零引用)
+//   · 删 wam.perMessageMinIntervalMs (默认 0 关·从未被 _cfg 读取·pb·new 已精确不需要)
+//   · 补 wam.sendDetectQuietMs / sendDetectCooloffMs / sendDetectGrowMin (v2.6.1 pb·send 三参数)
+//   · 补 wam.walDetect / walDetectQuietMs / walDetectCooloffMs / walDetectGrowMin (v2.6.3 WAL 四参数)
+//   · 效果: VS Code 设置界面可见全部检测参数 · 用户可按环境微调 · 删 2 死补 7 活
+//   · hotfix: pb·send / wal·send 首检测时 lastGrow=0 · quietSec 计算将 Unix 时戳泄入日志 (·56年)
+//     事证: 2026-05-06 首部署后 wam.log 观到 quiet=1778003563s
+//     修: lastGrow=0 哨兵化 · 首检测时 quiet="init" · isQuiet 仍为 true 保留触发逻辑
+//
+// v2.6.5 · 锚定本源 · 慎终若始 (2026-05-06):
+//   · 根因: v2.6.4 hotfix 写入源后未提版本 · 部署 sha 与源一致 · 但运行进程加载的是旧 v2.6.4 (无 hotfix)
+//     实证: wam.log 持续打 quiet=1778040905s · 0 条 quiet=init · 而 SRC sha === DEP sha 已含 hotfix
+//   · 真因: VS Code extension host 不热重载 · Node module 缓存把 18:13~18:15Z 启动时读到的旧 disk 锁定
+//   · 道法: 64 章 "慎终若始 · 则无败事" · v2.6.5 仅升版本号 + changelog · 行为零变化
+//     效果: 主公 Reload Window 后 wam.log 出现 "WAM v2.6.5 activate" → 秒证 hotfix 生效
+//   · 配套: 重跑 _v264_deploy.bat 刷新 DEP marker · 加 _v265_postreload_verify.cjs 一键跳验
+//
+// v2.6.6 · 反者道之动 · 解构一切 · 逆流到底 (2026-05-06):
+//   · 实证: 40 分钟 wam.log 析: pb·send 触发 186 次 / 4 个 .pb 并发 / 主公真实 send ~5 条
+//     单文件 56d148d6 触发 102 次 (23s/次) · quiets 主峰 8s×46 (= cooloff 解除即触发)
+//     一条 send → AI 流式响应 → cooloff 8s 期满即重触 → 单 send 切号 5-10 次
+//   · 病灶: 当前 cooloff 模型 [QUIET=3s · COOLOFF=8s · GROW≥50B] 三大缺陷:
+//     ① cooloff 解除即触发 · AI 流式期间反复切号 (主峰 8s×46 即此)
+//     ② GROW≥50B 太低 · 60-280B cascade 心跳/元数据被误判为 send
+//     ③ 多 .pb 并发 · 4 个对话窗口同时活动 · 4 倍触发噪声
+//   · 反者解 (40 章 "反者，道之动也"): cooloff (看见动就切) → settle (看见停才切)
+//     debounce trailing edge 模式 · 文件增长重置 settle 计时器 · 静默 N ms 后才切号
+//     流式期间所有续写吸收到一次 settle · 主公一条 send → 1 次 AI 响应 → 1 次切号
+//   · 实现: pb·send → pb·settle / wal·send → wal·settle
+//     SETTLE_MS=15000 (15s 静默 = AI 已停) · ACCUM_MIN=5120 (5KB 累积过滤心跳)
+//     单次 GROW_MIN=30 (任何 ≥30B 累积) · LARGE_DELTA=131072 (单次 ≥128KB 直接 settle 兜底)
+//   · 配置变化:
+//     - wam.sendDetectQuietMs (3000)    → 删
+//     - wam.sendDetectCooloffMs (8000)  → 改 wam.sendDetectSettleMs (15000)
+//     - wam.sendDetectGrowMin (50)      → 改 wam.sendDetectGrowMin (30)
+//     + wam.sendDetectAccumMin (5120)   · 累积阈值 · 过滤 cascade 心跳元数据
+//     - wam.walDetectQuietMs (2000)     → 删
+//     - wam.walDetectCooloffMs (6000)   → 改 wam.walDetectSettleMs (15000)
+//     - wam.walDetectGrowMin (1024)     · 保留
+//     + wam.walDetectAccumMin (10240)   · WAL 累积阈值 (WAL 帧密度高于 pb)
+//   · 道一以贯之: 弱者道之用 · 不与 AI 流式抢路 · 等其自然停 · 上善如水
+//
+// v2.6.7 · 守一 · 减二 · 不自夺 (2026-05-06):
+//   · 实证: 4 分钟 18 切号 / 24 hits / 末段 4 连 Rate-limit 雪崩
+//     11:27:02.543/.551 同 8ms 内 0c3ec7c1 + fd300a99 双 fire (同一 send 派生多 .pb)
+//     11:26:21/22 902ms 内 bb141f7a + df3fc58b 双 fire · 11:26:29/31 1.97s · 11:25:05/06 543ms
+//     全部应被 perMessageDebounceMs=4000 拦 · 实际全过 → 防抖完全失效
+//   · 病灶: pb·settle (line 2669) + wal·settle (line 2853) 两处 fire 前
+//     强制 _lastPerMsgTriggerAt = 0 · 自夺防抖 · 一条 send 派生 N 文件 settle = N 切号
+//   · 减法:
+//     - 删 pb·settle 之前 _lastPerMsgTriggerAt = 0
+//     - 删 wal·settle 之前 _lastPerMsgTriggerAt = 0
+//     · 保 pb·new 队列里的 reset (queue gap 3500ms < debounce 4000ms · 串行排队需绕)
+//   · 加法 (诊断): _perMsgDebounced 计数 · 防抖拦截入 _per_msg_diag.json
+//     主公可读 totalDebounced 与 totalHits 比 · 验证修后过 fire 比降至预期
+//   · 道一以贯之: 73 章 "天网恢恢, 疏而不失" · 防抖才是疏 · reset = 着相妄为
+//     上善如水 · 多源派生 settle ≤4s 内重叠 · 收回一道 · 下游单切号
+//
+// v2.6.8 · 实证回归 · 字面归一 · 部署归宿 (2026-05-06):
+//   · 实证 v2.6.7 在 179 远端: 文件 sha 一致 / 测 24/0 / 软重启 ext host (双轮 kill) / activate v2.6.7
+//   · 实证 _per_msg_diag.json totalDebounced 字段写入 / wal settle 信号工作 / state ver=2.6.7 / switches+3
+//   · 修字面: activated log "三源[pb·new+pb·send+wal·send]" 是 v2.6.4 旧描述
+//     实际架构自 v2.6.6 已重构为 settle 模型 · 改为 "settle 模型[pb·new+pb·settle+wal·settle] · 4s 防抖"
+//   · 修部署: _v267_deploy.ps1 hardcode 路径 "devaid.rt-flow-2.1.1" · 实际 windsurf 加载
+//     extensions.json 里 location.path = "devaid.rt-flow-2.5.5" (vsix 多版本残留)
+//     → _v268_deploy.ps1 改为读 extensions.json location.path 自动找正确目录
+//   · 道一以贯之: 24 章 "自见者不明" · v2.6.7 自以为已部署 · 实际 windsurf 加载旧目录
+//     必"不自见故章"·实证驱动·读权威源 (extensions.json) 而非假设目录命名
 "use strict";
 const vscode = require("vscode");
 const fs = require("node:fs");
@@ -43,6 +149,15 @@ const { URL } = require("node:url");
 //   · .days CSS 加 min-width · 防“?天”与“100天”行间错位
 //   · tooltip 增详 · 则 hover 可见到期日期 + 剩余天数
 //
+// v2.5.6 · 真根因 · Layer 6 信号文件 + 路径双修 (2026-05-05 实证):
+//   根源: v2.5.0~v2.5.5 Layer 6 从未命中 · 日志永远 "Layer 6 · skip"
+//   · 实测: globalStorage/state.vscdb-wal 11MB 实时随 Cascade 消息增长
+//            workspaceStorage/<hash>/state.vscdb 16:01 停更 · 非 Cascade 写入
+//   · 修①: 文件改为 globalStorage/state.vscdb-wal (真信号) · context.globalStorageUri 导出
+//   · 修②: 旧 path.dirname(path.dirname(storageUri)) → ONE dirname 修正
+//   · 修③: delta 策略 WAL 正增量 ≥1KB (过滤 checkpoint 缩减) · debounce 兜底
+//   · fallback 四级: globalStorage WAL → globalStorage main → workspace → scan
+//
 // v2.5.1 · 从根本审视 · 道法自然 (2026-05-04 · 单行补丁):
 //   · 根因: Windsurf 后端协议变更 → windsurfPostAuth 返 401 "missing required header: X-Devin-Auth1-Token"
 //   · 修法: 加 header X-Devin-Auth1-Token (实测 3/3 号 200 OK) · body 兼容保留
@@ -55,7 +170,7 @@ const { URL } = require("node:url");
 //   · 不禁账号 · banFor/isBanned/_bumpFailure 改为纯记数 · 历史黑名单自动清
 //   · 提 _maybeTrigger 为顶级函数 · Layer 6 直调 · 不再经 _layer6Trigger 中转
 //
-const VERSION = "2.5.5";
+const VERSION = "2.6.8";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
 const WINDSURF = "https://windsurf.com";
@@ -76,6 +191,8 @@ const URL_GET_USER_STATUS_LIST = [
 // 兼容别名 (旧代码路径 + 导出 · 语义已转移)
 const URL_GET_PLAN_STATUS_LIST = URL_GET_USER_STATUS_LIST;
 const URL_GET_PLAN_STATUS = URL_GET_USER_STATUS_LIST[0];
+// v2.6.0 · 软编码 · 会话 token 格式单点定义 · 后端变更时仅此一处修
+const RE_SESSION_TOKEN = /^devin-session-token\$/;
 // v2.4.0 · 全局 endpoint 健康度追踪 · 连续 401 时跳过 verifyAll · 不浪费请求
 let _quotaEndpointHealth = {
   consecutive401: 0, // 连续 401 计数
@@ -101,6 +218,8 @@ const MAX_BACKUPS = 10;
 // 道法自然 · 居善地 · 不再硬编码盘符 (v2.1.2: V:\ → __dirname 自适应)
 // 扩展安装目录优先 (随扩展走) · 工作目录开发模式可见 · 兼容 VSIX/symlink/源码三种部署
 const ACCOUNTS_DEFAULT_MD = path.join(__dirname, "账号库最新.md");
+// v2.6.2 · 跨实例声明目录 (多窗口防重复触发)
+const L6_CLAIM_DIR = path.join(WAM_DIR, "_l6_claim");
 
 let _output = null,
   _ctx = null,
@@ -121,6 +240,7 @@ let _output = null,
   _lastPerMsgTriggerAt = 0, // v2.5 per-msg 触发防抖
   _perMsgHits = 0, // v2.5 Layer 6 命中累计 (诊断)
   _perMsgRotates = 0, // v2.5 Layer 6 触发切号累计 (诊断)
+  _perMsgDebounced = 0, // v2.6.7 守一 · 防抖拦截累计 (修后应 ≥ hits 数量级)
   _lastRotateToastAt = 0, // 状态栏切号反馈 3s 高亮
   _lastRotateToastEmail = "", // 状态栏切号反馈上次 email
   _layer6Stop = null; // Layer 6 dispose 函数
@@ -1236,7 +1356,7 @@ async function windsurfPostAuth(auth1, orgId) {
     if (
       r.json &&
       typeof r.json.sessionToken === "string" &&
-      r.json.sessionToken.startsWith("devin-session-token$")
+      RE_SESSION_TOKEN.test(r.json.sessionToken)
     )
       return {
         ok: true,
@@ -2298,9 +2418,38 @@ function _maybeTrigger(reason, hint) {
 
   const now = Date.now();
   const debounceMs = Math.max(500, _cfg("perMessageDebounceMs", 4000) | 0);
-  if (now - _lastPerMsgTriggerAt < debounceMs) return; // 防抖: 一轮对话多请求只算一次
+  if (now - _lastPerMsgTriggerAt < debounceMs) {
+    // v2.6.7 守一: 防抖拦截入诊断 · 修后多源派生 settle 应在此聚合到一条切号
+    _perMsgDebounced++;
+    log(
+      "👁 per-msg debounced#" +
+        _perMsgDebounced +
+        " · " +
+        reason +
+        " · " +
+        (hint || "?") +
+        " (Δ=" +
+        (now - _lastPerMsgTriggerAt) +
+        "ms<" +
+        debounceMs +
+        "ms)",
+    );
+    try {
+      const diagP = path.join(WAM_DIR, "_per_msg_diag.json");
+      const prev = fs.existsSync(diagP)
+        ? JSON.parse(fs.readFileSync(diagP, "utf8"))
+        : { hits: [], rotates: [] };
+      prev.totalDebounced = _perMsgDebounced;
+      prev.lastDebounced = now;
+      atomicWrite(diagP, JSON.stringify(prev, null, 2));
+    } catch {}
+    return; // 防抖: 一轮对话多请求只算一次
+  }
   // v2.3.0: 去 switchCooldownMs 闸 · 由 in-use 锁 (120s) 更细粒度替代 (全局 cooldown 会拦正当切号)
   if (now - _lastInjectFail < 30000) return; // 注入失败冷却仍保 · 30s
+  // v2.5.9: 最小切号间隔 · pb·new 为精确信号故默认 0 · 可手动配置兜底
+  const minIntervalMs = Math.max(0, _cfg("perMessageMinIntervalMs", 0) | 0);
+  if (minIntervalMs > 0 && now - _lastSwitchTime < minIntervalMs) return;
 
   _lastPerMsgTriggerAt = now;
   _perMsgHits++;
@@ -2395,10 +2544,70 @@ function _maybeTrigger(reason, hint) {
   }, delayMs);
 }
 
-// ═══ Layer 6 · 跨进程文件信号 (v2.5 · 上善如水 · 唯一真本源) ═══
-// 根因: cascade webview 在 electron renderer 进程 · 写 state.vscdb (SQLite)
-// 解法: watch mtime/size · Δsize≥10KB 过滤噪音 · 真消息必中 · 直调 _maybeTrigger
-// 依赖: context.storageUri (vscode 给本扩展的 storage · parent.parent = workspaceStorage/<hash>)
+// ═══ Layer 6 · 跨进程文件信号 (v2.5.9 · 反者道之动 · 万法归宗) ═══
+// v2.5.9 道极简化: 只监 cascade/*.pb 新文件创建
+//   · 实证: Windsurf 每个新对话 = 新建一个 UUID.pb 文件
+//   · 信号: 新文件出现 → 用户开启新对话 → 切一次号 (1:1 精确对应)
+//   · 无噪: 无 WAL checkpoint 噪音 · 无 size-growth 误判
+//   · 普适: 所有 Windsurf 窗口共享 cascade 目录 · 任一窗口新对话均触发
+//   旧 v2.5.8: 双信号(pb·size + WAL) · 过触发 · v2.5.9 损之又损 → 唯一真信号
+function _resolveCascadePbDir() {
+  // v2.5.8: ~/.codeium/windsurf/cascade/ —— Cascade 对话直接存储
+  const candidates = [
+    path.join(os.homedir(), ".codeium", "windsurf", "cascade"),
+    path.join(os.homedir(), ".codeium", "windsurf-nightly", "cascade"),
+    path.join(
+      os.homedir(),
+      "AppData",
+      "Local",
+      "codeium",
+      "windsurf",
+      "cascade",
+    ),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.statSync(p).isDirectory()) return p;
+    } catch {}
+  }
+  return null;
+}
+function _resolveGlobalStorageDir(context) {
+  if (context && context.globalStorageUri && context.globalStorageUri.fsPath) {
+    return path.dirname(context.globalStorageUri.fsPath);
+  }
+  return null;
+}
+function _resolveWorkspaceStorageBase(globalStorageDir) {
+  // .../User/globalStorage → .../User → .../User/workspaceStorage
+  if (globalStorageDir) {
+    const wsBase = path.join(
+      path.dirname(globalStorageDir),
+      "workspaceStorage",
+    );
+    if (fs.existsSync(wsBase)) return wsBase;
+  }
+  // Windows hardcode fallback
+  const win = path.join(
+    os.homedir(),
+    "AppData",
+    "Roaming",
+    "Windsurf",
+    "User",
+    "workspaceStorage",
+  );
+  if (fs.existsSync(win)) return win;
+  // macOS/Linux fallback
+  const mac = path.join(
+    os.homedir(),
+    ".config",
+    "Windsurf",
+    "User",
+    "workspaceStorage",
+  );
+  if (fs.existsSync(mac)) return mac;
+  return null;
+}
 function _installLayer6FileWatcher(context) {
   try {
     if (_layer6Stop) {
@@ -2407,61 +2616,221 @@ function _installLayer6FileWatcher(context) {
       } catch {}
       _layer6Stop = null;
     }
-    if (!context || !context.storageUri || !context.storageUri.fsPath) {
-      log("Layer 6 · skip · 无 context.storageUri (无 workspace 打开?)");
+
+    // ── 双信号: pb·new(新对话) + pb·send(存量对话用户发消息) (v2.6.1/v2.6.2) ──
+    const cascadePbDir = _resolveCascadePbDir();
+    if (!cascadePbDir) {
+      log("Layer 6 · skip · cascade 目录未找到 (~/.codeium/windsurf/cascade/)");
       return;
     }
-    // context.storageUri.fsPath = .../<workspaceStorage>/<hash>/<extId>
-    // 上两层 = .../<workspaceStorage>/<hash>/  → state.vscdb 就在这
-    const wsStorageDir = path.dirname(path.dirname(context.storageUri.fsPath));
-    const stateDb = path.join(wsStorageDir, "state.vscdb");
-    if (!fs.existsSync(stateDb)) {
-      log("Layer 6 · skip · state.vscdb 不存在 @ " + stateDb);
-      return;
-    }
-    let lastMtime = 0;
-    let lastSize = 0;
+
+    // v2.6.2 · 跨实例声明目录: 启动时建目录 + 清理 >5min 过期声明文件
     try {
-      const st = fs.statSync(stateDb);
-      lastMtime = st.mtimeMs;
-      lastSize = st.size;
+      fs.mkdirSync(L6_CLAIM_DIR, { recursive: true });
     } catch {}
-    const intervalMs = 1500;
-    // v2.4.13b · 阈值从 256B → 10240B (10KB)
-    //   实测 v2.4.13 首版: 256B 太灵敏 · vscode 后台 telemetry/autosave 也会触发
-    //   cascade 用户消息会带 KB 级状态 (对话 JSON) · 10KB 阈值仍必命中真消息
-    //   且 _lastInjectFail 冷却 + _waitIfCascadeBusy 流式避让叠加防护
-    const minDeltaBytes = 10240; // 10KB · 过滤 VSCode 后台 flush 噪音
-    log(
-      "Layer 6 · watch state.vscdb · " +
-        intervalMs +
-        "ms · Δ≥" +
-        minDeltaBytes +
-        "B · " +
-        stateDb,
-    );
-    fs.watchFile(
-      stateDb,
-      { interval: intervalMs, persistent: false },
-      (curr, prev) => {
+    try {
+      const _t0 = Date.now();
+      for (const cf of fs.readdirSync(L6_CLAIM_DIR)) {
         try {
-          if (curr.mtimeMs <= lastMtime) return;
-          const sizeDelta = (curr.size | 0) - (lastSize | 0);
-          const absDelta = Math.abs(sizeDelta);
-          lastMtime = curr.mtimeMs;
-          lastSize = curr.size | 0;
-          if (absDelta < minDeltaBytes) return;
-          // v2.5.0 · 直调 _maybeTrigger (顶级函数)
-          _maybeTrigger("L6→state.vscdb", "Δsz=" + sizeDelta + "B");
+          if (_t0 - fs.statSync(path.join(L6_CLAIM_DIR, cf)).mtimeMs > 300000)
+            fs.unlinkSync(path.join(L6_CLAIM_DIR, cf));
         } catch {}
-      },
+      }
+    } catch {}
+
+    // 激活时记录已有文件 + 初始大小快照 (存量文件不触发·仅建立基准)
+    const knownPbs = new Set();
+    const pbSizes = new Map(); // f → 上次已知 size
+    const pbLastGrowAt = new Map(); // f → 上次增长时间戳 (安静期检测)
+    const pbLastTrigger = new Map(); // f → 上次触发时间戳 (每文件冷却)
+    try {
+      for (const f of fs.readdirSync(cascadePbDir)) {
+        if (!f.endsWith(".pb")) continue;
+        knownPbs.add(f);
+        try {
+          pbSizes.set(f, fs.statSync(path.join(cascadePbDir, f)).size);
+        } catch {}
+      }
+    } catch {}
+    log(
+      "Layer 6 · 双信号[pb·new+pb·send] → " +
+        cascadePbDir +
+        " · 存量 " +
+        knownPbs.size +
+        " 个",
     );
-    _layer6Stop = () => {
+
+    // 新对话队列 (pb·new 专用 · 顺序处理 · 保证每个新对话都切号)
+    const _newConvQueue = [];
+    let _queueRunning = false;
+    async function _drainQueue() {
+      if (_queueRunning) return;
+      _queueRunning = true;
+      while (_newConvQueue.length > 0) {
+        const { f } = _newConvQueue.shift();
+        for (
+          let i = 0;
+          i < 30 && (_switching || (_engine && _engine.rotating));
+          i++
+        ) {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        _lastPerMsgTriggerAt = 0;
+        _maybeTrigger("L6→pb·new", f.slice(0, 8));
+        const gap = Math.max(0, _cfg("perMessageDelayMs", 1500) | 0) + 2000;
+        await new Promise((r) => setTimeout(r, gap));
+      }
+      _queueRunning = false;
+    }
+
+    const POLL_MS = 600;
+    // v2.6.6 反者道之动: settle (debounce trailing edge) 替 cooloff
+    // SETTLE_MS: 文件增长后静默此时长 = AI 已停 = 真切号时机
+    const SETTLE_MS = Math.max(3000, _cfg("sendDetectSettleMs", 15000) | 0);
+    // ACCUM_MIN: settle 期间累积增量阈值 · 低于此值视为心跳/元数据 · 不切号
+    const ACCUM_MIN = Math.max(256, _cfg("sendDetectAccumMin", 5120) | 0);
+    // 单次最小增量: 低于此值不入累积 (噪声过滤)
+    const GROW_MIN = Math.max(20, _cfg("sendDetectGrowMin", 30) | 0);
+    // 单次大增量兜底: 单写 ≥ LARGE_DELTA 直接立即切 (AI 大代码块持续流式时不憋太久)
+    const LARGE_DELTA = 131072; // 128KB
+
+    // settle 状态: f → { accum: number, timer: NodeJS.Timeout, claimed: bool }
+    const pbSettle = new Map();
+
+    function _firePbSettle(f, total, reason) {
+      // 跨实例声明锁: 时间桶 key · SETTLE_MS 窗口内唯一
+      const _bucket = Math.floor(Date.now() / SETTLE_MS);
+      const _claim = path.join(
+        L6_CLAIM_DIR,
+        f.slice(0, 8) + "." + _bucket + ".settle",
+      );
       try {
-        fs.unwatchFile(stateDb);
+        fs.writeFileSync(_claim, String(process.pid), { flag: "wx" });
+      } catch {
+        return; // 已被另一实例认领
+      }
+      log(
+        "Layer 6 · pb·settle: " +
+          f.slice(0, 8) +
+          " 累积" +
+          total +
+          "B · " +
+          reason +
+          " [pid=" +
+          process.pid +
+          "] → 切号",
+      );
+      // v2.6.7 守一 · 删 _lastPerMsgTriggerAt = 0 (自夺防抖) · 让多源派生 settle 自然合一
+      _maybeTrigger("L6→pb·settle", f.slice(0, 8) + "+" + total);
+    }
+
+    const timer = setInterval(() => {
+      try {
+        let hasNew = false;
+        for (const f of fs.readdirSync(cascadePbDir)) {
+          if (!f.endsWith(".pb")) continue;
+          const fpath = path.join(cascadePbDir, f);
+
+          if (!knownPbs.has(f)) {
+            // ── 信号①: 新文件 = 新对话 → 立即入队切号 ──
+            knownPbs.add(f);
+            try {
+              const sz = fs.statSync(fpath).size;
+              pbSizes.set(f, sz);
+              if (sz < 64) continue; // Windsurf 预占位临时文件·跳过
+            } catch {
+              continue;
+            }
+            // v2.6.2 · 跨实例声明: 排他创建 · 第一到者触发 · 其余静默跳
+            const _claimNew = path.join(L6_CLAIM_DIR, f + ".new");
+            try {
+              fs.writeFileSync(_claimNew, String(process.pid), { flag: "wx" });
+            } catch {
+              log("Layer 6 · pb·new: " + f.slice(0, 8) + " 已认领·跳");
+              continue;
+            }
+            log(
+              "Layer 6 · pb·new: " +
+                f.slice(0, 12) +
+                " [pid=" +
+                process.pid +
+                "]",
+            );
+            _newConvQueue.push({ f });
+            hasNew = true;
+          } else {
+            // ── 信号②: 存量文件增量 → settle 累积 → 静默后切号 (反者道之动) ──
+            try {
+              const newSz = fs.statSync(fpath).size;
+              const oldSz = pbSizes.get(f) || 0;
+              const delta = newSz - oldSz;
+              pbSizes.set(f, newSz);
+              if (delta < 0) {
+                // 文件缩小(重写/截断) → 清空累积 + 取消 settle
+                const st = pbSettle.get(f);
+                if (st && st.timer) clearTimeout(st.timer);
+                pbSettle.delete(f);
+                continue;
+              }
+              if (delta < GROW_MIN) continue; // 单次太小·跳过
+
+              // 累积
+              let st = pbSettle.get(f);
+              if (!st) {
+                st = { accum: 0, timer: null };
+                pbSettle.set(f, st);
+              }
+              st.accum += delta;
+
+              // 单次大增量兜底: 立即切 + 重置累积
+              if (delta >= LARGE_DELTA && st.accum >= ACCUM_MIN) {
+                if (st.timer) clearTimeout(st.timer);
+                const total = st.accum;
+                st.accum = 0;
+                st.timer = null;
+                _firePbSettle(f, total, "大块" + delta + "B");
+                continue;
+              }
+
+              // 重置 settle 计时器: SETTLE_MS 后到期 → 切号
+              if (st.timer) clearTimeout(st.timer);
+              st.timer = setTimeout(() => {
+                const total = st.accum;
+                st.accum = 0;
+                st.timer = null;
+                if (total < ACCUM_MIN) {
+                  // 累积未达阈值 (心跳/小元数据) · 不切号
+                  log(
+                    "Layer 6 · pb·settle·skip: " +
+                      f.slice(0, 8) +
+                      " 累积" +
+                      total +
+                      "B<" +
+                      ACCUM_MIN +
+                      " [pid=" +
+                      process.pid +
+                      "]",
+                  );
+                  return;
+                }
+                _firePbSettle(f, total, "静默" + SETTLE_MS + "ms");
+              }, SETTLE_MS);
+            } catch {}
+          }
+        }
+        if (hasNew) _drainQueue().catch(() => {});
       } catch {}
+    }, POLL_MS);
+
+    _layer6Stop = () => {
+      clearInterval(timer);
+      // 清理悬挂 settle 计时器 (防退出残留)
+      for (const st of pbSettle.values()) {
+        if (st && st.timer) clearTimeout(st.timer);
+      }
+      pbSettle.clear();
     };
-    if (context.subscriptions) {
+    if (context && context.subscriptions) {
       context.subscriptions.push({
         dispose: () => {
           try {
@@ -2471,8 +2840,139 @@ function _installLayer6FileWatcher(context) {
         },
       });
     }
+    log(
+      "Layer 6 · watch[pb·new+pb·settle] · " +
+        POLL_MS +
+        "ms · settle=" +
+        SETTLE_MS +
+        "ms · accum≥" +
+        ACCUM_MIN +
+        "B · grow≥" +
+        GROW_MIN +
+        "B · " +
+        cascadePbDir,
+    );
   } catch (e) {
     log("Layer 6 · install fail: " + (e.message || e));
+  }
+}
+
+// ── WAL 直达触发 (v2.6.3 · 大道至简 · Send 按鈕最底层信号源) ──
+// state.vscdb-wal 在用户点击 Send 后同步写入 SQLite WAL 帧
+// 高于 pb 文件: WAL 写入在 HTTP 请求前发生 · 300ms 轮询 · 比 pb 轮询快一倍
+function _installWalWatcher(context) {
+  try {
+    const gsDir = _resolveGlobalStorageDir(context);
+    if (!gsDir) {
+      log("WAL · skip · globalStorage 路径未解析");
+      return null;
+    }
+    const walPath = path.join(gsDir, "state.vscdb-wal");
+    let walSz = 0;
+    try {
+      walSz = fs.statSync(walPath).size;
+    } catch {
+      log("WAL · skip · state.vscdb-wal 不存在: " + walPath);
+      return null;
+    }
+
+    // v2.6.6 反者道之动: WAL 同走 settle 模型 (debounce trailing edge)
+    const WAL_SETTLE_MS = Math.max(3000, _cfg("walDetectSettleMs", 15000) | 0);
+    const WAL_ACCUM_MIN = Math.max(512, _cfg("walDetectAccumMin", 10240) | 0);
+    // SQLite WAL 帧 = pageSize(4096) + 24B 帧头 · 任意有效内容写入必然 ≥1 帧
+    const WAL_GROW_MIN = Math.max(100, _cfg("walDetectGrowMin", 1024) | 0);
+    const WAL_POLL_MS = 300; // 比 pb 轮询(600ms)快一倍 · 更贴近真实 send 时刻
+    const WAL_LARGE = 524288; // 单次 ≥512KB 立即 settle 兜底
+
+    let walAccum = 0;
+    let walSettleTimer = null;
+
+    function _fireWalSettle(total, reason) {
+      const bucket = Math.floor(Date.now() / WAL_SETTLE_MS);
+      const claim = path.join(L6_CLAIM_DIR, "wal." + bucket + ".settle");
+      try {
+        fs.writeFileSync(claim, String(process.pid), { flag: "wx" });
+      } catch {
+        return; // 已被其他实例认领
+      }
+      log(
+        "WAL · settle: 累积" +
+          total +
+          "B · " +
+          reason +
+          " [pid=" +
+          process.pid +
+          "] → 切号",
+      );
+      // v2.6.7 守一 · 删 _lastPerMsgTriggerAt = 0 (自夺防抖) · WAL 与 pb 同源派生收一道
+      _maybeTrigger("L6→wal·settle", "+" + total);
+    }
+
+    const timer = setInterval(() => {
+      try {
+        const newSz = fs.statSync(walPath).size;
+        const delta = newSz - walSz;
+        if (delta < 0) {
+          // WAL checkpoint: 主 DB 吸收 WAL 后 WAL 缩小 · 重置累积
+          walSz = newSz;
+          if (walSettleTimer) clearTimeout(walSettleTimer);
+          walSettleTimer = null;
+          walAccum = 0;
+          return;
+        }
+        if (delta < WAL_GROW_MIN) return;
+        walSz = newSz;
+        walAccum += delta;
+
+        // 单次大块兜底
+        if (delta >= WAL_LARGE && walAccum >= WAL_ACCUM_MIN) {
+          if (walSettleTimer) clearTimeout(walSettleTimer);
+          const total = walAccum;
+          walAccum = 0;
+          walSettleTimer = null;
+          _fireWalSettle(total, "大块" + delta + "B");
+          return;
+        }
+
+        // 重置 settle
+        if (walSettleTimer) clearTimeout(walSettleTimer);
+        walSettleTimer = setTimeout(() => {
+          const total = walAccum;
+          walAccum = 0;
+          walSettleTimer = null;
+          if (total < WAL_ACCUM_MIN) {
+            log(
+              "WAL · settle·skip: 累积" +
+                total +
+                "B<" +
+                WAL_ACCUM_MIN +
+                " [pid=" +
+                process.pid +
+                "]",
+            );
+            return;
+          }
+          _fireWalSettle(total, "静默" + WAL_SETTLE_MS + "ms");
+        }, WAL_SETTLE_MS);
+      } catch {}
+    }, WAL_POLL_MS);
+
+    log(
+      "WAL watcher · " +
+        WAL_POLL_MS +
+        "ms · settle=" +
+        WAL_SETTLE_MS +
+        "ms · accum≥" +
+        WAL_ACCUM_MIN +
+        "B · grow≥" +
+        WAL_GROW_MIN +
+        "B · " +
+        walPath,
+    );
+    return timer;
+  } catch (e) {
+    log("WAL watcher install fail: " + (e.message || e));
+    return null;
   }
 }
 
@@ -2623,7 +3123,7 @@ function buildHtml() {
       ? `<span class="iu" title="v2.3.0 使用中锁·自动切号跳·手动不受影响">🔒${inUseSec}s</span>`
       : "";
     const planTag =
-      h.plan && h.plan !== "Trial"
+      h.plan && !_isTrialLike(h)
         ? `<span class="plan-tag">${_esc(h.plan)}</span>`
         : "";
     const claudeOk = isClaudeAvailable(h);
@@ -3354,7 +3854,7 @@ class Engine {
     if (
       this.store.activeApiKey &&
       typeof this.store.activeApiKey === "string" &&
-      this.store.activeApiKey.startsWith("devin-session-token$")
+      RE_SESSION_TOKEN.test(this.store.activeApiKey)
     ) {
       // v2.4.0 · 优先用 registerUser 返回的动态 apiServerUrl (修复 v2.1.1 硬打 codeium 问题)
       const q = await tryFetchPlanStatus(this.store.activeApiKey, {
@@ -4046,7 +4546,10 @@ async function activate(context) {
         if (_store.activeIdx >= 0 && _store.accounts[_store.activeIdx]) {
           const acc = _store.accounts[_store.activeIdx];
           const ah = _store.getHealth(acc.email);
-          if (ah.checked && Math.min(ah.daily, ah.weekly) >= 5) {
+          if (
+            ah.checked &&
+            Math.min(ah.daily, ah.weekly) >= _cfg("autoSwitchThreshold", 5)
+          ) {
             log(
               "startup: 尝试恢复 " +
                 acc.email.substring(0, 20) +
@@ -4266,21 +4769,36 @@ async function activate(context) {
     }, _guardDelay);
     context.subscriptions.push({ dispose: () => clearTimeout(_guardTimer) });
 
-    // v2.5.0 · Layer 6 跨进程文件信号 (上善如水 · 唯一真本源)
-    //   cascade webview 在独立 renderer 进程·写 state.vscdb SQLite
-    //   watch 该文件 mtime/size 变化 (≥10KB 过滤) → 直调 _maybeTrigger
-    //   旧 Layer 1-5 hook + self-test trigger 均已 v2.5 删除
+    // v2.6.3 · 三源共流 · 层层递进 · 必视无遗
+    //   信号① pb·new   : cascade 目录新 .pb 文件 = 新对话 → 立即切号
+    //   信号② pb·send  : 存量 .pb 安静期后增量 = 已有对话用户 send (3s 延迟)
+    //   信号③ wal·send : state.vscdb-wal 增量 = 用户 click Send 后 SQLite 同步写入
+    //                          最直接信号源 · WAL 帧在 HTTP 请求前写入 · 300ms 内可检测
+    //   跨实例声明锁 (L6_CLAIM_DIR) 三信号共用 · 同一 send 事件精确一切
     try {
       _installLayer6FileWatcher(context);
     } catch (e) {
       log("Layer 6 install fail: " + (e.message || e));
+    }
+    // WAL 直达触发 (最底层信号源 · Send 按鈕第一个可观测点)
+    try {
+      if (_cfg("walDetect", true)) {
+        const _walTimer = _installWalWatcher(context);
+        if (_walTimer) {
+          context.subscriptions.push({
+            dispose: () => clearInterval(_walTimer),
+          });
+        }
+      }
+    } catch (e) {
+      log("WAL watcher install fail: " + (e.message || e));
     }
   }
 
   log(
     "WAM v" +
       VERSION +
-      " activated · 道法自然 · 太上下知有之 · Layer 6 直觉切号" +
+      " activated · 道法自然 · 太上下知有之 · settle 模型[pb·new+pb·settle+wal·settle] · 4s 防抖" +
       (_cfg("rotateOnEveryMessage", true) ? " [开]" : " [关]") +
       " · 使用中🔒 " +
       Math.round(_cfg("inUseLockMs", 120000) / 1000) +
@@ -4313,6 +4831,9 @@ module.exports = {
     isWeeklyDrought,
     _buildExpTag, // v2.5.2 · expTag 4 态纯函数
     _isTrialLike, // v2.5.4 · 软编码 trial 判据
+    _resolveGlobalStorageDir, // v2.5.6 · Layer 6 globalStorage 路径
+    _resolveWorkspaceStorageBase, // v2.5.6 · Layer 6 workspaceStorage 路径
+    _resolveCascadePbDir, // v2.5.9 · Layer 6 cascade pb 目录
     buildHtml,
     openEditorPanel,
     parseAccountText,
