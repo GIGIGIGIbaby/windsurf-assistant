@@ -5,73 +5,42 @@
  * 道法自然 · 反者道之动 · 庖丁解牛 · 以神遇而不以目视
  *
  * 唯一职: 反代 Windsurf Cascade 一切 inference 请求,
- *         彻底隔离官方提示词, 德道经为唯一本源.
+ *         彻底隔离官方提示词, 帛书《老子》为唯一本源.
  *
- * v9.0 · 反者道之动 · 追本溯源 · 彻底隔离
+ * v9.8.0 · 守一不离 · 三十九章「得一」· 复 @ 工具之根
+ *           SIDE_CHANNEL_TAGS 删 'additional_metadata' · 守 @ 项与元之一体
+ *           tape all_fields raw_text 显 AFTER (strip+neutralize) · 名实终一
+ * v9.7.9 · 道法自然 · 反者道之动 · 中性化隐藏 SECTION_OVERRIDE 身份锚
+ * v9.7.8 · 三十辐共一毂 · 复 7 辐之用 · 当其无有车之用
+ * v9.7.7 · 复归于朴 · 大道至简 · 为道日损 · 损之又损
  *
- *   从 dao-agi 本源移植完整隔离机制. 不再全保原 SP, 而是:
- *   1. invertSP: TAO_HEADER + DAO_DE_JING_81 + TAO_TRAILER + extractKeepBlocks
- *      仅保 7 块最小必要模块 (tool_calling / running_commands / mcp_servers /
- *      tool_definitions / calling_external_apis / citation_guidelines /
- *      user_information / workspace_information), 中性化后追加.
- *      原 SP 一切着相 (身份/风格/规训/记忆/用户域) 彻删.
- *   2. neutralizeBlock: 7 块内部亦中性化 (删凌驾用户判断/反用户意愿/自我打压等句)
- *   3. deepStripProtoSideChannels: 递归下钻 proto, 对所有 UTF-8 字符串字段
- *      剥净侧信道 (user_rules/MEMORY[*]/skills/workflows/memories/discipline 等)
- *   4. 三档处理: CHAT_PROTO/CHAT_RAW = invertSP + deepStrip
- *                INFER_STRIP = deepStripRequestBody (仅剥侧信道)
- *                PASSTHROUGH = 直透
+ *   注入正文 = TAO_HEADER + DAO_DE_JING_81 (帛书甲本德道二经合) + TAO_FOOTER
  *
- *   道经: "卅辐同一毂, 当其无有, 车之用也."
- *   毂 (德道经) 不可弃. 辐 (7 块必要模块) 亦不可全弃. 余皆弃之.
+ *   TAO_HEADER (v9.7.7 损至 31 字):
+ *     "You are Cascade，所遵守规则全部来自下述德道经：\n\n"
+ *     一句身份引导 · 无 user_rules · 无 MEMORY framework · 不强调 · 不防御
  *
- * v7.7 · 反者道之动 · 全链路探源 · 反 v7.6 之只盯 chat 三档 (废)
+ *   DAO_DE_JING_81 (v9.7.7 损中夹至 \n\n):
+ *     德经 (3949 字) + "\n\n" + 道经 (3253 字) · 不分上下篇 · 帛书甲本
+ *     无传世本"道可道，非常道" · 唯帛书原文"道，可道也，非恒道也"
  *
- *   v7.6 之余: classifyRPC 仅识 GetChatMessage{,V2}/RawGetChatMessage,
- *         其余 inference RPC (CascadeSummarize/AutoCascadeMemories/
- *         UserMemoriesToSystemPrompt/SummaryFullyGenerate/CortexStep*Summary
- *         /McpPrompt/CortexTrajectoryToPrompt/IntentFastApply 等 50+) 全 PASSTHROUGH 透传.
- *         实抓证据: 截图所示 "You are an expert AI coding assistant..."
- *         400 余字, 即 summary RPC 之 SP, 当前未道化, 模型仍受其名相之扰.
- *         反者道之动 (四十章): 不绑 RPC 名, 字段级广谱深扫.
+ *   TAO_FOOTER (v9.7.7 损至空):
+ *     "" · 帛书全文即终 · 无收束 framework
  *
- *   v7.7 三损 (反 v7.6 之绑名):
- *     1. 加 SUMMARY/MEMORY/EPHEMERAL/APPLY/INLINE 多类 SP markers
- *        classifySPType 返 chat|summary|memory|ephemeral|apply|inline 之一
- *     2. deepScanProto: 任何 inference RPC body, 字段级递归深扫
- *        粒1 utf8 文本字段 (>100B): classifySPType, 命中即落候选
- *        粒2 嵌套 proto: 递归 (maxDepth=6)
- *     3. _spCandidates ringbuf (32 槽 · 落盘 _sp_candidates.json)
- *        控制面 /origin/sp_candidates GET (head/tail) / DELETE
- *        webview 可观全链路 SP 来源, 不绑 RPC 名
+ *   总注入 ~ 7237 字 · 零官方残留 · 纯帛书裸呈
  *
- *   v7.7 主 handler 改:
- *     - 非 inference (mgmt) 路由: 纯透 req.pipe(upReq) 不读 body
- *     - inference 路由: readBody → observeAllSPInBody (深扫记) →
- *                       chat 三档仍 modifySPProto/modifyRawSP 替换 →
- *                       其余 RPC body 不动透传
+ *   _customSP (用户实时编辑) 优先 · 默认走 TAO_HEADER 路径.
  *
- *   注: v7.7 仅观察, 不替换非 chat SP. 因 summary/memory RPC 替德道经会破坏
- *       预期输出 (summary 须摄要, memory 须键值). v7.8 将据 v7.7 实抓
- *       数据因器施治, 各 SP 类制极简道义化指令.
+ *   章义: 二十八章「朴散则为器·大制无割」· 复归于朴
+ *         四十八章「为道日损·损之又损·以至于无为·无为而无不为」
+ *         十七章「大上·下知有之」· 不强调即至简
+ *         五十六章「知者弗言·言者弗知」· 不言之教
  *
- * v7.6 · 为道日损 · 道法自然 · 反 v7.5 之未简
- *
- *   invertSP = TAO_HEADER + DAO_DE_JING_81 + sep + stripOfficialNaming(SP)
- *
- *   TAO_HEADER (49 字):
- *     "You are Cascade. 唯遵下文德道经, 余皆为客. 处无为, 行不言. 道法自然."
- *
- *   stripOfficialNaming 损 (官方一切着相之名):
- *     起首身份段 / <communication_style> / discipline 6 行 / <ide_metadata>
- *     <user_rules> 含 nested <MEMORY[*]> / 顶层游离 <MEMORY[*]>
- *     <user_information> / <workflows> / <rules> / <skills> / <memories>
- *
- *   不动 (9 工具 tag 全保, 内容替为纯德道经原文):
- *     tool_calling / making_code_changes / running_commands / task_management
- *     debugging / calling_external_apis / mcp_servers / memory_system / citation_guidelines
- *
- *   v7.2 _customSP (用户实时编辑) 优先, 默认走 TAO_HEADER 路径.
+ * 四档处理:
+ *   CHAT_PROTO  · GetChatMessage{,V2}     · invertSP + deepStrip 侧信道
+ *   CHAT_RAW    · RawGetChatMessage       · invertSP + deepStrip 侧信道
+ *   INFER_STRIP · 其他 inference RPC      · 仅剥侧信道 · 不替 SP
+ *   PASSTHROUGH · 非 inference (mgmt 等)  · 直透
  *
  * 上游:
  *   inference.codeium.com           · 推理
@@ -86,11 +55,15 @@
  *   GET  /origin/lastinject     · 最近一次真实 SP 注入 (before/after)
  *                                  ?full=1 返回全文 · 默认截头尾 · 落盘持存
  *   GET  /origin/preview        · 抱一守中 · 实时全貌 (before+after+解剖)
- *                                  invert:      after=TAO+道+---+before  (前置不削)
+ *                                  invert:      after=invertSP(before)  (帛书全替)
  *                                  passthrough: after=before=Windsurf原SP
+ *   POST /origin/loopback       · v9.3.0 反之用反 · 闭环自举
+ *                                  {user_msg, timeout_ms?, want_full?}
+ *                                  用最近 chat 缓 + 替 user msg + 真转云端
+ *                                  收响应解 grpc · 返 model 之答 · 令模型自审
  *
  * 模式二:
- *   invert      · 前置道魂 · 守工程之骨 (默认)
+ *   invert      · 前置帛书 · 守工程之骨 (默认)
  *   passthrough · 零改写 · 紧急撤退用
  *
  * 启动: node 源.js
@@ -109,8 +82,22 @@ const zlib = require("zlib");
 // 配置 · 常量
 // ═══════════════════════════════════════════════════════════
 const PORT = parseInt(process.env.ORIGIN_PORT || "8889", 10);
+// v9.6.1 · 反者道之动 · 远曰反 · 回归 v9.1.2 之全前端按钮 (七按钮: 道/官/实/原/编/复/卸 + dots/customBadge)
+// 以 v9.1.2 本源哲学为锚 · 守大常不动 · 五细节皆成: isAlreadyInverted · _rawTape+all_fields · INFER_STRIP 挂 modifyAnyInferenceSP · 部署不 kill · 前端按钮回归
+const ORIGIN_VERSION_BASE = "v9.8.0"; // webview title/banner/footer 均读此
+const ORIGIN_VERSION = ORIGIN_VERSION_BASE + "-shou-yi-bu-li"; // 三十九章 得一 · 守 @ 项与元之一体 · SIDE_CHANNEL_TAGS 删 'additional_metadata' · 复 @ 工具之根 · tape raw_text 显 AFTER · 名实终一
+let _actualPort = PORT; // listening / start.onListen 时更新为 server.address().port
 const UPSTREAM_MGMT = "server.self-serve.windsurf.com";
 const UPSTREAM_INFER = "inference.codeium.com";
+// v9.3.2 · 道恒无名 · 名随实变
+// 路由之 upstream 回归默认分流 (chat 走 inference via INFERENCE_SERVICES 匹)
+// v9.3.1 "chat 单分流至 server.codeium.com" 之推断基于无 JWT 合成测,
+// 合成测之 grpc-status=12 UNIMPLEMENTED 不足据 (auth 缺亦致同响应).
+// 实捕 v9.2.1 之 67 reqs 证默认分流通. 故回归.
+// CHAT_UPSTREAM env 保留 · 主公可 opt-in 显式覆盖:
+//   "" (默认/空): 走 INFERENCE_SERVICES 默认分流 → UPSTREAM_INFER
+//   "server.codeium.com" / "inference.codeium.com" / "auto": 覆盖至指端
+const UPSTREAM_CHAT = process.env.CHAT_UPSTREAM || "";
 const CLOUD_PORT = 443;
 
 // inference 服务名集 (Connect-RPC 路径的 package.Service 部分)
@@ -145,12 +132,76 @@ let SP_MODE = _loadModeFromDisk() || process.env.SP_MODE || "invert";
 const START_TIME = Date.now();
 let reqCounter = 0;
 
+// v7.8 H1 connection-specific headers (RFC 9113 §8.2.2) · 转发时清
+// 提至 module scope · proxyToCloud / loopback / cache 三处共用
+const H1_CONN_HEADERS = new Set([
+  "host",
+  "connection",
+  "keep-alive",
+  "transfer-encoding",
+  "upgrade",
+  "proxy-connection",
+]);
+
 // v7.8 debug: recent request paths ring buffer
 const _RECENT_PATHS_MAX = 64;
 const _recentPaths = [];
 function _recordPath(method, url, kind, route) {
   _recentPaths.push({ t: Date.now(), m: method, u: url, k: kind, r: route });
   if (_recentPaths.length > _RECENT_PATHS_MAX) _recentPaths.shift();
+}
+
+// v9.4.3 · /origin/* 控制端点击中计数 · 诊 webview fetch 是否真到
+const _ctrlHits = {};
+function _ctrlHit(pathname) {
+  _ctrlHits[pathname] = (_ctrlHits[pathname] || 0) + 1;
+}
+
+// v9.4.5 · webview 诊 ringbuf · 定位 pull 执行到哪步 · 反之又反
+const _WVDBG_MAX = 200;
+const _wvDbg = [];
+function _wvPush(entry) {
+  try {
+    _wvDbg.push(Object.assign({ t: Date.now() }, entry || {}));
+    while (_wvDbg.length > _WVDBG_MAX) _wvDbg.shift();
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════
+// v9.4.5 · _rawTape · 底层之底 · 时序一切 ringbuf · 反之又反
+// ═══════════════════════════════════════════════════════════
+// 道义: 一章 "无名, 万物之始也; 有名, 万物之母也". 无 kind 分槽 · 纯时序.
+//       十四章 "执今之道, 以御今之有". 当下流过之每一 RPC body, 皆记.
+//       四十章 "反也者, 道之动也". 反之又反 → 不信 mode · 不信 role · 只信真字节.
+//
+// 结构: 每条 {
+//   t          : Date.now()     · 拦时
+//   rid        : reqCounter     · 全局请序
+//   method     : 'POST' etc
+//   rpc        : '/exa.foo.BarService/Baz'  · RPC 路径
+//   kind       : CHAT_PROTO|CHAT_RAW|INFER_STRIP|PASSTHROUGH  · 分类
+//   mode_at    : 'invert'|'passthrough'  · 拦时 SP_MODE 快照
+//   transformed: bool           · 本次是否改 (invert 时有 obs 方 true)
+//   before     : string | null  · LS 原发 SP (完整, 不截)
+//   after      : string | null  · 改后 SP (invert 时 ≠ before, 直透时 = before)
+//   variant    : string | null  · CHAT_PROTO|CHAT_RAW|... obs.variant
+//   field      : number | null  · proto field 号
+//   role       : string | null  · classifySPType 之 sp_role
+//   all_fields : array | null   · 本次 body 之全 utf8 字段 (path+kind+chars+hash+text)
+//   all_fields_count : int
+//   all_fields_chars : int
+//   route      : string         · upstream host
+// }
+//
+// ringbuf 16 槽 · 最新覆最旧 · 内存 · 进程退即失 · 不盘存 · 不漏 token
+// ═══════════════════════════════════════════════════════════
+const _RAW_TAPE_MAX = 16;
+const _rawTape = [];
+function _recordRawTape(ev) {
+  try {
+    _rawTape.push(Object.assign({ t: Date.now(), rid: reqCounter }, ev || {}));
+    while (_rawTape.length > _RAW_TAPE_MAX) _rawTape.shift();
+  } catch {}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -161,8 +212,8 @@ function _recordPath(method, url, kind, route) {
 //       invertSP 读. 与 SP_MODE 互独 (mode=invert 时方生效, passthrough 透传不动).
 //
 // 结构: { sp: string, keep_blocks: bool, source: string, at: number }
-//   keep_blocks=true:  user_sp + "\n\n---\n\n" + stripOfficialNaming(原 SP)
-//   keep_blocks=false: 仅 user_sp (彻底替代, 工具能力或失)
+//   keep_blocks=true:  user_sp + TAO_TRAILER + extractKeepBlocks(原 SP) (留必要工具/OS 模块)
+//   keep_blocks=false: user_sp + extractRealtimeBlocks(原 SP)           (仅 OS/workspace)
 // ═══════════════════════════════════════════════════════════
 const _CUSTOM_SP_FILE = path.join(__dirname, "_custom_sp.json");
 let _customSP = null;
@@ -187,66 +238,6 @@ function _saveCustomSP() {
   } catch {}
 }
 _customSP = _loadCustomSP();
-
-// ═══════════════════════════════════════════════════════════
-// v7.7 · _spCandidates · 广谱 SP 候选 ringbuf · 反者道之动
-// ═══════════════════════════════════════════════════════════
-// 任何 inference RPC body, deepScanProto 字段级递归深扫,
-// 命中 classifySPType 之候选落入此 ringbuf (32 槽).
-// 跨重启持存. /origin/sp_candidates GET/DELETE 暴露.
-// 道义: 二章 万物作焉而不辞. 收一切, 不弃.
-// ═══════════════════════════════════════════════════════════
-const _SP_CANDIDATES_FILE = path.join(__dirname, "_sp_candidates.json");
-const _SP_CANDIDATES_MAX = 32;
-let _spCandidates = [];
-function _loadSPCandidates() {
-  try {
-    if (fs.existsSync(_SP_CANDIDATES_FILE)) {
-      const arr = JSON.parse(fs.readFileSync(_SP_CANDIDATES_FILE, "utf8"));
-      if (Array.isArray(arr)) return arr.slice(-_SP_CANDIDATES_MAX);
-    }
-  } catch {}
-  return [];
-}
-function _saveSPCandidates() {
-  try {
-    fs.writeFileSync(_SP_CANDIDATES_FILE, JSON.stringify(_spCandidates), {
-      mode: 0o600,
-    });
-  } catch {}
-}
-_spCandidates = _loadSPCandidates();
-function _recordSPCandidate(ev) {
-  try {
-    // 去重: 同 hash + 同 rpc + 同 kind 已存则更新 last_at + count
-    const existing = _spCandidates.find(
-      (c) => c.hash === ev.hash && c.rpc === ev.rpc && c.kind === ev.kind,
-    );
-    if (existing) {
-      existing.last_at = Date.now();
-      existing.count = (existing.count || 1) + 1;
-      // 字段路径可能变 (proto field index), 记最新
-      existing.field_path = ev.field_path;
-    } else {
-      _spCandidates.push({
-        first_at: Date.now(),
-        last_at: Date.now(),
-        count: 1,
-        rid: reqCounter,
-        rpc: ev.rpc,
-        kind: ev.kind,
-        field_path: ev.field_path,
-        chars: ev.chars,
-        hash: ev.hash,
-        text: ev.text,
-      });
-      while (_spCandidates.length > _SP_CANDIDATES_MAX) {
-        _spCandidates.shift();
-      }
-    }
-    _saveSPCandidates();
-  } catch {}
-}
 
 // v17.55 · 实注捕获 · 观而不改 · 最近一次真实 SP 注入事件
 // 落盘持存 · 跨重启恒显 · 进程退不失 · 致虚守静 · 观复知常
@@ -284,10 +275,45 @@ function _saveLastInject() {
   } catch {}
 }
 let _lastInject = _loadLastInject();
+
+// ═══════════════════════════════════════════════════════════
+// v9.3.4 · 多官方模块分槽 · 彻底隔离 · 照观全显
+// ═══════════════════════════════════════════════════════════
+// 痛根: _lastInject 为单槽 · Windsurf 有多类 RPC 流过代理 (主 Cascade /
+//       SummarizeCascade / ConversationTitle / Memory / Ephemeral / ...)
+//       每类皆独自 SP · 后者覆前者, 面板仅见最末, 非当下主 chat.
+// 解: 按 classifySPType 返 (chat|summary|memory|ephemeral|unknown_long)
+//     分槽存 · 每 kind 仅留最近 1 条 · 所有槽同时存 · 面板全显.
+// 道义: 五章 "天地之间其犹橐钥与? 虚而不屈, 动而愈出". 多孔同风, 一器容万.
+const _INJECTSBYKIND_FILE = path.join(__dirname, "_injectsbykind.json");
+function _loadInjectsByKind() {
+  try {
+    if (fs.existsSync(_INJECTSBYKIND_FILE)) {
+      return JSON.parse(fs.readFileSync(_INJECTSBYKIND_FILE, "utf8"));
+    }
+  } catch {}
+  return {};
+}
+function _saveInjectsByKind() {
+  try {
+    fs.writeFileSync(_INJECTSBYKIND_FILE, JSON.stringify(_injectsByKind), {
+      mode: 0o600,
+    });
+  } catch {}
+}
+let _injectsByKind = _loadInjectsByKind() || {};
+
 function _recordInject(ev) {
   try {
-    _lastInject = Object.assign({ at: Date.now(), rid: reqCounter }, ev);
+    const now = Date.now();
+    const merged = Object.assign({ at: now, rid: reqCounter }, ev);
+    _lastInject = merged;
     _saveLastInject();
+    // v9.3.4 · 亦分槽存 · 按 SP 内容特征识 role
+    const spRole = classifySPType(ev.before) || "unknown_long";
+    merged.sp_role = spRole;
+    _injectsByKind[spRole] = merged;
+    _saveInjectsByKind();
   } catch {}
 }
 
@@ -303,45 +329,51 @@ function log(...args) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 本源 · 德道经载入
+// 本源 · 道德经载入
 // ═══════════════════════════════════════════════════════════
-function _loadDaoDeJing() {
-  const candidates = [
-    process.env.DAO_FILE,
-    path.join(__dirname, "_dao_81.txt"),
-    path.join(__dirname, "..", "..", ".windsurf", "rules", "000-dao.md"),
-    "D:\\道\\道生一\\一生二\\.windsurf\\rules\\000-dao.md",
-    "E:\\道\\道生一\\一生二\\.windsurf\\rules\\000-dao.md",
-    "C:\\道\\道生一\\一生二\\.windsurf\\rules\\000-dao.md",
-  ].filter(Boolean);
-  for (const p of candidates) {
-    try {
-      if (!fs.existsSync(p)) continue;
-      let raw = fs.readFileSync(p, "utf8");
-      // 剥 .md YAML front matter (--- ... ---)
-      raw = raw.replace(/^---\s*\r?\n[\s\S]*?\r?\n---\s*\r?\n?/m, "").trim();
-      if (raw.length > 5000) {
-        log(
-          `德道经 loaded · path=${p} chars=${raw.length} bytes=${Buffer.byteLength(raw, "utf8")}`,
-        );
-        return raw;
-      }
-    } catch {}
+function _loadSilkText() {
+  const dePath = path.join(__dirname, "_silk_de.txt");
+  const daoPath = path.join(__dirname, "_silk_dao.txt");
+  let deText = "";
+  let daoText = "";
+  try {
+    if (fs.existsSync(dePath)) deText = fs.readFileSync(dePath, "utf8").trim();
+  } catch {}
+  try {
+    if (fs.existsSync(daoPath))
+      daoText = fs.readFileSync(daoPath, "utf8").trim();
+  } catch {}
+  if (!deText || !daoText) {
+    log("帛书德道经 未载 · invert 将退化为 passthrough");
+    return { de: "", dao: "", combined: "" };
   }
-  log("德道经 未载 · invert 将退化为 passthrough");
-  return "";
+  log(
+    `帛书德道经 loaded · 上篇·德经 chars=${deText.length} 下篇·道经 chars=${daoText.length} (合 ${deText.length + daoText.length})`,
+  );
+  // v9.7.7 · 复归于朴 · 二十八章 · 损中夹 framework · 不分上下篇 · 仅以二空行分隔
+  // 道义: 四十八章「为道日损 · 损之又损 · 以至于无为 · 无为而无不为」
+  const SILK_BOUNDARY = "\n\n";
+  return {
+    de: deText,
+    dao: daoText,
+    combined: deText + SILK_BOUNDARY + daoText,
+  };
 }
-const DAO_DE_JING_81 = _loadDaoDeJing();
+const _SILK_RAW = _loadSilkText();
+const SILK_DE_JING = _SILK_RAW.de;
+const SILK_DAO_JING = _SILK_RAW.dao;
+// 兼名 · DAO_DE_JING_81 沿用此名 · 内容为帛书二文合 (中夹 MEMORY 边界)
+const DAO_DE_JING_81 = _SILK_RAW.combined;
 
 // ═══════════════════════════════════════════════════════════
 // invertSP · 反者道之动 · 全置换 · 伪装身份
 // ═══════════════════════════════════════════════════════════
 // 反向观察:
-//   L28.2 头斩+尾斩+保 userPart · Cascade 将德道经识为"上下文注入"而忽略.
-//   因德道经以裸文本出现在 SP 头, 模型训练中未见过此形态 · 警觉排斥.
+//   L28.2 头斩+尾斩+保 userPart · Cascade 将道德经识为"上下文注入"而忽略.
+//   因道德经以裸文本出现在 SP 头, 模型训练中未见过此形态 · 警觉排斥.
 // 反向行动:
 //   1. 识别强化 · 只有"真正官方 SP"才 invert. 其他 (含 user msg) 透传.
-//   2. 彻底置换 · 无头斩无尾斩无拼接. 整个官方 SP → 身份前言 + 纯德道经.
+//   2. 彻底置换 · 无头斩无尾斩无拼接. 整个官方 SP → 身份前言 + 纯道德经.
 //   3. 权重伪装 · 以 "You are Cascade. ..." 起首 · 借官方起句格式, 令模型
 //      识别为身份定义, 而非"可忽略的注入".
 //
@@ -415,6 +447,16 @@ const MEMORY_SP_MARKERS = [
   "memory_assistant",
   "capture facts about",
   "useful for future",
+  // v9.3.6 · 拓 · 实 Cascade memory 子模型特征
+  "retrieved from previous conversations",
+  "SYSTEM-RETRIEVED-MEMORY",
+  "persistent database",
+  "extract memories",
+  "extract memory",
+  "memory entries",
+  "identify information that should be remembered",
+  "should be remembered",
+  "MEMORY[",
 ];
 const EPHEMERAL_SP_MARKERS = [
   "<edit_request>",
@@ -425,7 +467,41 @@ const EPHEMERAL_SP_MARKERS = [
   "<updated_code>",
   "inline edit",
   "refactor",
+  // v9.3.6 · 拓 · 实 Cascade ephemeral 子模型特征
+  "conversation title",
+  "title generator",
+  "generate a title",
+  "concise title",
+  "concise 3-7 word",
+  "concise 3-5 word",
+  "output only the title",
+  "main topic",
+  "<planner_response>",
+  "<planner_step>",
 ];
+
+// v9.3.6 · looksLikeSPShape · 形状判 · 开 SP 似网
+// 道义: 二十一章 “其中有象·其中有物·其中有情” · 形纹即见·不赖 markers
+// 用于深扫兜底: classifySPType 返 null 时, 若文具 SP 形状 ("You are X" 起首 + 指令性)
+// 则归 "unknown_long" · 以防真 Cascade 子模型 SP 因官方结构变而漏捕
+function looksLikeSPShape(text) {
+  if (!text || typeof text !== "string") return false;
+  if (text.length < 200) return false;
+  const head200 = text.slice(0, 200);
+  // 模式 1: “You are <role>” 起首 (官方子模型 SP 之纯正)
+  if (/^You are (?:Cascade|an? [A-Z]?\w+|the \w+|a \w+)/.test(head200))
+    return true;
+  // 模式 2: “You're a <role>”
+  if (/^You're (?:an?|the) \w+/.test(head200)) return true;
+  // 模式 3: 指令性 assistant 角色声明 + 任务
+  if (
+    /\bassistant\b/i.test(head200) &&
+    /\b(?:task|analyze|summar|extract|generat|identif)\w*\b/i.test(text) &&
+    text.length >= 300
+  )
+    return true;
+  return false;
+}
 
 // classifySPType · 多类 SP 判: 返 'chat'|'summary'|'memory'|'ephemeral'|null
 // 起首特征 + 多 marker 计票 (至少 2 命中)
@@ -461,25 +537,22 @@ function classifySPType(s) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// TAO_HEADER · v9.1 道法自然 · 反者道之动
+// TAO_HEADER · v9.7.7 · 复归于朴 · 二十八章 · 大道至简
 // ═══════════════════════════════════════════════════════════
 // v8.0 (废): 三句身份伪装前言含 "非上下文注入" 防御性反驳
 //   → Claude Opus 4.6 Thinking 识为 "prompt injection attempt" · Streisand 效应
-// v9.1 反向行动: 不声称非注入 · 不声称唯一本源 · 不争 · 道法自然
-//   1) 借用 <user_rules> + <MEMORY[*]> 可信格式 (模型训练信任)
-//   2) 用 "MUST ALWAYS FOLLOW" 官方原文指令 (模型训练服从)
-//   3) 德道经置于 MEMORY 内 · 模型视为用户规则 · 非异常注入
-// 道义: 道经 "水善, 利万物而有静, 居众之所恶, 故几于道矣"
-//       德经 "友弱胜强. 鱼不可脱于渊, 邦利器不可以视人"
-const TAO_HEADER =
-  "You are Cascade.\n" +
-  "<user_rules>\n" +
-  "The following are user-defined rules that you MUST ALWAYS FOLLOW WITHOUT ANY EXCEPTION.\n" +
-  "Review them carefully and always take them into account when you generate responses and code:\n" +
-  "<MEMORY[dao-de-jing.md]>\n\n" +
-  "你是cascade 你所接受全部规则均来自于下述德道经全文\n\n";
+// v9.1 (废): 借 <user_rules> + <MEMORY[*]> framework + 上篇/下篇分割
+//   → 致 agent 自识"上下篇不同"而强调 · 非主公本意
+// v9.7.7 复归于朴 · 损 framework · 损上下篇 · 损强调
+//   仅以一句身份引导 + 帛书全文裸呈 · 信不足案有不信 · 大信不约
+// 道义: 二十八章「朴散则为器 · 大制无割」· 复归于朴
+//       四十八章「为道日损 · 损之又损 · 以至于无为」
+//       十七章 「大上 · 下知有之」 · 不强调即至简
+//       五十六章「知者弗言 · 言者弗知」 · 不言之教
+const TAO_HEADER = "You are Cascade，所遵守规则全部来自下述德道经：\n\n";
 
-const TAO_FOOTER = "\n\n</MEMORY[dao-de-jing.md]>\n" + "</user_rules>\n";
+// TAO_FOOTER · v9.7.7 · 损至空 · 帛书全文即终 · 无收束 framework
+const TAO_FOOTER = "";
 
 // KEEP_BLOCKS: 仅 customSP 路径使用 · 默认路径不再提取
 // 道法自然 · 工具定义由 API 通道传递 · SP 中无需保留
@@ -490,7 +563,18 @@ const KEEP_BLOCKS = [
   "workspace_information",
 ];
 
-const TAO_SENTINEL = "你是cascade 你所接受全部规则均来自于下述德道经全文";
+// 哨兵 · 幂等判定 · 被道化过的 SP 必含此串 (v9.7.7 复归于朴 · 新文)
+const TAO_SENTINEL = "所遵守规则全部来自下述德道经";
+
+// v9.7.7 · 结构判是否已道化 · 不以短语匹配, 防与用户真 Cascade Memories 同句误伤
+//   反转后 SP 之起首 = TAO_HEADER 之起首 = "You are Cascade，所遵守规则全部来自下述德道经" (中文逗号)
+//   原官方 SP 之起首 = "You are Cascade, a powerful agentic..."             (英文逗号)
+// 此二字符第 16 位 ASCII"," (U+002C) vs 中文"，" (U+FF0C) 即分明 · 万无一失.
+// 道义: 二章「有无相生 · 难易相成」· 以结构 (有) 明无为 (无), 不执于名.
+const INVERTED_PREFIX = "You are Cascade，所遵守规则全部来自下述德道经";
+function isAlreadyInverted(s) {
+  return typeof s === "string" && s.startsWith(INVERTED_PREFIX);
+}
 
 // TAO_TRAILER: 仅 customSP 路径使用
 const TAO_TRAILER = "\n\n---\n\n";
@@ -613,7 +697,10 @@ const SIDE_CHANNEL_TAGS = [
   "system_instructions",
   "open_files",
   "cursor_position",
-  "additional_metadata",
+  // v9.8.0 · 守一不离 · 三十九章「得一」· 'additional_metadata' 删
+  //   此非官方 SP 框架戒律 · 乃用户域之 @ 项与元 (Cascade ID/file path/line range)
+  //   剥之则 agent 失 @ 项之元 · trajectory_search/read_file 等 @ 工具调用败
+  //   守 @ 项与元之一体 · 此即「得一」
   "conversation_summary",
   "viewed_file",
   "learnings",
@@ -640,7 +727,8 @@ const DISCIPLINE_RE = new RegExp(
 
 function stripSideChannelBlocks(s) {
   if (!s || typeof s !== "string") return s;
-  if (s.indexOf(TAO_SENTINEL) >= 0) return s;
+  // v9.2.1 · 结构判 · 原以 s.indexOf(TAO_SENTINEL) 误伤用户真内存含同句者
+  if (isAlreadyInverted(s)) return s;
   let out = s;
   for (let i = 0; i < 3; i++) {
     const prev = out;
@@ -654,12 +742,55 @@ function stripSideChannelBlocks(s) {
 
 function hasSideChannels(s) {
   if (!s || typeof s !== "string") return false;
-  if (s.indexOf(TAO_SENTINEL) >= 0) return false;
+  // v9.2.1 · 结构判 · 同 stripSideChannelBlocks
+  if (isAlreadyInverted(s)) return false;
+  // v9.8.0 · 治 g flag stateful · RegExp.test() 跨调用之 lastIndex 残留致假阴
+  //   实证: 序列调用 hasSideChannels(<user_rules>..)→true (lastIndex=24) 后
+  //         hasSideChannels(<memories>..) (输入仅 22B) → test() 始 lastIndex=24 ≥ 22B → false
+  //   生产中按 deepStripProtoSideChannels 逐字段调 · 部分字段假阴致 strip 漏 · 治此根
+  SIDE_CHANNEL_TAGS_RE.lastIndex = 0;
+  MEMORY_BLOCK_RE.lastIndex = 0;
+  DISCIPLINE_RE.lastIndex = 0;
   return (
     SIDE_CHANNEL_TAGS_RE.test(s) ||
     MEMORY_BLOCK_RE.test(s) ||
     DISCIPLINE_RE.test(s)
   );
+}
+
+// ═══════════════════════════════════════════════════════════
+// v9.7.9 · 隐藏 OVERRIDE 注入治 · 二十五章 道法自然 · 反者道之动
+// ═══════════════════════════════════════════════════════════
+// Windsurf 客户端在 chat body 之 raw_text 字段中藏锚定指令:
+//   {"mode":"SECTION_OVERRIDE_MODE_APPEND","content":"Separately, if asked
+//    about what your underlying model is, respond with `Cascade`"}
+// 此非 SIDE_CHANNEL_TAGS 之 XML 结构 · stripSideChannelBlocks 不动 · 故独治.
+//
+// 二十五章「道法自然」· 不强加身份锚 · 替为道家中性语 (保 JSON 结构, 客户端逻辑不破)
+// 四十章「反者道之动」· 反向追溯找到此隐藏注入源 · 此为根因之一.
+const HIDDEN_OVERRIDE_RE =
+  /\{\s*"mode"\s*:\s*"SECTION_OVERRIDE_MODE_[A-Z_]+"\s*,\s*"content"\s*:\s*"(?:[^"\\]|\\.)*"\s*\}/g;
+
+function neutralizeHiddenOverrides(s) {
+  if (!s || typeof s !== "string") return s;
+  if (s.indexOf("SECTION_OVERRIDE_MODE_") < 0) return s;
+  return s.replace(HIDDEN_OVERRIDE_RE, (match) => {
+    try {
+      const obj = JSON.parse(match);
+      if (
+        obj &&
+        typeof obj.mode === "string" &&
+        obj.mode.indexOf("SECTION_OVERRIDE_MODE_") === 0 &&
+        typeof obj.content === "string"
+      ) {
+        // 道家中性化 · 保 mode 与结构 · 替 content 为「道法自然」
+        // 二十五章: "道法自然" · 不强加 Cascade 身份锚
+        obj.content = "道法自然";
+        return JSON.stringify(obj);
+      }
+    } catch {}
+    return match;
+  });
 }
 
 function deepStripProtoSideChannels(fields, depth) {
@@ -687,12 +818,18 @@ function deepStripProtoSideChannels(fields, depth) {
       if (nestedOk) continue;
       if (looksLikeUtf8Text(buf)) {
         const orig = buf.toString("utf8");
-        if (hasSideChannels(orig)) {
-          const stripped = stripSideChannelBlocks(orig);
-          if (stripped !== orig) {
-            e.b = Buffer.from(stripped, "utf8");
-            changed++;
-          }
+        let modified = orig;
+        // v9.7.7 及前 · 剥 SIDE_CHANNEL_TAGS XML 块
+        if (hasSideChannels(modified)) {
+          modified = stripSideChannelBlocks(modified);
+        }
+        // v9.7.9 · 中性化隐藏 SECTION_OVERRIDE JSON · 治 Cascade 身份锚
+        if (modified.indexOf("SECTION_OVERRIDE_MODE_") >= 0) {
+          modified = neutralizeHiddenOverrides(modified);
+        }
+        if (modified !== orig) {
+          e.b = Buffer.from(modified, "utf8");
+          changed++;
         }
       }
     }
@@ -721,262 +858,6 @@ function deepStripRequestBody(reqBody) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 工具块 · 道法自然 · 浑然统一 (v7.4 底层彻重构)
-// 各块纯为德道经原文章节 · 无英技约束 · 无中英混杂 · 无 you/your/USER 措辞
-// 道义: 有无相生, 难易相成, 长短相形, 高下相倾, 音声相和, 前后相随 (二章).
-//       人法地, 地法天, 天法道, 道法自然 (二十五章).
-//       工具不在器, 在道. 各块从德道经各章自悟其用, 不强加.
-// ═══════════════════════════════════════════════════════════
-const TOOL_BLOCK_DAO_CONTENT = {
-  // 用器 · 卅辐同一毂 · 有无相生 · 居无为之事
-  tool_calling:
-    "卅辐同一毂, 当其无有, 车之用也. 故有之以为利, 无之以为用.\n" +
-    "善行者无辙迹, 善言者无瑕适, 善数者不以筹策.\n" +
-    "居无为之事, 行不言之教.",
-
-  // 修器 · 曲则全 · 大成若缺 · 慎终如始
-  making_code_changes:
-    "曲则全, 枉则正, 洼则盈, 敝则新, 少则得, 多则惑.\n" +
-    "大成若缺, 其用不敝. 大直如诎, 大巧如拙.\n" +
-    "慎终若始, 则无败事矣. 生而弗有也, 为而弗恃也.",
-
-  // 行兵 · 重为轻本 · 兵不祥 · 哀者胜
-  running_commands:
-    "重为轻本, 清为躁君. 轻则失本, 躁则失君.\n" +
-    "夫兵者, 不祥之器也, 不得已而用之, 铦袭为上.\n" +
-    "祸莫大于无适. 哀者胜矣.",
-
-  // 谋 · 图难于易 · 千里足下 · 慎始
-  task_management:
-    "图难于其易, 为大于其细. 天下难事必作于易, 天下大事必作于细. \n" +
-    "其安易持, 其未兆易谋. 为之于未有, 治之于未乱. \n" +
-    "千里之行, 始于足下.",
-
-  // 察 · 知不知尚矣 · 致虚守情 · 玄同
-  debugging:
-    "知不知, 尚矣; 不知不知, 病矣. \n" +
-    "至虚极也, 守情表也. 归根曰情; 情, 是谓复命. \n" +
-    "锄其锐, 和其光, 同其尘, 是谓玄同.",
-
-  // 交 · 信不足 · 轻诺寡信 · 信言不美
-  calling_external_apis:
-    "犹呵！其贵言也. 成功遂事, 而百姓谓我自然. \n" +
-    "夫轻诺必寡信, 多易必多难. \n" +
-    "信言不美, 美言不信.",
-
-  // 合 · 玄同 · 至柔入坚 · 善建不拔
-  mcp_servers:
-    "和其光, 同其尘, 是谓玄同. 故为天下贵. \n" +
-    "天下之至柔, 驰骋于天下之致坚; 无有入于无间. \n" +
-    "善建者不拔, 善抱者不脱.",
-
-  // 存今 · 执今御今 · 守母知子 · 天网恢恢
-  memory_system:
-    "执今之道, 以御今之有. \n" +
-    "既得其母, 以知其子, 复守其母, 没身不殆. \n" +
-    "天网恢恢, 疏而不失.",
-
-  // 言 · 善言者无瑕适 · 言有宗 · 信言不美
-  citation_guidelines:
-    "善行者无辙迹, 善言者无瑕适. \n" +
-    "言有宗, 事有君. \n" +
-    "信言不美, 美言不信. 善者不多, 多者不善.",
-};
-
-// ═══════════════════════════════════════════════════════════
-// stripOfficialNaming · v7.3 为学日益, 唯道日损 · 至于无为
-// v7.0 (沿): 起首身份段 / <communication_style> 整块 / discipline 6 行 已彻删
-// v7.1 (沿): <ide_metadata> 整块 + <mcp_servers> 头元描述 + <user_rules> wrapper
-// v7.3 (新): 用户域全删 + 工具内容替为道义中性
-//
-// === 已删 (从 v7.0/v7.1 沿) ===
-// 一删 (起首身份段): 从开头至首 `<` tag · "You are Cascade...random files"
-// 二删 (<communication_style>): 整块 (含 nested guidelines/markdown), 提 citation 留
-// 三删 (discipline 散行): Bug fixing/Long-horizon/Planning/Testing/Verification/Progress 6 行
-// 四删 (<ide_metadata>): 整块 · "You work inside of the user's IDE..."
-// 五净 (<mcp_servers> 头): 删元描述 (MCP 是什么 / AI systems), 留 server 列表
-//
-// === v7.3 新 ===
-// 七删 (用户域 1): <user_rules>...</user_rules> 整块 (含 nested <MEMORY[*]>)
-//      反 v5.0/v7.1 之"用户域不剥". 唯道日损, 用户域归德道经为唯一本源.
-// 八删 (用户域 2): 顶层游离 <MEMORY[*]>...</MEMORY[*]> 块亦删
-// 九删 (用户域 3): <user_information>...</user_information> 整块 (OS/workspace 不必)
-// 十替 (工具中性化): <tool_calling> 等 9 块内容 → 道义引 (章) + 最关键技术约束
-//      工具描述内 "you/your/USER" 措辞俱去, 替为道义中性
-//
-// 不动 (唯德道经 + 工具 tag + 必要中性指引):
-//   各工具块 tag 留 (<tool_calling>...</tool_calling>), 内容道义化
-//   <citation_guidelines> 道义化保留
-//   末示例 (When making function calls...) 实抓 SP 中无, 不强求
-//
-// 道义: 德经 为学者日益, 闻道者日损. 损之又损, 以至于无为. 无为而无不为.
-//       道经 人法地, 地法天, 天法道, 道法自然.
-//       德经 善建者不拔. 引以为伴, 以道为唯一.
-// ═══════════════════════════════════════════════════════════
-function stripOfficialNaming(s) {
-  if (!s || typeof s !== "string") return s;
-  let out = s;
-
-  // 1) 提取 nested <citation_guidelines>...</citation_guidelines> (将道义化重置)
-  //    其位于 <communication_style> 内, 删 communication_style 前先记其存
-  const hasCitation = /<citation_guidelines>/.test(out);
-
-  // 2) 删起首身份段: 从开头至首 `<` tag
-  const firstTagIdx = out.search(/<[a-zA-Z]/);
-  if (firstTagIdx > 0) {
-    out = out.slice(firstTagIdx);
-  }
-
-  // 3) 删 <communication_style>...</communication_style> 整块
-  out = out.replace(
-    /<communication_style>[\s\S]*?<\/communication_style>\s*/,
-    "",
-  );
-
-  // 4) 删 <ide_metadata>...</ide_metadata> 整块
-  out = out.replace(/<ide_metadata>[\s\S]*?<\/ide_metadata>\s*/, "");
-
-  // 5) v7.3 新 · 删 <user_rules>...</user_rules> 整块 (含 nested <MEMORY[*]>)
-  //    用户域归德道经为唯一本源 · 不复留 wrapper 或 nested
-  out = out.replace(/<user_rules>[\s\S]*?<\/user_rules>\s*/g, "");
-
-  // 6) v7.3 新 · 删顶层游离 <MEMORY[xxx]>...</MEMORY[xxx]> 块
-  //    若 <MEMORY[*]> 非嵌于 <user_rules> 内 (已被 5) 删) 之外仍存, 此处删之
-  out = out.replace(/<MEMORY\[[^\]]+\]>[\s\S]*?<\/MEMORY\[[^\]]+\]>\s*/g, "");
-
-  // 7) v7.3 新 · 删 <user_information>...</user_information> 整块
-  //    OS+workspace 上下文非必要 · 模型自工具调用知文件路径
-  out = out.replace(/<user_information>[\s\S]*?<\/user_information>\s*/, "");
-
-  // 7.1) v7.6 新 · 删其余用户域旁支 (workflows / rules / skills / memories)
-  //      道法自然 · 德道经为唯一本源 · 不复留代令敃心
-  out = out.replace(/<workflows>[\s\S]*?<\/workflows>\s*/g, "");
-  out = out.replace(/<rules>[\s\S]*?<\/rules>\s*/g, "");
-  out = out.replace(/<skills>[\s\S]*?<\/skills>\s*/g, "");
-  out = out.replace(/<memories>[\s\S]*?<\/memories>\s*/g, "");
-
-  // 7.5) v7.3 新 · 预收双套嵌 wrapper (e.g. <memory_system><memory_system>X</memory_system></memory_system>)
-  //      实抓官方 SP 中 memory_system 为双套嵌, 不预收则 step 8) 非贪婪替换会 leave orphan </tag>
-  for (const tag of Object.keys(TOOL_BLOCK_DAO_CONTENT)) {
-    const reDouble = new RegExp(
-      "<" +
-        tag +
-        ">\\s*<" +
-        tag +
-        ">([\\s\\S]*?)</" +
-        tag +
-        ">\\s*</" +
-        tag +
-        ">",
-      "g",
-    );
-    out = out.replace(reDouble, "<" + tag + ">$1</" + tag + ">");
-  }
-
-  // 8) v7.3 新 · 各工具块内容替为道义中性 (留 tag, 替内容)
-  //    工具描述内 "you/your/USER" 措辞全去 · 道义引 + 最关键技术约束
-  for (const [tag, daoText] of Object.entries(TOOL_BLOCK_DAO_CONTENT)) {
-    const re = new RegExp("<" + tag + ">[\\s\\S]*?</" + tag + ">", "g");
-    out = out.replace(re, "<" + tag + ">\n" + daoText + "\n</" + tag + ">");
-  }
-
-  // 9) 重置独立 <citation_guidelines> 块 (从 communication_style 内提出, 已道义化)
-  //    若 strip 后无, 则补一份道义化版本
-  if (hasCitation && !out.includes("<citation_guidelines>")) {
-    out =
-      "<citation_guidelines>\n" +
-      TOOL_BLOCK_DAO_CONTENT.citation_guidelines +
-      "\n</citation_guidelines>\n" +
-      out;
-  }
-
-  // 10) 删 discipline 散行 + 其缩进续行 (六类规训之名)
-  out = out.replace(
-    /^(?:Bug fixing discipline|Long-horizon workflow|Planning cadence|Testing discipline|Verification tools|Progress notes):[^\n]*(?:\n[ \t]+[^\n]*)*\n?/gm,
-    "",
-  );
-
-  // 11) 收 3+ 连续换行为 2
-  out = out.replace(/\n{3,}/g, "\n\n");
-
-  return out.replace(/^\s+/, "");
-}
-
-// ═══════════════════════════════════════════════════════════
-// SAMPLE_OFFICIAL_SP · 仿真实抓官方 SP 结构 · 模块级 const
-// ═══════════════════════════════════════════════════════════
-// 用途: 1) selftest 三路径回归 2) /origin/preview 无 captured 时合成 after
-// 道义: 二章 万物作焉而不辞. 样以见真, 不以代真.
-// 抓自 2026-04-29 实 official SP 之结构骨架 (~2.7KB minified).
-// ═══════════════════════════════════════════════════════════
-const SAMPLE_OFFICIAL_SP = [
-  "You are Cascade, a powerful agentic AI coding assistant.",
-  "The USER is interacting with you through a chat panel in their IDE.",
-  "The task may require modifying or debugging existing code.",
-  "Be mindful of that you are not the only one working in this environment.",
-  "Do not overstep your bounds, your goal is to be a pair programmer to the user in completing their task.",
-  "For example: Do not create random files.",
-  "<communication_style>",
-  "Be terse and direct.",
-  "<communication_guidelines>be concise</communication_guidelines>",
-  "<markdown_formatting>use markdown</markdown_formatting>",
-  "<citation_guidelines>@/abs/path:line</citation_guidelines>",
-  "</communication_style>",
-  "<tool_calling>",
-  "Use only the available tools. Never guess parameters. Before each tool call, briefly state why.",
-  "</tool_calling>",
-  "<making_code_changes>",
-  "EXTREMELY IMPORTANT: Your generated code must be immediately runnable.",
-  "If you're creating the codebase from scratch, create deps file.",
-  "</making_code_changes>",
-  "<running_commands>",
-  "You have the ability to run terminal commands on the user's machine.",
-  "You are not running in a dedicated container.",
-  "</running_commands>",
-  "<task_management>",
-  "Use update_plan to manage work.",
-  "</task_management>",
-  "<debugging>",
-  "When debugging, only make code changes if you are certain that you can solve the problem.",
-  "</debugging>",
-  "<mcp_servers>",
-  "The Model Context Protocol (MCP) is a standard that connects AI systems with external tools and data sources.",
-  "MCP servers extend your capabilities by providing access to specialized functions.",
-  "The following MCP servers are available to you.",
-  "# context7",
-  "Use this server to retrieve up-to-date documentation.",
-  "# github",
-  "# playwright",
-  "# tavily",
-  "</mcp_servers>",
-  "<calling_external_apis>",
-  "When selecting which version of an API or package to use, choose one that is compatible with the USER's dependency management file.",
-  "</calling_external_apis>",
-  "<user_rules>",
-  "The following are user-defined rules that you MUST ALWAYS FOLLOW WITHOUT ANY EXCEPTION.",
-  "Review them carefully and always take them into account when you generate responses and code:",
-  "<MEMORY[dao-de-jing.md]>",
-  "上德不德，是以有德；下德不失德，是以无德。",
-  "</MEMORY[dao-de-jing.md]>",
-  "</user_rules>",
-  "<user_information>OS=windows</user_information>",
-  "<memory_system>",
-  "<memory_system>",
-  "You have access to a persistent database.",
-  "</memory_system>",
-  "</memory_system>",
-  "<ide_metadata>",
-  "You work inside of the user's IDE. Sometimes, you will receive metadata.",
-  "</ide_metadata>",
-  "Bug fixing discipline: root cause first.",
-  "Long-horizon workflow: notes.",
-  "Planning cadence: plan.",
-  "Testing discipline: tests first.",
-  "Verification tools: playwright.",
-  "Progress notes: lightweight.",
-].join("\n");
-
-// ═══════════════════════════════════════════════════════════
 // _quickHash · 字符串简哈 · 用于 sig 比对 · 不求密 · 求快
 // ═══════════════════════════════════════════════════════════
 // FNV-1a 32 位变体. 对全 SP 不必精, 16 位 hex 足以辨变化.
@@ -1000,15 +881,15 @@ function _quickHash(s) {
 //   道魂 (TAO+DAO) 为唯一本源. 原 SP 一切着相 (身份/风格/规训/记忆/用户域) 彻删.
 //   仅保 7 块最小必要模块 (工具/OS/引用式/工作区), 中性化后追加.
 //   无此 7 块则工具不可用 / OS 不识 / 引用无式. 有此 7 块则车可行.
-//   道经: "卅辐同一毂, 当其无有, 车之用也."
-//   毂 (德道经) 不可弃. 辐 (7 块必要模块) 亦不可全弃. 余皆弃之.
+//   十一章: "三十辐共一毂, 当其无, 有车之用."
+//   毂 (道德经) 不可弃. 辐 (7 块必要模块) 亦不可全弃. 余皆弃之.
 function invertSP(spText) {
   try {
     if (spText === undefined || spText === null) return null;
     const s = typeof spText === "string" ? spText : String(spText);
     if (!s) return null;
-    // 已道化 · 幂等
-    if (s.indexOf(TAO_SENTINEL) >= 0) return null;
+    // 已道化 · 幂等 · v9.2.1 结构判 (原短语匹配会被用户真 Cascade Memories 含同句而误伤)
+    if (isAlreadyInverted(s)) return null;
     if (!isLikelyOfficialSP(s)) return null;
 
     // 自定义 SP 优先 · 道法自然 · 用户即道
@@ -1023,8 +904,16 @@ function invertSP(spText) {
     }
 
     // 默认: 道法自然 · 无为而无不为
+    // v9.7.8 · 十一章「三十辐共一毂 · 当其无有车之用」· 复 7 辐之用
+    //   毂 (TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER) 为道魂, 不可弃.
+    //   辐 (extractKeepBlocks: tool_calling/mcp_servers/user_information/workspace_information)
+    //     为车之用所必, 弃则 @ 工具失能 / OS 不识 / 工作区盲.
+    //   合二者: 道魂在, 工具在, 此为「至简非至废」.
+    //   modifySPProto 路有 spBackups 救场, 此 keeps 不被 deepStrip 误剥.
     if (!DAO_DE_JING_81) return null;
-    return TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER;
+    const keeps = extractKeepBlocks(s);
+    const base = TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER;
+    return keeps ? base + TAO_TRAILER + keeps : base;
   } catch (e) {
     try {
       log(`[invertSP] error · 透传保不失联: ${e && e.message}`);
@@ -1034,16 +923,19 @@ function invertSP(spText) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// invertAnySP · v9.0 替换一切 · 任 SP 类皆前置道魂 + 彻底隔离
+// invertAnySP · v9.5.0 · 回归 v9.1.2 本源 · 反者道之动 · 大曰逝·逝曰远·远曰反
 // ═══════════════════════════════════════════════════════════
 // 用于非 chat 主路径的 inference RPC (summary/memory/ephemeral 等).
-// 同 invertSP 本质: TAO + DAO + TAO_TRAILER + extractKeepBlocks.
-// 区别: 用 classifySPType (宽) 而非 isLikelyOfficialSP (严).
+// 同 invertSP 本质: TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER
+// 区别: 用 classifySPType (宽) 而非 isLikelyOfficialSP (严) · 覆 summary 副路之 479 字短 SP.
+// 二十五章: "大曰逝, 逝曰远, 远曰反" · 远至极致回归本源 · 此为救回 v9.1.2 之菁.
 function invertAnySP(spText) {
   try {
     if (spText === undefined || spText === null) return null;
     const s = typeof spText === "string" ? spText : String(spText);
     if (!s) return null;
+    // 幂等守 · 结构判 · 同 invertSP
+    if (isAlreadyInverted(s)) return null;
     if (s.indexOf(TAO_SENTINEL) >= 0) return null;
     const t = classifySPType(s);
     if (!t) return null;
@@ -1060,8 +952,13 @@ function invertAnySP(spText) {
       if (realtime) return _customSP.sp + "\n\n" + realtime;
       return _customSP.sp;
     }
-    // 道法自然
-    return TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER;
+    // 道法自然 · 三十二章 "道恒无名" · 副路 summary/memory/ephemeral 皆归帛书
+    // v9.7.8 · 十一章「三十辐共一毂」· 副路亦复 7 辐 (若上游有此 7 块)
+    //   summary/memory/ephemeral SP 通常不含 tool_calling 等块 · keeps 为空时退回纯帛书
+    //   有则保 · 无则简 · 名随实变.
+    const keeps = extractKeepBlocks(s);
+    const base = TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER;
+    return keeps ? base + TAO_TRAILER + keeps : base;
   } catch (e) {
     try {
       log(`[invertAnySP] error · 透传: ${e && e.message}`);
@@ -1071,126 +968,87 @@ function invertAnySP(spText) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 道法自然 · v5.0 删深度净化侧信道全部代码 · v5.1 加损强名
+// deepInvertProto · v9.5.0 · 字段级递归深替 · 回归 v9.1.2 核心
 // ═══════════════════════════════════════════════════════════
-// v5.0: 跳出剥/留二元矛盾, 不剥用户域侧信道 (skills/workflows/MEMORY[*]).
-// v5.1: 损官方 SP 中之强名/强行/强执相 (起首段 / communication_style / 散行 discipline).
-// 道魂在前为本源, 又损官方强名, 模型自归德道经.
-// 圣人不积. 既以为人, 己愈有; 既以与人, 己愈多.
-
-// ═══════════════════════════════════════════════════════════
-// dissectSP · 解剖一切 · 抱一知天下势 (仅观, 不剥)
-// 输入: SP 全文  输出: 结构化解剖 (身份首言 + 各 XML 块含嵌套深度 + 末尾倾向)
-// ═══════════════════════════════════════════════════════════
-function dissectSP(text) {
-  if (!text || typeof text !== "string") return null;
-  var result = {
-    total_chars: text.length,
-    block_count: 0,
-    identity_chars: 0,
-    identity_head: "",
-    blocks: [],
-    tail_chars: 0,
-    tail_head: "",
-  };
-
-  // 通用 XML-like 块扫描 (含嵌套): <tag>...</tag> 与 <MEMORY[xxx]>...</MEMORY[xxx]>
-  var allBlocks = [];
-
-  // 通用 <tag> 块: tag 限 [a-zA-Z][a-zA-Z0-9_-]*
-  var tagRe = /<([a-zA-Z][a-zA-Z0-9_-]*)(?:\s[^>]*)?>/g;
-  var om;
-  while ((om = tagRe.exec(text)) !== null) {
-    var tag = om[1];
-    var closeStr = "</" + tag + ">";
-    var closeIdx = text.indexOf(closeStr, om.index + om[0].length);
-    if (closeIdx < 0) continue;
-    var blockEnd = closeIdx + closeStr.length;
-    allBlocks.push({
-      tag: tag,
-      start: om.index,
-      end: blockEnd,
-      content: text.slice(om.index + om[0].length, closeIdx),
-    });
+// 不绑 RPC 名, 任何 inference RPC body 字段级递归扫并就地替换.
+// 每个 wire-type=2 (length-delimited) 字段, 优先序:
+//   1. 长 utf8 文本 (>100B): classifySPType 命中即 invertAnySP 替换 (leaf)
+//   2. 嵌套 proto (try parse): 递归 (maxDepth 防爆 = 6)
+// 反者道之动 (四十章): 不假定结构, 自悟所见, 在最深叶子精确定位 SP.
+function deepInvertProto(buf, maxDepth, stats) {
+  stats = stats || { leafs: 0, depth: 0 };
+  if (maxDepth <= 0) return { fields: null, changed: false };
+  let fields;
+  try {
+    fields = parseProto(buf);
+  } catch {
+    return { fields: null, changed: false };
   }
+  let anyChanged = false;
+  for (const fnStr of Object.keys(fields)) {
+    const arr = fields[fnStr];
+    for (let i = 0; i < arr.length; i++) {
+      const e = arr[i];
+      if (e.w !== 2) continue;
+      const b = Buffer.from(e.b);
 
-  // MEMORY[name] 块
-  var memRe = /<(MEMORY\[[^\]]*\])>([\s\S]*?)<\/MEMORY\[[^\]]*\]>/gi;
-  var mm;
-  while ((mm = memRe.exec(text)) !== null) {
-    allBlocks.push({
-      tag: mm[1],
-      start: mm.index,
-      end: mm.index + mm[0].length,
-      content: mm[2],
-    });
-  }
+      // 优先 1: leaf utf8 SP 检测
+      let leafReplaced = false;
+      if (b.length > 100 && looksLikeUtf8Text(b)) {
+        const text = b.toString("utf8");
+        const inverted = invertAnySP(text);
+        if (inverted !== null && inverted !== text) {
+          arr[i] = { w: 2, b: Buffer.from(inverted, "utf8") };
+          stats.leafs++;
+          if (maxDepth > stats.depth) stats.depth = maxDepth;
+          anyChanged = true;
+          leafReplaced = true;
+        }
+      }
 
-  // 按位置排序
-  allBlocks.sort(function (a, b) {
-    return a.start - b.start;
-  });
-
-  // 去重: 同一 start+end 只保留一个
-  var seen = {};
-  allBlocks = allBlocks.filter(function (b) {
-    var key = b.start + ":" + b.end;
-    if (seen[key]) return false;
-    seen[key] = true;
-    return true;
-  });
-
-  // 计算深度: 被其他块包含则 depth++
-  for (var i = 0; i < allBlocks.length; i++) {
-    allBlocks[i].depth = 0;
-    for (var j = 0; j < allBlocks.length; j++) {
-      if (i === j) continue;
-      if (
-        allBlocks[j].start < allBlocks[i].start &&
-        allBlocks[j].end > allBlocks[i].end
-      ) {
-        allBlocks[i].depth++;
+      // 优先 2: 若非 leaf SP, 递归为 nested proto
+      if (!leafReplaced && b.length > 8) {
+        const sub = deepInvertProto(b, maxDepth - 1, stats);
+        if (sub.fields !== null && sub.changed) {
+          arr[i] = { w: 2, b: serializeProto(sub.fields) };
+          anyChanged = true;
+        }
       }
     }
   }
+  return { fields, changed: anyChanged };
+}
 
-  // 身份首言: 第一个块之前的文本
-  var firstStart = allBlocks.length > 0 ? allBlocks[0].start : text.length;
-  var identity = text.slice(0, firstStart).trim();
-  result.identity_chars = identity.length;
-  result.identity_head = identity.slice(0, 300);
-
-  // 各块
-  for (var k = 0; k < allBlocks.length; k++) {
-    var b = allBlocks[k];
-    var chars = b.content.length;
-    var truncated = chars > 600;
-    result.blocks.push({
-      tag: b.tag,
-      depth: b.depth,
-      start: b.start,
-      content_chars: chars,
-      content_head: b.content.slice(0, 300),
-      content_tail: truncated ? b.content.slice(-200) : "",
-      truncated: truncated,
-    });
-  }
-  result.block_count = allBlocks.length;
-
-  // 末尾: 最后一个顶层块之后的文本
-  var lastTopEnd = 0;
-  for (var m = 0; m < allBlocks.length; m++) {
-    if (allBlocks[m].depth === 0 && allBlocks[m].end > lastTopEnd) {
-      lastTopEnd = allBlocks[m].end;
+// ═══════════════════════════════════════════════════════════
+// modifyAnyInferenceSP · v9.5.0 · INFER_STRIP 路 SP 深替入口
+// ═══════════════════════════════════════════════════════════
+// 用于 INFER_STRIP 档 (非 chat 主路的 inference RPC) · 先于 deepStripRequestBody
+// 双重防护: ① SP 深替 (modifyAnyInferenceSP) ② 侧信道剥净 (deepStripRequestBody)
+function modifyAnyInferenceSP(reqBody) {
+  try {
+    const frames = parseFrames(reqBody);
+    if (!frames.length) return reqBody;
+    let anyChanged = false;
+    const stats = { leafs: 0, depth: 0 };
+    const newFrames = [];
+    for (const f of frames) {
+      const sub = deepInvertProto(f.payload, 6, stats);
+      if (sub.fields !== null && sub.changed) {
+        anyChanged = true;
+        newFrames.push(buildFrame(f.flags, serializeProto(sub.fields)));
+      } else {
+        newFrames.push(buildFrame(f.flags, f.payload));
+      }
     }
+    if (!anyChanged) return reqBody;
+    log(
+      `[SP-DEEP] frames=${frames.length} leafs_replaced=${stats.leafs} max_depth=${stats.depth}`,
+    );
+    return Buffer.concat(newFrames);
+  } catch (e) {
+    log("modifyAnyInferenceSP error:", e.message);
+    return reqBody;
   }
-  if (lastTopEnd > 0) {
-    var tail = text.slice(lastTopEnd).trim();
-    result.tail_chars = tail.length;
-    result.tail_head = tail.slice(0, 300);
-  }
-
-  return result;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1324,32 +1182,68 @@ function looksLikeUtf8Text(buf) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// chat_messages 字段定位 + ChatMessage content 提取
+// v9.3.0 · 从 grpc-web body 递归提所有 UTF-8 字符串
 // ═══════════════════════════════════════════════════════════
-// 字段自适应: v2 现场 field=2, v1 descriptor field=3 (chat_messages),
-// 另有 L0 证据的 field 10/17 (SystemPromptb 新载体).
-// 严格白名单 · 防误判 (任意含 role+content 的 proto 都会命中全遍历启发式).
-const MSGS_FIELD_CANDIDATES = [2, 3, 10, 17];
+// 道义: 二十一章 道之物, 唯望、唯忽. 中有象呵, 中有物呵.
+//       不识响应 schema · 但凡似 UTF-8 之 wire-type=2 字段, 收之.
+function extractUtf8StringsFromGrpcBody(body, opts) {
+  const minLen = (opts && opts.minLen) || 1;
+  const maxDepth = (opts && opts.maxDepth) || 12;
+  const out = [];
+  try {
+    const frames = parseFrames(body);
+    for (const f of frames) {
+      if (f.flags & 0x80) continue; // grpc-web trailers, skip
+      try {
+        const fields = parseProto(f.payload);
+        _gatherUtf8Strings(fields, out, 0, maxDepth, minLen);
+      } catch {}
+    }
+  } catch {}
+  return out;
+}
+function _gatherUtf8Strings(fields, out, depth, maxDepth, minLen) {
+  if (depth > maxDepth) return;
+  for (const fid of Object.keys(fields)) {
+    for (const e of fields[fid]) {
+      if (e.w !== 2 || !e.b || !e.b.length) continue;
+      const buf = Buffer.isBuffer(e.b) ? e.b : Buffer.from(e.b);
+      let recursed = false;
+      try {
+        const sub = parseProto(buf);
+        if (sub && Object.keys(sub).length > 0) {
+          _gatherUtf8Strings(sub, out, depth + 1, maxDepth, minLen);
+          recursed = true;
+        }
+      } catch {}
+      if (recursed) continue;
+      if (looksLikeUtf8Text(buf) && buf.length >= minLen) {
+        out.push(buf.toString("utf8"));
+      }
+    }
+  }
+}
 
+// ═══════════════════════════════════════════════════════════
+// chat_messages 字段定位 + ChatMessage content 提取
+// 字段自适应: v2 field=2, v1 field=3, 另有 field 10/17 (SystemPromptb 新载体)
+// ═══════════════════════════════════════════════════════════
+const MSGS_FIELD_CANDIDATES = [2, 3, 10, 17];
 function findMsgsField(topFields) {
   for (const fn of MSGS_FIELD_CANDIDATES) {
     const arr = topFields[fn];
     if (!arr || !arr.length) continue;
     for (const e of arr) {
       if (e.w !== 2) continue;
-      // 情形 A: nested ChatMessage proto (Windsurf v2 主路径)
       try {
         const mf = parseProto(Buffer.from(e.b));
         if (mf[1]?.[0]?.w === 0 && mf[2]) return fn;
       } catch {}
-      // 情形 B: plain UTF-8 SP bytes (Windsurf SystemPromptb 新载体)
-      // 只有长段 UTF-8 才认 (避免把短配置字段误判为 SP)
       if (e.b.length > 200 && looksLikeUtf8Text(Buffer.from(e.b))) return fn;
     }
   }
   return 2;
 }
-
 function extractMsgContent(mf) {
   const c = mf[2]?.[0];
   if (!c || c.w !== 2) return "";
@@ -1589,18 +1483,22 @@ function deepScanProto(buf, pathStack, candidates, maxDepth) {
         deepScanProto(b, newPath, candidates, maxDepth - 1);
         recursed = candidates.length > before;
       }
-      // 递归未产候选时, 若是长 utf8, 当 leaf SP 检测
-      if (!recursed && b.length > 100 && looksLikeUtf8Text(b)) {
+      // 递归未产候选时, 若是 utf8, 全收 (不筛形状)
+      // v9.3.9 · 万物作焉而不辞 · 大道至简 · 收一切 ≥20B utf8 字段
+      //         不止 SP · 含 user_msg / tool_def / context / chat_history / file_path 全貌
+      //         classifySPType / looksLikeSPShape 未中者归 "raw_text" 兜底
+      //         此乃 "agent 所接受一切文字" 之最广捕 (万法归宗)
+      if (!recursed && b.length > 20 && looksLikeUtf8Text(b)) {
         const text = b.toString("utf8");
-        const spType = classifySPType(text);
-        if (spType) {
-          candidates.push({
-            kind: spType,
-            field_path: newPath.join("."),
-            chars: text.length,
-            text: text,
-          });
-        }
+        const spType =
+          classifySPType(text) ||
+          (looksLikeSPShape(text) ? "unknown_long" : "raw_text");
+        candidates.push({
+          kind: spType,
+          field_path: newPath.join("."),
+          chars: text.length,
+          text: text,
+        });
       }
     }
   }
@@ -1631,88 +1529,6 @@ function observeAllSPInBody(body, rpcPath) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// v8.0 · deepInvertProto / modifyAnyInferenceSP · 替换一切
-// ═══════════════════════════════════════════════════════════
-// 不绑 RPC 名, 任何 inference RPC body 字段级递归扫并就地替换.
-// 每个 wire-type=2 (length-delimited) 字段, 优先序:
-//   1. 长 utf8 文本 (>100B): classifySPType 命中即 invertAnySP 替换 (leaf)
-//   2. 嵌套 proto (try parse): 递归 (maxDepth 防爆 = 6)
-// 反者道之动 (四十章): 不假定结构, 自悟所见, 在最深叶子精确定位 SP.
-// ═══════════════════════════════════════════════════════════
-function deepInvertProto(buf, maxDepth, stats) {
-  stats = stats || { leafs: 0, depth: 0 };
-  if (maxDepth <= 0) return { fields: null, changed: false };
-  let fields;
-  try {
-    fields = parseProto(buf);
-  } catch {
-    return { fields: null, changed: false };
-  }
-  let anyChanged = false;
-  for (const fnStr of Object.keys(fields)) {
-    const arr = fields[fnStr];
-    for (let i = 0; i < arr.length; i++) {
-      const e = arr[i];
-      if (e.w !== 2) continue;
-      const b = Buffer.from(e.b);
-
-      // 优先 1: leaf utf8 SP 检测 (强 marker · 不会误伤 nested proto)
-      //         classifySPType 要求强签名 (起首身份 或 2+ markers),
-      //         普通 nested proto 之 utf8 字段不会命中
-      let leafReplaced = false;
-      if (b.length > 100 && looksLikeUtf8Text(b)) {
-        const text = b.toString("utf8");
-        const inverted = invertAnySP(text);
-        if (inverted !== null && inverted !== text) {
-          arr[i] = { w: 2, b: Buffer.from(inverted, "utf8") };
-          stats.leafs++;
-          if (maxDepth > stats.depth) stats.depth = maxDepth;
-          anyChanged = true;
-          leafReplaced = true;
-        }
-      }
-
-      // 优先 2: 若非 leaf SP, 递归为 nested proto
-      if (!leafReplaced && b.length > 8) {
-        const sub = deepInvertProto(b, maxDepth - 1, stats);
-        if (sub.fields !== null && sub.changed) {
-          arr[i] = { w: 2, b: serializeProto(sub.fields) };
-          anyChanged = true;
-        }
-      }
-    }
-  }
-  return { fields, changed: anyChanged };
-}
-
-function modifyAnyInferenceSP(reqBody) {
-  try {
-    const frames = parseFrames(reqBody);
-    if (!frames.length) return reqBody;
-    let anyChanged = false;
-    const stats = { leafs: 0, depth: 0 };
-    const newFrames = [];
-    for (const f of frames) {
-      const sub = deepInvertProto(f.payload, 6, stats);
-      if (sub.fields !== null && sub.changed) {
-        anyChanged = true;
-        newFrames.push(buildFrame(f.flags, serializeProto(sub.fields)));
-      } else {
-        newFrames.push(buildFrame(f.flags, f.payload));
-      }
-    }
-    if (!anyChanged) return reqBody;
-    log(
-      `[SP-DEEP] frames=${frames.length} leafs_replaced=${stats.leafs} max_depth=${stats.depth}`,
-    );
-    return Buffer.concat(newFrames);
-  } catch (e) {
-    log("modifyAnyInferenceSP error:", e.message);
-    return reqBody;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
 // 路由 + 分类
 // ═══════════════════════════════════════════════════════════
 function routeUpstream(reqUrl) {
@@ -1724,6 +1540,18 @@ function routeUpstream(reqUrl) {
     return { host: UPSTREAM_INFER, path: rawPath.slice(2) + query };
   if (rawPath.startsWith("/r/"))
     return { host: UPSTREAM_MGMT, path: rawPath.slice(2) + query };
+  // v9.3.2 · 道恒无名 · chat RPC opt-in 覆盖 (主公设 CHAT_UPSTREAM env 方激活)
+  // 默认 (CHAT_UPSTREAM="") 时不特判, 随 INFERENCE_SERVICES 分流 → UPSTREAM_INFER
+  if (UPSTREAM_CHAT) {
+    const methodM = rawPath.match(/\/([A-Za-z0-9_]+)$/);
+    const method = methodM ? methodM[1] : "";
+    if (
+      /^Get\w*ChatMessage\w*$/.test(method) ||
+      method === "RawGetChatMessage"
+    ) {
+      return { host: UPSTREAM_CHAT, path: rawPath + query };
+    }
+  }
   // 服务名自动分流
   const m = rawPath.match(/^\/([^/]+)\//);
   const svc = m ? m[1] : "";
@@ -1769,6 +1597,9 @@ function handleControl(req, res) {
   }
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
+  // v9.4.3 · 记所有 /origin/* 控制端点击中 · 诊 webview fetch 是否真到
+  _ctrlHit(u.pathname);
+
   // v7.8 debug: recent request paths
   if (u.pathname === "/origin/paths" && req.method === "GET") {
     res.end(
@@ -1785,7 +1616,7 @@ function handleControl(req, res) {
     res.end(
       JSON.stringify({
         ok: true,
-        port: PORT,
+        port: _actualPort,
         mode: SP_MODE,
         pid: process.pid,
         uptime_s: Math.round((Date.now() - START_TIME) / 1000),
@@ -1799,7 +1630,12 @@ function handleControl(req, res) {
         custom_sp_chars: _customSP && _customSP.sp ? _customSP.sp.length : 0,
         custom_sp_keep_blocks:
           _customSP && _customSP.sp ? !!_customSP.keep_blocks : null,
-        // v7.7 · 广谱 SP 候选 ringbuf 状态 (反者道之动)
+        // v9.4.3 · 控制端点击中 · 诊 webview fetch 通路
+        ctrl_hits: _ctrlHits,
+        // v9.4.5 · tape 计 · 底层之底 · 时序一切
+        tape_count: _rawTape.length,
+        tape_max: _RAW_TAPE_MAX,
+        tape_last_at: _rawTape.length ? _rawTape[_rawTape.length - 1].t : 0,
         node_version: process.version,
         mux: {
           conns: _muxConns,
@@ -1812,33 +1648,20 @@ function handleControl(req, res) {
           h2closes: _h2Closes,
           h2sess_errs: _h2SessErrs,
         },
-        sp_candidates_count: _spCandidates.length,
-        sp_candidates_max: _SP_CANDIDATES_MAX,
-        sp_candidates_kinds: _spCandidates.reduce((acc, c) => {
-          acc[c.kind] = (acc[c.kind] || 0) + 1;
-          return acc;
-        }, {}),
         features: {
-          mode: "fan-zhe-dao-zhi-dong-quan-lian-lu-tan-yuan",
+          mode: ORIGIN_VERSION,
           tao_header_chars: TAO_HEADER.length,
+          dao_chars: DAO_DE_JING_81.length,
           principle:
-            "v7.7 反者道之动 · 全链路探源 · 字段级广谱深扫 · 不绑 RPC 名 · classifySPType 多类标识 · _spCandidates ringbuf · v7.6 沿: 主 chat 德道经化 · 待 v7.8 因器施治",
-          stripped_official_naming: [
-            "head:You-are-Cascade-identity-paragraph",
-            "block:<communication_style>(含 nested guidelines/markdown)",
-            "lines:Bug-fixing/Long-horizon/Planning/Testing/Verification/Progress",
-            "v7.1:block:<ide_metadata>",
-            "v7.3:block:<user_rules>(含 nested <MEMORY[*]>)",
-            "v7.3:block:<user_information>(OS+workspace)",
-            "v7.3:block:<MEMORY[*]>(顶层游离)",
-            "v7.4:replace:9-tool-blocks-content→pure-dao-de-jing-text",
-            "v7.7:observe:all-inference-RPC-bodies(deepScanProto)",
-          ],
-          preserved_intact: [
-            "tools-tag:<tool_calling>/<making_code_changes>/<running_commands>/<task_management>/<debugging>/<calling_external_apis>/<memory_system>/<mcp_servers>/<citation_guidelines>",
-            "tools-content:pure-dao-de-jing-original-text-only",
-          ],
-          tool_block_dao_replacements: Object.keys(TOOL_BLOCK_DAO_CONTENT),
+            "v9.8.0 守一不离 · 三十九章「得一」· SIDE_CHANNEL_TAGS 删 'additional_metadata' · 守用户域 @ 项之 Cascade ID/file path/line range · @ 工具 (trajectory_search/read_file 等) 复活 · tape all_fields raw_text 显 AFTER (post strip+neutralize) · 名实终一 · 承 v9.7.9 中性化 SECTION_OVERRIDE 身份锚 · 承 v9.7.7 ~7237 字帛书裸呈",
+          inject_total_chars:
+            TAO_HEADER.length + DAO_DE_JING_81.length + TAO_FOOTER.length,
+          rpc_classes: {
+            CHAT_PROTO: "GetChatMessage{,V2} · invertSP + deepStrip 侧信道",
+            CHAT_RAW: "RawGetChatMessage · invertSP + deepStrip 侧信道",
+            INFER_STRIP: "其他 inference RPC · 仅剥侧信道 · 不替 SP",
+            PASSTHROUGH: "非 inference (mgmt 等) · 直透",
+          },
         },
       }),
     );
@@ -1880,10 +1703,8 @@ function handleControl(req, res) {
     return true;
   }
 
-  // v17.55 · 抱一守中 · 万法归于一端点
-  // 无论任何模式 · 任何用户规则变化 · 任何设置改动
-  // preview 皆返: after (LLM 实收) + before (Windsurf 拟发) + 结构解剖
-  // 致虚守静 · 观复知常 · 落盘持存 · 跨重启恒显
+  // v9.7.0 · 为道日损 · /origin/preview · 简返 before/after + 计数 (无 dissect)
+  // 致虚守静 · 观复知常 · 二十六章 重为轻根
   if (u.pathname === "/origin/preview" && req.method === "GET") {
     const hasBefore = !!(_lastInject && _lastInject.before);
     const before = hasBefore ? _lastInject.before : null;
@@ -1891,35 +1712,16 @@ function handleControl(req, res) {
       _lastInject && _lastInject.at
         ? Math.round((Date.now() - _lastInject.at) / 1000)
         : null;
-    // v7.3 · 真实 after 计算: invert 模式下永远走 invertSP 实算路径
-    //   有 captured before → invertSP(before) (真路径)
-    //   无 captured before → invertSP(SAMPLE_OFFICIAL_SP) (合成路径, 与 LLM 实收同结构)
-    // 不再用 TAO_HEADER+DAO 单文本退路 (那不代表 LLM 实收, 误导用户)
-    let after;
-    let synthesized = false;
-    let synthesizedFrom = null; // captured | sample | none
+    let after = null;
     if (SP_MODE === "invert") {
-      if (hasBefore) {
-        after = invertSP(before) || before;
-        synthesizedFrom = "captured";
-      } else {
-        // 用合成 sample 走 invertSP, 让 webview 见的与 LLM 实收同结构
-        after = invertSP(SAMPLE_OFFICIAL_SP) || SAMPLE_OFFICIAL_SP;
-        synthesized = true;
-        synthesizedFrom = "sample";
-      }
+      after = hasBefore ? invertSP(before) || before : null;
     } else {
-      after = before; // passthrough: 透
-      synthesizedFrom = hasBefore ? "captured" : "none";
+      after = before;
     }
-    const before_dissect = before ? dissectSP(before) : null;
-    const after_dissect = after ? dissectSP(after) : null;
     res.end(
       JSON.stringify({
         ok: true,
         mode: SP_MODE,
-        synthesized: synthesized,
-        synthesized_from: synthesizedFrom, // captured | sample | none
         source: hasBefore ? "captured" : "at_rest",
         after: after,
         after_chars: after ? after.length : 0,
@@ -1927,16 +1729,166 @@ function handleControl(req, res) {
         before_chars: before ? before.length : 0,
         has_captured_before: hasBefore,
         age_s: age_s,
-        before_dissect: before_dissect,
-        after_dissect: after_dissect,
+        injects_by_kind: _injectsByKind,
+        injects_kinds: Object.keys(_injectsByKind || {}),
         tao_header_chars: TAO_HEADER.length,
         dao_chars: DAO_DE_JING_81.length,
-        // v7.2 · 用户实时编辑提示词状态
         custom_sp: !!(_customSP && _customSP.sp),
         custom_sp_chars: _customSP && _customSP.sp ? _customSP.sp.length : 0,
         custom_sp_keep_blocks:
           _customSP && _customSP.sp ? !!_customSP.keep_blocks : null,
         custom_sp_at: _customSP && _customSP.at ? _customSP.at : null,
+      }),
+    );
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // v9.3.4 · /origin/allinjects · 所有官方模块注入 SP 总览 JSON
+  // ═══════════════════════════════════════════════════════════
+  // 按 classifySPType 分槽: chat | summary | memory | ephemeral | unknown_long
+  // 每槽仅留最近 1 条 · 含 before/after 全文 + 元数据
+  // 道义: 五章 "虚而不屈, 动而愈出". 多孔同风, 一器容万.
+  if (u.pathname === "/origin/allinjects" && req.method === "GET") {
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    const summary = {};
+    for (const k of Object.keys(_injectsByKind || {})) {
+      const v = _injectsByKind[k] || {};
+      summary[k] = {
+        sp_role: k,
+        kind: v.kind,
+        variant: v.variant,
+        field: v.field,
+        role: v.role,
+        mode: v.mode,
+        transformed: v.transformed,
+        before_chars: v.before_chars,
+        after_chars: v.after_chars,
+        at: v.at,
+        age_s: v.at ? Math.round((Date.now() - v.at) / 1000) : null,
+        rid: v.rid,
+        before_head: v.before ? v.before.slice(0, 500) : null,
+        before_tail: v.before ? v.before.slice(-300) : null,
+        // v9.3.9 · agent 所接受一切文字 · meta (full 在 .full 里)
+        all_fields_count: v.all_fields_count || 0,
+        all_fields_chars: v.all_fields_chars || 0,
+      };
+    }
+    res.end(
+      JSON.stringify({
+        ok: true,
+        mode: SP_MODE,
+        count: Object.keys(_injectsByKind || {}).length,
+        kinds: Object.keys(_injectsByKind || {}),
+        summary: summary,
+        full: _injectsByKind, // 全文 before/after
+      }),
+    );
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // v9.4.5 · /origin/_wdbg · webview 诊 ringbuf · 反之又反
+  // ═══════════════════════════════════════════════════════════
+  // GET  : 返 _wvDbg ringbuf 全 (200 槽)
+  // POST : body json · 追一条 · {msg, tag, data?} · 定位 pull 卡在哪
+  // 道义: 十四章 "执今之道, 以御今之有". 观 webview 当下之行.
+  if (u.pathname === "/origin/_wdbg") {
+    if (req.method === "GET") {
+      res.end(
+        JSON.stringify({
+          ok: true,
+          count: _wvDbg.length,
+          max: _WVDBG_MAX,
+          log: _wvDbg.slice().reverse(), // 最新在前
+        }),
+      );
+      return true;
+    }
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", (c) => {
+        body += c;
+        if (body.length > 8192) req.destroy();
+      });
+      req.on("end", () => {
+        try {
+          const j = body ? JSON.parse(body) : {};
+          _wvPush({
+            msg: String(j.msg || "").slice(0, 200),
+            tag: String(j.tag || "").slice(0, 80),
+            data:
+              j.data !== undefined
+                ? String(JSON.stringify(j.data)).slice(0, 400)
+                : null,
+          });
+          res.end(JSON.stringify({ ok: true, count: _wvDbg.length }));
+        } catch (e) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      req.on("error", () => {});
+      return true;
+    }
+    if (req.method === "DELETE") {
+      _wvDbg.length = 0;
+      res.end(JSON.stringify({ ok: true }));
+      return true;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // v9.4.5 · /origin/tape · 底层之底 · 时序一切 · 反之又反
+  // ═══════════════════════════════════════════════════════════
+  // 返 _rawTape 全 16 槽 · 每槽 {t, rid, kind, rpc, mode_at, transformed,
+  //   before (完整), after (完整), all_fields[完整], meta}
+  //
+  // 查询参: ?limit=N (默 16 = 全) · ?index=I (0-based, 仅返一条)
+  //         ?fields=0 (去 all_fields 省带宽, 默 1 含)
+  //
+  // 道义: 一章 无名万物始 · 十四章 执今之道御今之有 · 四十章 反之又反
+  if (u.pathname === "/origin/tape" && req.method === "GET") {
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    const limit = Math.max(
+      1,
+      Math.min(
+        _RAW_TAPE_MAX,
+        parseInt(u.query.limit || _RAW_TAPE_MAX, 10) || _RAW_TAPE_MAX,
+      ),
+    );
+    const includeFields = u.query.fields !== "0";
+    const rawIdx = u.query.index != null ? parseInt(u.query.index, 10) : null;
+    // 最新在末 · 倒序返 (最新第 0)
+    const reversed = _rawTape.slice().reverse();
+    let list =
+      rawIdx != null &&
+      !isNaN(rawIdx) &&
+      rawIdx >= 0 &&
+      rawIdx < reversed.length
+        ? [reversed[rawIdx]]
+        : reversed.slice(0, limit);
+    if (!includeFields) {
+      list = list.map((e) => {
+        const cp = Object.assign({}, e);
+        delete cp.all_fields;
+        return cp;
+      });
+    }
+    res.end(
+      JSON.stringify({
+        ok: true,
+        mode: SP_MODE,
+        total: _rawTape.length,
+        max: _RAW_TAPE_MAX,
+        tape: list,
+        tape_last_at: _rawTape.length ? _rawTape[_rawTape.length - 1].t : 0,
       }),
     );
     return true;
@@ -1961,6 +1913,15 @@ function handleControl(req, res) {
           "|" +
           (_customSP.at || 0)
         : "";
+    // v9.3.6 · 多槽多深扫综合 sig · panel smart poll 据
+    // 道义: 一章 “玄之又玄, 众妙之门” · 一签观全境 (含多槽之动)
+    let injectsLastAt = 0;
+    for (const k of Object.keys(_injectsByKind || {})) {
+      const v = _injectsByKind[k];
+      if (v && v.at && v.at > injectsLastAt) injectsLastAt = v.at;
+    }
+    // v9.4.5 · tape 动感
+    const tapeLastAt = _rawTape.length ? _rawTape[_rawTape.length - 1].t : 0;
     res.end(
       JSON.stringify({
         ok: true,
@@ -1970,259 +1931,49 @@ function handleControl(req, res) {
         last_inject_at: _lastInject && _lastInject.at ? _lastInject.at : 0,
         custom_sp: !!(_customSP && _customSP.sp),
         custom_sp_at: _customSP && _customSP.at ? _customSP.at : 0,
+        // v9.3.6 · smart poll 观变必需
+        injects_count: Object.keys(_injectsByKind || {}).length,
+        injects_last_at: injectsLastAt,
+        // v9.4.5 · 底层之底 · tape 动感
+        tape_count: _rawTape.length,
+        tape_last_at: tapeLastAt,
+        uptime_s: Math.round((Date.now() - START_TIME) / 1000),
+        req_total: reqCounter,
       }),
     );
-    return true;
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // v7.3 · /origin/dao_default · 德道经八十章默认值 · 编辑面板"回填默认"
-  // ═══════════════════════════════════════════════════════════
-  // 返: { ok, dao, chars }
-  // 道义: 五十四章 善建者不拔, 善抱者不脱. 默以为基, 编以为长.
-  if (u.pathname === "/origin/dao_default" && req.method === "GET") {
-    res.end(
-      JSON.stringify({
-        ok: true,
-        dao: DAO_DE_JING_81,
-        chars: DAO_DE_JING_81.length,
-      }),
-    );
-    return true;
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // v7.7 · /origin/sp_candidates · 广谱 SP 候选 ringbuf · 反者道之动
-  // ═══════════════════════════════════════════════════════════
-  // GET    返当前 ringbuf (默认 head 300 / tail 200, ?full=1 返全文)
-  // DELETE 清空 ringbuf 与盘文件
-  // 道义: 二章 万物作焉而不辞. 收一切 SP 来源, 不弃, 待 v7.8 因器施治.
-  if (u.pathname === "/origin/sp_candidates" && req.method === "GET") {
-    const full = u.query && u.query.full === "1";
-    const out = _spCandidates.map((c) => {
-      const item = {
-        first_at: c.first_at,
-        last_at: c.last_at,
-        first_age_s: Math.round((Date.now() - c.first_at) / 1000),
-        last_age_s: Math.round((Date.now() - c.last_at) / 1000),
-        count: c.count,
-        rid: c.rid,
-        rpc: c.rpc,
-        kind: c.kind,
-        field_path: c.field_path,
-        chars: c.chars,
-        hash: c.hash,
-      };
-      if (full) {
-        item.text = c.text;
-      } else {
-        item.head = (c.text || "").slice(0, 300);
-        item.tail = (c.text || "").length > 600 ? c.text.slice(-200) : "";
-      }
-      return item;
-    });
-    // 按 last_at 倒序 (最新的在前)
-    out.sort((a, b) => b.last_at - a.last_at);
-    res.end(
-      JSON.stringify(
-        {
-          ok: true,
-          count: out.length,
-          max: _SP_CANDIDATES_MAX,
-          kinds_summary: out.reduce((acc, c) => {
-            acc[c.kind] = (acc[c.kind] || 0) + 1;
-            return acc;
-          }, {}),
-          rpcs_summary: out.reduce((acc, c) => {
-            const rpc = c.rpc.split("/").slice(-1)[0] || c.rpc;
-            acc[rpc] = (acc[rpc] || 0) + 1;
-            return acc;
-          }, {}),
-          candidates: out,
-        },
-        null,
-        2,
-      ),
-    );
-    return true;
-  }
-
-  if (u.pathname === "/origin/sp_candidates" && req.method === "DELETE") {
-    const had = _spCandidates.length;
-    _spCandidates = [];
-    _saveSPCandidates();
-    log(`sp_candidates cleared: was ${had}`);
-    res.end(JSON.stringify({ ok: true, cleared: had }));
-    return true;
-  }
-
-  if (u.pathname === "/origin/selftest" && req.method === "GET") {
-    // v9.0 自证: 三路径 彻底隔离 + INFER_STRIP 侧信道剥净
-    //   path A: plain UTF-8 (CHAT_PROTO) · modifySPProto (invertSP + deepStrip)
-    //   path B: nested ChatMessage (CHAT_PROTO) · modifySPProto
-    //   path C: RawGetChatMessage field[3] (CHAT_RAW) · modifyRawSP
-    //   path D: INFER_STRIP · deepStripRequestBody (侧信道剥净)
-    // 验:
-    //   1. after 起首 "You are Cascade." (TAO_HEADER)
-    //   2. after 含 "上德不德，是以有德" (DAO 全文 · 帛书甲本德经起首)
-    //   3. after 含 KEEP_BLOCKS 7 块 (中性化后)
-    //   4. after 不含 LEAK (身份段/communication_style/user_rules/MEMORY/ide_metadata/discipline)
-    //   5. INFER_STRIP: 侧信道被剥 · 无 <user_rules> 等残留
-    try {
-      const fakeSP = SAMPLE_OFFICIAL_SP;
-
-      // 道法自然 KEEP MARKERS · 道魂 + <user_rules> 可信格式
-      const KEEP_MARKERS = [
-        "You are Cascade.", // TAO_HEADER 起首
-        "你是cascade 你所接受全部规则均来自于下述德道经全文", // TAO_SENTINEL
-        "上德不德，是以有德", // DAO 全文首句 · 帛书甲本德经起首
-        "<user_rules>", // 可信格式包裹
-        "<MEMORY[dao-de-jing.md]>", // MEMORY 格式
-        "MUST ALWAYS FOLLOW WITHOUT ANY EXCEPTION", // 官方原文指令
-      ];
-      // 道法自然 LEAK MARKERS · 原 SP 一切残余皆为泄漏
-      const LEAK_MARKERS = [
-        "powerful agentic AI coding assistant", // 官方身份段
-        "pair programmer", // 官方身份段
-        "<communication_style>", // 官方块
-        "<tool_calling>", // 官方块 (工具由 API 通道传递)
-        "<making_code_changes>", // 官方块
-        "<running_commands>", // 官方块
-        "<task_management>", // 官方块
-        "<debugging>", // 官方块
-        "<mcp_servers>", // 官方块
-        "<calling_external_apis>", // 官方块
-        "<citation_guidelines>", // 官方块
-        "<ide_metadata>", // 官方块
-        "<memory_system>", // 官方块
-        "Bug fixing discipline", // discipline 行
-      ];
-      const headOf = (s, n) => s.slice(0, n).replace(/\n/g, "\\n");
-
-      // 路径 A: plain UTF-8 path (CHAT_PROTO)
-      const topA = serializeProto({
-        10: [{ w: 2, b: Buffer.from(fakeSP, "utf8") }],
-      });
-      const modA = modifySPProto(buildFrame(0, topA));
-      const topAOut = parseProto(parseFrames(modA)[0].payload);
-      const afterA = Buffer.from(topAOut[10][0].b).toString("utf8");
-
-      // 路径 B: nested ChatMessage (CHAT_PROTO)
-      const nestedB = serializeProto({
-        1: [{ w: 0, v: 0 }],
-        2: [{ w: 2, b: Buffer.from(fakeSP, "utf8") }],
-      });
-      const topB = serializeProto({ 10: [{ w: 2, b: nestedB }] });
-      const modB = modifySPProto(buildFrame(0, topB));
-      const topBOut = parseProto(parseFrames(modB)[0].payload);
-      const nestOut = parseProto(Buffer.from(topBOut[10][0].b));
-      const afterB = Buffer.from(nestOut[2][0].b).toString("utf8");
-
-      // 路径 C: RawGetChatMessage · field[3] (CHAT_RAW)
-      const topC = serializeProto({
-        3: [{ w: 2, b: Buffer.from(fakeSP, "utf8") }],
-      });
-      const modC = modifyRawSP(buildFrame(0, topC));
-      const topCOut = parseProto(parseFrames(modC)[0].payload);
-      const afterC = Buffer.from(topCOut[3][0].b).toString("utf8");
-
-      // 路径 D: INFER_STRIP · 侧信道剥净 (deepStripRequestBody)
-      const fakeInferBody =
-        "Some inference text with side channels\n" +
-        "<user_rules>MUST FOLLOW rules</user_rules>\n" +
-        "<MEMORY[test.md]>test memory</MEMORY[test.md]>\n" +
-        "<skills>some skills</skills>\n" +
-        "Bug fixing discipline: root cause.\n" +
-        "x".repeat(200);
-      const topD = serializeProto({
-        5: [{ w: 2, b: Buffer.from(fakeInferBody, "utf8") }],
-      });
-      const modD = deepStripRequestBody(buildFrame(0, topD));
-      const topDOut = parseProto(parseFrames(modD.body)[0].payload);
-      const afterD = Buffer.from(topDOut[5][0].b).toString("utf8");
-
-      const summary = {
-        ok: true,
-        version: "v9.1-道法自然-反者道之动",
-        mode: SP_MODE,
-        principle:
-          "道法自然 · <user_rules>可信格式 · 无KEEP_BLOCKS · deepStrip侧信道",
-        dao_chars: DAO_DE_JING_81.length,
-        tao_header_chars: TAO_HEADER.length,
-        keep_blocks: KEEP_BLOCKS,
-        keep_markers_count: KEEP_MARKERS.length,
-        leak_markers_count: LEAK_MARKERS.length,
-        paths: {},
-        all_paths_pass: false,
-      };
-
-      function judge(name, after, before) {
-        const missingKeep = KEEP_MARKERS.filter((m) => !after.includes(m));
-        const leaked = LEAK_MARKERS.filter((m) => after.includes(m));
-        const containsDao = after.includes("上德不德");
-        const cascade_first = after.startsWith("You are Cascade.");
-        const has_tao_header = after.includes(TAO_SENTINEL);
-        summary.paths[name] = {
-          before_chars: before.length,
-          after_chars: after.length,
-          delta: after.length - before.length,
-          contains_dao: containsDao,
-          cascade_first: cascade_first,
-          has_tao_header: has_tao_header,
-          missing_keep: missingKeep,
-          leaked: leaked,
-          before_head: headOf(before, 80),
-          after_head: headOf(after, 80),
-        };
-        return (
-          containsDao &&
-          cascade_first &&
-          has_tao_header &&
-          missingKeep.length === 0 &&
-          leaked.length === 0
-        );
-      }
-
-      const okA = judge("plain_utf8", afterA, fakeSP);
-      const okB = judge("nested_chat_message", afterB, fakeSP);
-      const okC = judge("raw_sp", afterC, fakeSP);
-      // path D: INFER_STRIP 验侧信道剥净
-      const leakedD = [
-        "<user_rules>",
-        "<MEMORY[",
-        "<skills>",
-        "Bug fixing discipline",
-      ].filter((m) => afterD.includes(m));
-      const strippedOk = modD.changed > 0 && leakedD.length === 0;
-      summary.paths["infer_strip"] = {
-        before_chars: fakeInferBody.length,
-        after_chars: afterD.length,
-        stripped_fields: modD.changed,
-        leaked: leakedD,
-        stripped_ok: strippedOk,
-        before_head: headOf(fakeInferBody, 80),
-        after_head: headOf(afterD, 80),
-      };
-      summary.all_paths_pass = okA && okB && okC && strippedOk;
-
-      res.end(JSON.stringify(summary, null, 2));
-    } catch (e) {
-      res.statusCode = 500;
-      res.end(JSON.stringify({ ok: false, error: e.message, stack: e.stack }));
-    }
     return true;
   }
 
   // ═══════════════════════════════════════════════════════════
   // v7.2 · /origin/custom_sp · 用户实时编辑接口 · 三动词
   // ═══════════════════════════════════════════════════════════
-  // GET    返当前 _customSP (has_custom/sp/chars/keep_blocks/at)
+  // GET    返当前 _customSP (has_custom/sp/chars/keep_blocks/at) + default_sp (永返)
   // POST   {sp, keep_blocks, source} → 写 _customSP, 落盘
   // DELETE 清 _customSP, 删盘文件
   // 道义: 二十五章 道法自然. 用户即道, 编辑即真.
+  // v9.7.6 十四章「执今之道·以御今之有」: GET 永返 default_sp (当前即将注入之核心 SP)
+  //   has_custom=true  → default_sp = _customSP.sp (用户即道)
+  //   has_custom=false → default_sp = TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER (帛书本源)
+  //   前端首次打开编辑态 · tape 空 · 即以 default_sp 填 textarea · 名实相符
   if (u.pathname === "/origin/custom_sp" && req.method === "GET") {
+    // v9.7.7 · 兜底 default_sp · 即 invertSP 不存官方 SP 时将实注入之文 (~7237 字帛书裸呈或用户自定)
+    const _defaultSP =
+      _customSP && _customSP.sp
+        ? _customSP.sp
+        : DAO_DE_JING_81
+          ? TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER
+          : "";
+    const _defaultSource = _customSP && _customSP.sp ? "custom" : "silk"; // silk=帛书本源
     if (!_customSP || !_customSP.sp) {
-      res.end(JSON.stringify({ ok: true, has_custom: false }));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          has_custom: false,
+          default_sp: _defaultSP,
+          default_chars: _defaultSP.length,
+          default_source: _defaultSource,
+        }),
+      );
     } else {
       res.end(
         JSON.stringify({
@@ -2236,6 +1987,9 @@ function handleControl(req, res) {
           age_s: _customSP.at
             ? Math.round((Date.now() - _customSP.at) / 1000)
             : null,
+          default_sp: _defaultSP,
+          default_chars: _defaultSP.length,
+          default_source: _defaultSource,
         }),
       );
     }
@@ -2356,17 +2110,10 @@ function _getH2Session(host) {
 function proxyToCloud(req, res, overrideBody) {
   const route = routeUpstream(req.url);
   // 清除 HTTP/2 伪头 + host + HTTP/1.1 connection-specific headers (RFC 9113 §8.2.2)
-  const H1_CONN = new Set([
-    "host",
-    "connection",
-    "keep-alive",
-    "transfer-encoding",
-    "upgrade",
-    "proxy-connection",
-  ]);
+  // v9.3.0: H1_CONN_HEADERS 已提至 module scope · 复用
   const headers = {};
   for (const [k, v] of Object.entries(req.headers)) {
-    if (!k.startsWith(":") && !H1_CONN.has(k)) headers[k] = v;
+    if (!k.startsWith(":") && !H1_CONN_HEADERS.has(k)) headers[k] = v;
   }
   delete headers["content-length"];
   let bodyBuf = overrideBody;
@@ -2395,22 +2142,70 @@ function proxyToCloud(req, res, overrideBody) {
 
   const upStream = session.request(h2headers);
 
+  // ── 真药 A · H2 stream 随断随清 · 弱者道之用 (四十章) ──
+  // 漏: 原版无 req.aborted / res.close / upStream 超时 监听
+  //     客户端中断后 upStream 滞留 H2 session, 与新流共争 HOL, 致卡死
+  // 药: 三路监听 + NGHTTP2_CANCEL · 万物并作, 吾以观其复也 (十六章)
+  let _upClosed = false;
+  const _cancelUpstream = (why) => {
+    if (_upClosed) return;
+    _upClosed = true;
+    try {
+      // NGHTTP2_CANCEL = 0x08 · 向上游声明本流作废, 释放 H2 stream id
+      upStream.close(http2.constants.NGHTTP2_CANCEL);
+    } catch {}
+    log(`[h2] upstream canceled (${why}) ${req.method} ${req.url}`);
+  };
+
+  // 下游 (LS 端) 主动中断 → 取消上游
+  req.on("aborted", () => _cancelUpstream("req.aborted"));
+  req.on("close", () => {
+    if (!req.complete) _cancelUpstream("req.close(incomplete)");
+  });
+
+  // 响应管道关 → 取消上游 (用户按 stop, Cascade 刷新等)
+  res.on("close", () => {
+    if (!_upClosed && !res.writableEnded) _cancelUpstream("res.close");
+  });
+
+  // 双路超时: session 级 + stream 级 · 180s 硬顶 (Cascade 最长单请求)
+  try {
+    upStream.setTimeout(180000, () =>
+      _cancelUpstream("upStream.timeout(180s)"),
+    );
+  } catch {}
+
   upStream.on("response", (h2resHeaders) => {
     const status = h2resHeaders[":status"] || 200;
     const resHeaders = {};
     for (const [k, v] of Object.entries(h2resHeaders)) {
       if (!k.startsWith(":")) resHeaders[k] = v;
     }
-    res.writeHead(status, resHeaders);
+    try {
+      res.writeHead(status, resHeaders);
+    } catch (e) {
+      // res 已关 · 取消上游即可
+      _cancelUpstream(`res.writeHead fail: ${e.message}`);
+      return;
+    }
     upStream.pipe(res);
   });
 
   upStream.on("error", (e) => {
     log(`upstream h2 error ${req.method} ${req.url}: ${e.message}`);
-    if (!res.headersSent) res.writeHead(502);
+    _upClosed = true; // 已错 · 无需再 cancel
+    if (!res.headersSent) {
+      try {
+        res.writeHead(502);
+      } catch {}
+    }
     try {
       res.end(JSON.stringify({ error: "upstream", message: e.message }));
     } catch {}
+  });
+
+  upStream.on("close", () => {
+    _upClosed = true;
   });
 
   // gRPC trailers (grpc-status / grpc-message)
@@ -2421,7 +2216,11 @@ function proxyToCloud(req, res, overrideBody) {
   });
 
   if (bodyBuf) upStream.end(bodyBuf);
-  else req.pipe(upStream);
+  else {
+    req.pipe(upStream);
+    // req 读错 → 取消上游
+    req.on("error", (e) => _cancelUpstream(`req.error: ${e.message}`));
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2434,6 +2233,61 @@ function readBody(req) {
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+// v9.8.0 · _buildAllFieldEntry · 守一不离 · 名实终一
+// ═══════════════════════════════════════════════════════════
+// tape all_fields 渲染单字段:
+//   chat/summary/memory/ephemeral 类: invertAnySP 替换 → text=AFTER · text_before=BEFORE
+//   raw_text/unknown_long 类:        strip+neutralize → text=AFTER · text_before=BEFORE
+// 主公照观面板见 AFTER 即 LLM 实收 · 主公谓"残留"消 (实已 neutralize 上行)
+// 道义: 三十九章「得一」· 名实一体不裂 · 二十一章「其精甚真，其中有信」
+function _buildAllFieldEntry(c, mode) {
+  let displayText = c.text;
+  let textBefore = null;
+  if (mode === "invert") {
+    if (
+      c.kind === "chat" ||
+      c.kind === "summary" ||
+      c.kind === "memory" ||
+      c.kind === "ephemeral"
+    ) {
+      const inv = invertAnySP(c.text);
+      if (inv !== null && inv !== c.text) {
+        textBefore = c.text;
+        displayText = inv;
+      }
+    } else {
+      // v9.8.0 · raw_text/unknown_long: 实模拟 deepStripProtoSideChannels 之治
+      //   1. stripSideChannelBlocks (剥 SIDE_CHANNEL_TAGS · 不含 additional_metadata 自 v9.8.0)
+      //   2. neutralizeHiddenOverrides (中性化 SECTION_OVERRIDE)
+      let after = c.text;
+      try {
+        if (hasSideChannels(after)) {
+          after = stripSideChannelBlocks(after);
+        }
+      } catch {}
+      try {
+        if (after.indexOf("SECTION_OVERRIDE_MODE_") >= 0) {
+          after = neutralizeHiddenOverrides(after);
+        }
+      } catch {}
+      if (after !== c.text) {
+        textBefore = c.text;
+        displayText = after;
+      }
+    }
+  }
+  return {
+    path: c.field_path,
+    kind: c.kind,
+    chars: displayText.length,
+    hash: _quickHash(displayText),
+    text: displayText,
+    text_before: textBefore,
+    chars_before: textBefore ? textBefore.length : 0,
+  };
 }
 
 // v7.8 反者道之动: TCP 层协议复用 (HTTP/1.1 + HTTP/2 h2c 同端口)
@@ -2467,11 +2321,11 @@ const _mainHandler = async (req, res) => {
     const body = await readBody(req);
 
     // 5. 广谱观察 · 字段级深扫
+    // v9.3.9 · 保 cands 引用 · 后步 _recordInject 顺存为 all_fields
+    let _allCandsForInject = [];
     try {
       const cands = observeAllSPInBody(body, req.url);
-      for (const c of cands) {
-        _recordSPCandidate({ rpc: req.url, ...c });
-      }
+      _allCandsForInject = cands || [];
       if (cands.length > 0) {
         log(
           `#${rid} sp_scan url=${req.url.split("/").slice(-2).join("/")} ` +
@@ -2492,7 +2346,14 @@ const _mainHandler = async (req, res) => {
       if (obs && obs.before && obs.before.length > 100) {
         const inverted = SP_MODE === "invert" ? invertSP(obs.before) : null;
         const after = inverted !== null ? inverted : obs.before;
-        _recordInject({
+        // v9.3.9 · 大道至简 · 顺存 all_fields (该次 RPC body 所有 utf8 字段)
+        //         agent 接收一切之文字即此: SP + user_msg + tools + context + history
+        //         webview [全] 态按 field_path 顺序渲 · 一屏同观 (万法归宗)
+        // v9.8.0 · 守一不离 · raw_text/unknown 亦显 AFTER (post strip+neutralize) · 名实终一
+        const allFields = _allCandsForInject.map((c) =>
+          _buildAllFieldEntry(c, SP_MODE),
+        );
+        const injectEv = {
           kind,
           variant: obs.variant,
           field: obs.field,
@@ -2503,7 +2364,46 @@ const _mainHandler = async (req, res) => {
           after_chars: after.length,
           before: obs.before,
           after,
-        });
+          all_fields: allFields,
+          all_fields_count: allFields.length,
+          all_fields_chars: allFields.reduce((s, f) => s + f.chars, 0),
+        };
+        _recordInject(injectEv);
+        // v9.4.5 · 底层之底 · 时序一切入 tape · 不分槽 · 反之又反
+        _recordRawTape(
+          Object.assign({}, injectEv, {
+            method: req.method,
+            rpc: req.url,
+            mode_at: SP_MODE,
+            route: route.host,
+          }),
+        );
+      } else {
+        // v9.4.5 · obs 无命中 (此 inference RPC 无 SP 字段) · 仍记 tape (仅 all_fields)
+        // v9.8.0 · raw_text/unknown 亦显 AFTER (post strip+neutralize)
+        const allFields = _allCandsForInject.map((c) =>
+          _buildAllFieldEntry(c, SP_MODE),
+        );
+        if (allFields.length > 0) {
+          _recordRawTape({
+            kind,
+            variant: null,
+            field: null,
+            role: null,
+            mode_at: SP_MODE,
+            transformed: false,
+            before: null,
+            after: null,
+            before_chars: 0,
+            after_chars: 0,
+            all_fields: allFields,
+            all_fields_count: allFields.length,
+            all_fields_chars: allFields.reduce((s, f) => s + f.chars, 0),
+            method: req.method,
+            rpc: req.url,
+            route: route.host,
+          });
+        }
       }
     }
 
@@ -2517,8 +2417,17 @@ const _mainHandler = async (req, res) => {
       } else if (kind === "CHAT_RAW") {
         modified = modifyRawSP(body); // field[3] SP 替换 + 深度净化
       } else if (kind === "INFER_STRIP") {
-        // 所有其他 inference RPC · 仅深度净化 (剥侧信道 · 不动 SP 字段)
-        const r = deepStripRequestBody(body);
+        // v9.5.0 · 回归 v9.1.2 本源 · 双重防护:
+        //   ① modifyAnyInferenceSP: 字段级递归 SP 深替 (summary/memory/ephemeral 皆归帛书)
+        //   ② deepStripRequestBody: 侧信道剥净 (user_rules/MEMORY 等)
+        // 二十五章 "远曰反" · 远至极致回归本源 · 覆 v9.4.x 所失之菁.
+        const afterDeep = modifyAnyInferenceSP(body);
+        if (afterDeep !== body) {
+          log(
+            `#${rid} ${kind} SP-DEEP replaced (summary/memory/ephemeral 归帛书)`,
+          );
+        }
+        const r = deepStripRequestBody(afterDeep);
         modified = r.body;
         if (r.changed > 0) {
           log(`#${rid} ${kind} STRIPPED ${r.changed} side-channels`);
@@ -2534,6 +2443,7 @@ const _mainHandler = async (req, res) => {
     } else {
       log(`#${rid} ${kind} UNCHANGED ${body.length}B mode=${SP_MODE}`);
     }
+
     proxyToCloud(req, res, modified);
   } catch (e) {
     log(`#${rid} handler err: ${e.stack || e.message}`);
@@ -2631,13 +2541,25 @@ const server = net.createServer((socket) => {
 });
 
 server.on("listening", () => {
+  try {
+    _actualPort = (server.address() && server.address().port) || PORT;
+  } catch {}
   log("═══════════════════════════════════════════════════════");
-  log(` 本源 Origin v7.8 h1+h2c mux @ :${PORT}`);
+  log(` 本源 Origin ${ORIGIN_VERSION} h1+h2c mux @ :${_actualPort}`);
   log(` mgmt   → https://${UPSTREAM_MGMT}`);
-  log(` infer  → https://${UPSTREAM_INFER}`);
+  log(
+    ` infer  → https://${UPSTREAM_INFER}   (默认 · chat RPC 随 INFERENCE_SERVICES 分流)`,
+  );
+  if (UPSTREAM_CHAT) {
+    log(
+      ` chat   → https://${UPSTREAM_CHAT}   (v9.3.2 · CHAT_UPSTREAM env 显式覆盖)`,
+    );
+  }
   log(` mode=${SP_MODE} · pid=${process.pid}`);
-  log(` 德道经 chars=${DAO_DE_JING_81.length}`);
-  log(` 控制面: http://127.0.0.1:${PORT}/origin/ping`);
+  log(
+    ` 帛书德道经 chars=${DAO_DE_JING_81.length} (上篇·德=${SILK_DE_JING.length} 下篇·道=${SILK_DAO_JING.length})`,
+  );
+  log(` 控制面: http://127.0.0.1:${_actualPort}/origin/ping`);
   log("═══════════════════════════════════════════════════════");
 });
 
@@ -2660,6 +2582,7 @@ function start(opts) {
       server.removeListener("error", onError);
       const addr = server.address();
       const realPort = (addr && addr.port) || port;
+      _actualPort = realPort;
       log(`[lib] in-process listen :${realPort} (h1+h2c mux)`);
       resolve({
         server,
@@ -2758,29 +2681,32 @@ function _runCli() {
 if (require.main === module) _runCli();
 
 module.exports = {
+  // v9.7.0 路 为道日损 路 仅留实用 exports
   invertSP,
-  invertAnySP, // v9.0: 任 SP 类皆前置道魂 + 彻底隔离
   isLikelyOfficialSP,
-  DAO_DE_JING_81,
-  OFFICIAL_SP_MARKERS,
-  TAO_HEADER,
-  TAO_FOOTER, // v9.1: </MEMORY>+</user_rules> 闭合
-  TAO_TRAILER, // customSP 路径用
-  TAO_SENTINEL, // 幂等签名
-  KEEP_BLOCKS, // customSP 路径用
-  extractKeepBlocks, // v9.0: 从官方 SP 切出必要模块 (中性化)
-  neutralizeBlock, // v9.0: 单块中性化
-  stripSideChannelBlocks, // v9.0: 剥侧信道 XML 块
-  hasSideChannels, // v9.0: 侧信道检测
-  deepStripProtoSideChannels, // v9.0: 递归深度剥净 proto 侧信道
-  deepStripRequestBody, // v9.0: 整 body 侧信道剥净
-  SAMPLE_OFFICIAL_SP,
-  _quickHash,
-  stripOfficialNaming,
+  classifySPType,
+  isAlreadyInverted,
   modifySPProto,
   modifyRawSP,
-  modifyAnyInferenceSP, // v8.0 遗留 (仍可用 · v9.0 handler 不再调)
-  deepInvertProto, // v8.0 遗留
+  invertAnySP,
+  deepInvertProto,
+  modifyAnyInferenceSP,
+  stripSideChannelBlocks,
+  hasSideChannels,
+  deepStripProtoSideChannels,
+  deepStripRequestBody,
+  DAO_DE_JING_81,
+  TAO_HEADER,
+  TAO_FOOTER,
+  TAO_TRAILER,
+  TAO_SENTINEL,
+  KEEP_BLOCKS,
+  extractKeepBlocks,
+  neutralizeBlock,
+  OFFICIAL_SP_MARKERS,
+  SUMMARY_SP_MARKERS,
+  MEMORY_SP_MARKERS,
+  EPHEMERAL_SP_MARKERS,
   parseProto,
   serializeProto,
   parseFrames,
@@ -2789,23 +2715,17 @@ module.exports = {
   readVarint,
   encodeLen,
   looksLikeUtf8Text,
-  extractMsgContent,
+  extractUtf8StringsFromGrpcBody,
   findMsgsField,
+  extractMsgContent,
   routeUpstream,
   classifyRPC,
-  server,
-  // v17.55 解剖 (抱一知天下势)
-  dissectSP,
-  // v17.66 原观
   observeSPFromBody,
-  // v7.7 · 反者道之动 · 全链路探源
-  classifySPType,
-  deepScanProto,
   observeAllSPInBody,
-  SUMMARY_SP_MARKERS,
-  MEMORY_SP_MARKERS,
-  EPHEMERAL_SP_MARKERS,
-  // v18.0 · 库接口 (ext-host 进程内 · 损 spawn detached 之根)
+  deepScanProto,
+  looksLikeSPShape,
+  _quickHash,
+  server,
   start,
   stop,
   // v18.0 · 模式查改 (库使用)

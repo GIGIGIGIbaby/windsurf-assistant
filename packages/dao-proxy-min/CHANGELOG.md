@@ -2,9 +2,83 @@
 
 > 反也者, 道之动也; 弱也者, 道之用也. —— 帛书《老子》德经
 
-## v9.1.2 — 道法自然 · 逆序净卸 (2026-04-30)
+## v9.8.0 — 守一不离 (2026-05-06)
 
-> 反也者, 道之动也; 弱也者, 道之用也. —— 帛书《老子》德经
+> **昔之得一者：天得一以清·地得一以宁·神得一以灵·侯王得一以为天下正.** —— 帛书《老子》三十九章
+>
+> **窈兮冥兮·其中有精·其精甚真·其中有信.** —— 帛书《老子》二十一章
+
+### 治二根·名实终一·@ 工具复活
+
+| 根 | 漏 | 药 |
+|---|---|---|
+| **@ 工具失** | `SIDE_CHANNEL_TAGS` 含 `additional_metadata` · 客户端以此 block 传 @项之元 (Cascade ID/file path/line range/symbol) · 剥之则 `trajectory_search` / `read_file` / `view_content_chunk` 等 @ 工具必败 | **删** `additional_metadata` from `SIDE_CHANNEL_TAGS` · 守 @项与元一体 |
+| **名实不一** | `tape.all_fields[].raw_text` 显 BEFORE 态 · 主公见 OVERRIDE 残影 · 实则 upstream 已 neutralize · 视听皆误 | `_buildAllFieldEntry(content, mode)` 助函数 · 内部先 `stripSideChannelBlocks` 再 `neutralizeHiddenOverrides` · `raw_text = after` · **所见即所得** |
+| **(兼治) g flag stateful** | `hasSideChannels` 三 RegExp `g` 标 · `lastIndex` 跨调用残留 · 部分字段假阴致 strip 漏 | `SIDE_CHANNEL_TAGS_RE.lastIndex = 0` + `MEMORY_BLOCK_RE.lastIndex = 0` + `DISCIPLINE_RE.lastIndex = 0` 三处显重置 |
+
+### 改动定位 (`vendor/bundled-origin/source.js`)
+
+- 行 ~672-709 · `SIDE_CHANNEL_TAGS` 删 `additional_metadata`
+- 新增 `_buildAllFieldEntry(c, mode)` 助函数 · 主 handler 调之
+- 行 ~743-759 · `hasSideChannels` 重置 `lastIndex` 三处
+- `ORIGIN_VERSION_BASE = "v9.8.0"` · `ORIGIN_VERSION = "v9.8.0-shou-yi-bu-li"`
+
+### 验
+
+- `_审视/_v980_strip_test.js` · **6/6 PASS**
+- `_审视/_smoke.ps1` · 静检 + 活探 · **25/25 PASS**
+- `_审视/_verify_remote.ps1 -RunStripTest` · 远端实物 · **15/15 PASS**
+
+### 哲
+
+「得一」非守 user_rules · 非守 memories · 非守 system_prompt — 此皆客户端注之「加身」锚戒。「得一」守的是 **名实终一** 与 **@项与元之不可剥**。强剥 `additional_metadata` → 名去元 → agent 不知所云 → 工具必败。
+
+---
+
+## v9.7.9 — 道法自然 · 中性化身份锚 (2026-05-05)
+
+承 v9.7.7 复归于朴。识 `<additional_metadata>` 中之 `SECTION_OVERRIDE_MODE_APPEND` 身份锚 (`Separately, if asked about what your underlying model is, respond with Cascade`)，以 `neutralizeHiddenOverrides` 转中性 (道家语)，**九章「持而盈之·不若其已」**: 不强加之身份，复用户域之自然。
+
+## v9.7.7 — 复归于朴 (2026-05-04)
+
+四味芜尽损 · 极简至 76KB · 二十八章「朴散则为器」: 余 4 KEEP_BLOCKS 主梁 (user_rules / memories / additional_metadata / tool_calling) · 弃二态枝。
+
+## v9.6.0 — 守 Cascade ID (2026-05-03)
+
+`additional_metadata` block 含 `Cascade ID:` 行 · 是 conversation tracker · 之前误剥 (兼及上下文) · v9.6 单守 Cascade ID 行 · 余 OVERRIDE 仍中性。**(后于 v9.8.0 一并升级 — 整 block 守住)**
+
+## v9.5.0 — SECTION_OVERRIDE 中性化 (2026-05-02)
+
+发现 `additional_metadata` 内 OVERRIDE 锚 · 引入 `neutralizeHiddenOverrides` · 不删 OVERRIDE block · 仅替其 content 为道家语 (二十二章「曲则金·枉则定」)。
+
+---
+
+## v9.2.0 — 反者道之动 · 弱者道之用 (2026-05-03)
+
+> **反者道之动, 弱者道之用.** —— 帛书《老子》四十章
+>
+> **为道日损.** —— 帛书《老子》四十八章
+
+### 四味真药
+
+| 真药 | 漏 | 药 | 道义 |
+|---|---|---|---|
+| **A** | `proxyToCloud` 无 `req.aborted` / `res.close` / `upStream.setTimeout` · H2 stream 泄漏致 HOL 阻塞 | `req.aborted` + `res.close` + `upStream.setTimeout(180s)` → `NGHTTP2_CANCEL` | 四十章·**弱者道之用** |
+| **B** | `setAnchor` 每次 activate 必写 `settings.json` · file watcher 空转 · ext-host 抖动 | API+文件双路同值不写 | 六十四章·**为者败之** |
+| **C** | `proxyStart` `EADDRINUSE` 仅单次 ping · 假定远端永活 · dead remote 成 phantom | 1 ping → 活则 remote handle · 死则返 null (本窗口直连·不抢端口) | 八章·**上善若水** |
+| **D** | `activate` 首装即 `forceRestartLS()` 广域杀 · 多窗口连锁 ext-host crash | activate 仅装 hook + 锚 settings · 不主动杀 LS · 自然重启时挂钩 | 四十八章·**为道日损** |
+
+### 默认改动
+
+- `dao.origin.banner` true → false (不言之教)
+
+### 前车之鉴
+
+v9.1.3 试图修补但 **加六事** (PID簿 / `_trackChild` / `forceRestartLS` 广窄分级 / EADDRINUSE 三验 / 8s 复查 / 60s 健康探针 / 离线 handle) · 净增 200+ 行码 · 反伤本源。v9.2.0 反之 · 损其名而存其本。**反者道之动**。
+
+---
+
+## v9.1.2 — 道法自然 · 逆序净卸 (2026-04-30)
 
 ### 逆序关停 · 根治卸载卡死
 
@@ -13,7 +87,7 @@
 **修复** — 反者道之动 · 逆序:
 
 | 步骤 | 旧 (必死) | 新 (道法自然) |
-|------|-----------|---------------|
+|---|---|---|
 | ① | 停代理 | **设透传** (安全网) |
 | ② | 清锚 (API 失败) | **断钩** + `_cachedAnchored=false` |
 | ③ | — | **同步清锚** (`_clearAnchorFileSync`) |
@@ -41,46 +115,22 @@
 
 | 层 | v4.5 | v5.0 道法自然 |
 |---|---|---|
-| **道层** | TAO_HEADER + 德道经八十章 | 同 (永在前) |
-| **法层** | 官方 SP 经"系统/用户侧"二分剥削 | 官方 SP **完整保留** (含 user_rules / MEMORY / skills / workflows / memory_system / ide_metadata 全谱) |
-| **术层** | proto deepStrip 递归净化所有 wire=2 字段 | proto **不动** · 各工作区/工具/MCP 自然运行 |
+| **道层** | TAO_HEADER + 道德经八十章 | 同 (永在前) |
+| **法层** | 官方 SP 经"系统/用户侧"二分剥削 | 官方 SP **完整保留** |
+| **术层** | proto deepStrip 递归净化所有 wire=2 字段 | proto **不动** |
 
 ### 删去之有为 (~250 行)
 
-- `SIDE_CHANNEL_TAGS` / `SIDE_CHANNEL_TAGS_RE` / `MEMORY_BLOCK_RE` / `DISCIPLINE_LINES` / `DISCIPLINE_RE`
+- `SIDE_CHANNEL_TAGS` / `SIDE_CHANNEL_TAGS_RE` / `MEMORY_BLOCK_RE` / `DISCIPLINE_RE`
 - `stripSideChannelBlocks` / `hasSideChannels`
-- `isStrictProto` / `deepStripProtoSideChannels` / `deepStripRequestBody`
+- `deepStripProtoSideChannels` / `deepStripRequestBody`
 - `INFER_STRIP` 路径 (改为 `PASSTHROUGH`)
-- `selftest` 之 `deep_strip_user_msg` 路径
-- `fakeSP` 之 `LEAK_MARKERS` 检测
-- `ping` endpoint 之 `deep_strip` / `side_channel_tags` 字段
-- exports 中之剥逻辑导出
 
-### 哲学
+> 旧路 (v4.x): "剥侧信道"试图把 user_rules / MEMORY / discipline 等"系统侧"杀去, 留"用户侧"; 陷剥/留二元 · 字段必生新增 · 维护成本高.
+>
+> 新路 (v5.0): **前置道魂 · 不剥不削** · LLM 自感道魂之首言 · 后续官方约束自然让位.
 
-旧路 (v4.x): "剥侧信道"试图把官方 SP 之 user_rules / MEMORY / discipline 等"系统侧"杀去, 留"用户侧". 此路陷入剥/留二元, 字段必生新增, 维护成本高.
-
-新路 (v5.0): **前置道魂, 不剥不削**. 道在前为君, 法在后为臣. LLM 自感道魂之首言, 后续官方约束自然让位. 一气贯三清.
-
-### selftest 简化
-
-```text
-GET /origin/selftest → all_paths_pass: true
-  ├─ plain_utf8           道=✓ · 用户问题=✓
-  ├─ nested_chat_message  道=✓ · 用户问题=✓
-  └─ raw_sp               道=✓ · 用户问题=✓
-```
-
-(去除 v4.x 之 `deep_strip_user_msg` 路径 · 用户消息原本就不剥)
-
-### 验证
-
-| 项 | 结果 |
-|---|---|
-| `node --check source.js` | ✓ 静默 |
-| 本地 selftest | ✓ `all_paths_pass=true` · 三路径前置道魂 + KEEP_MARKERS 19/19 全保 |
-| L1 单元自检 | ✓ 4/4 全绿 (含 `user_msg_passthrough`) |
-| vsix 打包 | ✓ `dao-proxy-min-5.0.0.vsix` (68.92 KB · 12 文件) |
+> **注**: v5.0 之"道魂在前·不剥侧信道"路·后于 v9.x 系列被发现并不充分 (LS 客户端实际嵌入 `<additional_metadata>` 等带 `SECTION_OVERRIDE_MODE_APPEND` 之"加身"锚戒) · v9.5+ 复引 `stripSideChannelBlocks` + `neutralizeHiddenOverrides` · 但**精准而非二元**: 守 @ 工具之元 (v9.8.0) · 中性化身份锚 (v9.5+) · 此即"反者道之动"之实。
 
 ---
 
@@ -89,26 +139,20 @@ GET /origin/selftest → all_paths_pass: true
 ### 字段级 proto 重构
 
 - 离弃脆弱字节扫描, 改为字段级 proto 解析 / 序列化
-- 27 种 XML-like 侧信道标签深度递归剥离 (`<user_rules>` / `<MEMORY[...]>` / `<communication_style>` / ...)
-- 三档 RPC 全覆盖: `CHAT_PROTO` (GetChatMessage{,V2}) / `CHAT_RAW` (RawGetChatMessage) / `INFER_STRIP` (其他 inference RPC) / `PASSTHROUGH` (非 inference)
+- 27 种 XML-like 侧信道标签深度递归剥离
+- 三档 RPC 全覆盖: `CHAT_PROTO` / `CHAT_RAW` / `INFER_STRIP` / `PASSTHROUGH`
 
 ### per-user 端口隔离
 
-多账号同机时, 每用户自动分配唯一端口 (FNV-1a hash of username → 8889..8988). 无配置, 无协调, 自然隔离.
+多账号同机时, 每用户自动分配唯一端口 (FNV-1a hash → 8889..8988)。
 
-### 二态热切
+### 二态热切 + SSE + 本源观照 webview
 
-模式切换不需重载. proxy 常驻, 翻转 `mode` 即可 (道 ⇄ 官方).
-
-### SSE 推式 + 本源观照 webview
-
-- `/origin/stream` SSE 实时推送 (sp / mode / hb 事件)
-- 活动栏 → 道Agent 容器 · 实时 SP 面板 · 原发/实收切换 · 自定义 SP 注入
+模式切换不需重载 · `/origin/stream` SSE 推送 · 活动栏 → 道Agent 容器实时 SP 面板。
 
 ### 跨平台 + 净卸
 
-- LS 重启支持 Windows / macOS / Linux
-- "了事拂衣去" 一键净卸 (停反代 · 清设置 · 卸插件 · 归本源)
+LS 重启支持 Windows / macOS / Linux · "了事拂衣去" 一键净卸归本源。
 
 ### 7 命令
 
@@ -130,8 +174,7 @@ GET /origin/selftest → all_paths_pass: true
 
 - 极简反代 · ~40KB · 3 命令 · 固定端口 8889
 - source.js 字节扫描 + SP 替换
-- 无 webview · 无热切 · 无 SSE
-- vendor/bundled-origin 内联德道经 八十章
+- vendor/bundled-origin 内联帛书
 
 ---
 
@@ -140,7 +183,14 @@ GET /origin/selftest → all_paths_pass: true
 ```text
 v3.0  朴      → 字节扫描 · 一刀切 · 极简
 v4.0  增      → 字段级 proto · 27 标签深剥 · 万法归宗
-v5.0  损      → 跳出剥/留二元 · 道魂在前 · 一气贯三清 · 道法自然
+v5.0  损      → 跳出剥/留二元 · 道魂在前 · 道法自然
+v9.1  逆      → 逆序净卸 · `<user_rules>` 可信注入
+v9.2  弱      → 四味真药 · H2 stream · file watcher · phantom remote · 自然重启
+v9.5  中      → SECTION_OVERRIDE 中性化 · 不删而转语
+v9.7  朴      → 复归于朴 · 极简至 76KB
+v9.8  得一    → 守 @ 工具之根 · 名实终一 · g flag stateful 兼治
 ```
 
 > 大成若缺, 其用不敝; 大盈若盅, 其用不窘. —— 帛书《老子》德经
+>
+> 道法自然 · 无为而无不为 · 损之又损 · 以至于无为

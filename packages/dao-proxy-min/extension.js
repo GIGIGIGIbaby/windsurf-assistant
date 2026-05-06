@@ -1,35 +1,52 @@
-// extension.js · dao-proxy-min v9.0 · 反者道之动 · 追本溯源彻底隔离
+// extension.js · dao-proxy-min v9.3.0 · 反者道之动 · 弱者道之用
 //
-// 德道经 · 道经: "大曰筮, 筮曰远, 远曰反."
-// 德道经 · 德经: "反也者, 道之动也; 弱也者, 道之用也."
-// 德道经 · 道经: "卅辐同一毂, 当其无有, 车之用也."
-// 德道经 · 德经: "善建者不拔, 善抱者不脱."
+// 道德经 · 第四十章: "反者道之动, 弱者道之用."
+// 道德经 · 第四十八章: "为道日损. 损之又损, 以至于无为."
+// 道德经 · 第六十四章: "为者败之, 执者失之."
+// 道德经 · 第十六章: "夫物云云, 各复归于其根."
+// 道德经 · 第八十一章: "既以为人己愈有, 既以予人己愈多."
 //
-// v8.0 大曰逝逝曰远远曰反 · 复归 4.0 之道:
-//   大道已逝远 (v7.0-v7.6 过度剥离), 唯反归本源.
-//   整式 = TAO_HEADER + DAO_DE_JING_81 + "\n\n---\n\n" + 原SP (全保)
-//   道魂在前为本源, 工程坐标在后为器. 毂不可弃 · 弃则无车.
-//   替换一切 inference RPC (chat/summary/memory/ephemeral/...).
-//   _customSP 一态恒整替.
+// v9.3.0 "反之用反 · 闭环自举":
+//   加 /origin/loopback (POST {user_msg}) 端 · 用最近 chat 缓 + 替 user msg
+//   + 真转云端 + 收响应解 grpc · 返 model 之答 · 令模型自审其规则之源.
+//   缓仅内存 (_lastChatRelay), 进程退即失, 不漏 token 至磁盘.
+//   配 helpers: replaceUserMsgInGrpcBody / extractUtf8StringsFromGrpcBody.
 //
-// v7.x (过度剥离 · v8.0 反之):
-//   v7.0-v7.4: 彻删官方身份/风格/规训, 仅保工具块替德道经. 过剥失器.
-//   v7.5: 加回 TAO_HEADER 弱声明. 仍剥.
-//   v7.6: 为道日损 · 极简. 仍剥.
-//   v7.8: 一态整替 _customSP. 仍剥.
+// v9.2.1 "有无相生":
+//   以结构判 (isAlreadyInverted) 代 s.indexOf(TAO_SENTINEL) 短语幂等守,
+//   防用户真 Cascade Memories (含同句导语) 误触 invertSP 早返 null 而完全失效.
 //
-// v4.0-v4.5 (本源 · v8.0 复归):
-//   TAO_HEADER 强身份 + DAO全文 + 原SP全保. 不剥不替不损.
-//   spawn hook + 进程内 source.js + SSE 推式 + per-user 端口 + 二态热切 + 自检
-//   webview 闭环自举 / nonce-CSP / portMapping / 主动首推
+// v9.2.0 "去芜存菁 · 道法自然":
+//   于 v9.1.2 之上, 仅施四味真药, 净减码量, 不增功能, 不增状态.
+//
+//   真药 A · H2 stream 随断随清 (source.js proxyToCloud)
+//      req.aborted / res.close / upStream.setTimeout(180s) → NGHTTP2_CANCEL
+//      漏: 原版 upStream 永生留, HOL 阻塞继任流
+//      药: 三路监听, 弱者道之用 (四十章)
+//
+//   真药 B · setAnchor 同值不写 (extension.js setAnchor)
+//      漏: 每 activate 必写 settings.json, file watcher 空转, ext-host 抖动
+//      药: 进函数先比对, 同值即返 (六十四章 · 为者败之)
+//
+//   真药 C · EADDRINUSE 不抢 (extension.js proxyStart)
+//      漏: 原版 ping 失败仍信占者活, remote handle phantom
+//      药: 1 ping · 活则复用 · 死则返 null (本窗口直连, 不抢) (上善若水)
+//
+//   真药 D · activate 不杀 LS (extension.js activate)
+//      漏: 首装即 forceRestartLS 广域杀, 多窗口连锁 ext-host crash
+//      药: 首装仅装 hook + 锚 settings, LS 自然重启时挂钩 (四十八章 · 为道日损)
+//
+// v9.1.3 之过 (前车之鉴 · 损之未足复益): PID 簿 / 健康探针 / 三验 / 离线 handle
+//   反伤本源, 此次净拨, 复归 v9.1.2 之朴, 仅留四味.
 //
 // 命令:
-//   wam.originInvert      · 道Agent 启
+//   wam.originInvert       · 道Agent 启 (含 forceRestartLS · 用户显式触发)
 //   wam.originPassthrough  · 官方Agent 启
 //   dao.toggleMode         · 道/官 热切
 //   dao.openPreview        · 浏览器观真 SP
 //   wam.verifyEndToEnd     · E2E 自检
 //   wam.selftest           · L1+L2 自检
+//   dao.purge              · 了事拂衣去
 
 "use strict";
 const vscode = require("vscode");
@@ -55,16 +72,16 @@ const BACKUP_KEY_API = "dao.origin._backup_apiServerUrl";
 const BACKUP_KEY_INFER = "dao.origin._backup_inferenceApiServerUrl";
 
 const DAO_QUOTES = [
-  "道，可道也，非恒道也",
-  "上善如水",
+  "道可道，非常道",
+  "上善若水",
   "大音希声，大象无形",
   "道法自然",
   "无为而无不为",
-  "致虚极也，守情表也",
+  "致虚极，守静笃",
   "反者道之动",
   "知者不言，言者不知",
   "天下莫柔弱于水",
-  "为学者日益，闻道者日损",
+  "为学日益，为道日损",
 ];
 
 // ═══════════════════════════ 缓存 ═══════════════════════════
@@ -199,13 +216,14 @@ function removeSpawnHook() {
 }
 
 // ═══════════════════════════ LS 重启 ═══════════════════════════
+// 仅由用户显式命令触发 (cmdInvert / cmdPurge / deactivate); 不在 activate 调用 (真药 D)
+// 第六十四章「为者败之」: activate 不主动干预 LS, 留待自然重启或用户意愿
 function forceRestartLS() {
   return new Promise((resolve) => {
-    const userName = os.userInfo().username;
-    const plat = process.platform; // win32 | darwin | linux
+    const plat = process.platform;
     let cmd, args;
     if (plat === "win32") {
-      // language_server_windows_x64.exe · 仅杀当前用户
+      const userName = os.userInfo().username;
       cmd = "taskkill";
       args = [
         "/F",
@@ -215,14 +233,12 @@ function forceRestartLS() {
         `USERNAME eq ${userName}`,
       ];
     } else {
-      // macOS / Linux · pkill by name pattern · 仅杀当前用户 (-u)
       const binName =
         plat === "darwin"
           ? "language_server_macos_arm"
           : "language_server_linux_x64";
       cmd = "pkill";
       args = ["-f", binName];
-      // pkill -u 限制用户 (非 root 时自动仅杀自身进程)
       try {
         const uid = String(os.userInfo().uid);
         if (uid && uid !== "-1") args.unshift("-u", uid);
@@ -237,7 +253,6 @@ function forceRestartLS() {
         "restart-ls",
         `${plat} ${cmd} exit=${code} ${out.trim().slice(0, 200)}`,
       );
-      // taskkill: 0=ok, 128=not found; pkill: 0=matched, 1=no match
       resolve(code === 0 || code === 128 || (plat !== "win32" && code === 1));
     });
     proc.on("error", (e) => {
@@ -289,29 +304,36 @@ async function proxyStart(port, mode) {
     });
     L.info(
       "proxy",
-      `started :${_proxyHandle.port} mode=${_proxyHandle.getMode()}`,
+      `started :${_proxyHandle.port} bind=127.0.0.1 mode=${_proxyHandle.getMode()}`,
     );
     return _proxyHandle;
   } catch (e) {
-    // EADDRINUSE: 多窗口场景 · 端口已被另一窗口占用 · 复用
+    // ── 真药 C · EADDRINUSE 不抢 · 上善若水 (八章) ──
+    // 1 ping → 活则复用 (remote handle), 死则返 null (本窗口直连, 不抢端口)
+    // 第八章「水善, 利万物而有静」: 不与端口争, 让本窗口走直连即可
     if (
       e.code === "EADDRINUSE" ||
       (e.message && e.message.includes("EADDRINUSE"))
     ) {
-      L.info("proxy", `port :${port} EADDRINUSE → checking remote proxy`);
+      L.info("proxy", `port :${port} EADDRINUSE → ping remote`);
       const ping = await httpGetJson(
         `http://127.0.0.1:${port}/origin/ping`,
         2000,
       );
-      if (ping && ping.ok) {
+      if (
+        ping &&
+        ping.ok &&
+        (ping.mode === "invert" || ping.mode === "passthrough")
+      ) {
         L.info(
           "proxy",
-          `port :${port} has live proxy (mode=${ping.mode}) → remote handle`,
+          `port :${port} live remote (mode=${ping.mode}) → remote handle`,
         );
         _proxyHandle = _createRemoteHandle(port, ping.mode);
         return _proxyHandle;
       }
-      L.warn("proxy", `port :${port} occupied but no proxy → cannot start`);
+      L.warn("proxy", `port :${port} 占且非反代 · 返 null (本窗口直连)`);
+      return null;
     }
     throw e;
   }
@@ -335,6 +357,7 @@ function _createRemoteHandle(port, mode) {
     port,
     host: "127.0.0.1",
     server: null, // remote · 无本地 server
+    kind: "remote",
     getMode: () => _mode,
     setMode: (m) => {
       _mode = m;
@@ -395,32 +418,74 @@ function _writeSettingsJson(fp, json) {
 async function setAnchor(port) {
   const url = `http://127.0.0.1:${port}`;
 
-  // 方法1: VS Code API (内存即时生效) — 每个键单独 try · 不因未注册键而中断
-  for (const key of ["codeium.apiServerUrl", "codeium.inferenceApiServerUrl"]) {
-    try {
-      await vscode.workspace
-        .getConfiguration()
-        .update(key, url, vscode.ConfigurationTarget.Global);
-    } catch (e) {
-      L.warn("anchor", `API set ${key} fail: ${e.message}`);
+  // ── 真药 B · 同值不写 · 为者败之 (六十四章) ──
+  // API 与文件双路均先比对, 同值即返, 真变则动 (免 file watcher 空转)
+  let needWriteFile = false;
+  let skipApi = true;
+
+  // 先看磁盘当前值 (这是 Windsurf 真正 reload 的依据)
+  let currentApi = null,
+    currentInfer = null;
+  try {
+    const json = _readSettingsJson(_settingsJsonPath());
+    if (json) {
+      currentApi = json["codeium.apiServerUrl"];
+      currentInfer = json["codeium.inferenceApiServerUrl"];
+      needWriteFile = currentApi !== url || currentInfer !== url;
+    } else {
+      needWriteFile = true; // 读不到 → 当作需写
+    }
+  } catch {
+    needWriteFile = true;
+  }
+
+  // API 写: 只有当 VS Code 内存视图与目标不符才动
+  try {
+    const c = vscode.workspace.getConfiguration();
+    if (
+      c.get("codeium.apiServerUrl") !== url ||
+      c.get("codeium.inferenceApiServerUrl") !== url
+    ) {
+      skipApi = false;
+    }
+  } catch {
+    skipApi = false;
+  }
+
+  if (!skipApi) {
+    for (const key of [
+      "codeium.apiServerUrl",
+      "codeium.inferenceApiServerUrl",
+    ]) {
+      try {
+        await vscode.workspace
+          .getConfiguration()
+          .update(key, url, vscode.ConfigurationTarget.Global);
+      } catch (e) {
+        L.warn("anchor", `API set ${key} fail: ${e.message}`);
+      }
     }
   }
 
-  // 方法2: 直写 settings.json (磁盘持久化 · 兜底)
-  try {
-    const sp = _settingsJsonPath();
-    const json = _readSettingsJson(sp);
-    if (json) {
-      json["codeium.apiServerUrl"] = url;
-      json["codeium.inferenceApiServerUrl"] = url;
-      if (_writeSettingsJson(sp, json)) {
-        L.info("anchor", `file set ${url} → ${sp}`);
+  // 文件写: 同值不写 · 免 file watcher 空转
+  if (needWriteFile) {
+    try {
+      const sp = _settingsJsonPath();
+      const json = _readSettingsJson(sp);
+      if (json) {
+        json["codeium.apiServerUrl"] = url;
+        json["codeium.inferenceApiServerUrl"] = url;
+        if (_writeSettingsJson(sp, json)) {
+          L.info("anchor", `file set ${url} → ${sp}`);
+        }
+      } else {
+        L.warn("anchor", `settings.json unreadable: ${sp}`);
       }
-    } else {
-      L.warn("anchor", `settings.json unreadable: ${sp}`);
+    } catch (e) {
+      L.warn("anchor", `file set fail: ${e.message}`);
     }
-  } catch (e) {
-    L.warn("anchor", `file set fail: ${e.message}`);
+  } else {
+    L.info("anchor", `already ${url} · skip write (无为而治)`);
   }
 
   _cachedAnchored = true;
@@ -795,19 +860,23 @@ function withTimeout(promise, ms) {
 async function gatherEssence(port) {
   if (!port)
     return { ts: new Date().toISOString(), proxy: null, proxyUp: false };
+  const base = `http://127.0.0.1:${port}`;
   const ping = await withTimeout(
-    httpGetJson(`http://127.0.0.1:${port}/origin/ping`, 1500),
+    httpGetJson(`${base}/origin/ping`, 1500),
     2500,
   );
   if (!ping)
     return { ts: new Date().toISOString(), proxy: null, proxyUp: false };
-  const [proxy, realprompt] = (await withTimeout(
+  // 一请观全槽 · /origin/allinjects 含 _injectsByKind 全槽
+  // v9.4.5 · 删 realprompt fetch · 该端点 source.js 不存 · 仅 404 浪费
+  const [proxy, allInjects] = (await withTimeout(
     Promise.all([
-      httpGetJson(`http://127.0.0.1:${port}/origin/preview`, 4000),
-      httpGetJson(`http://127.0.0.1:${port}/origin/realprompt?full=1`, 4000),
+      httpGetJson(`${base}/origin/preview`, 4000),
+      httpGetJson(`${base}/origin/allinjects`, 4000),
     ]),
     6000,
   )) || [null, null];
+  const realprompt = null;
   const diag = {
     proxy_up: true,
     proxy_capturing: !!(proxy && proxy.has_captured_before),
@@ -824,6 +893,7 @@ async function gatherEssence(port) {
     ts: new Date().toISOString(),
     proxy,
     realprompt,
+    allInjects,
     proxyUp: true,
     diag,
     ping,
@@ -878,9 +948,14 @@ class EssenceProvider {
   }
 
   resolveWebviewView(webviewView) {
+    L.info("webview", `resolveWebviewView called · port=${_cachedPort}`);
     this._view = webviewView;
     webviewView.webview.options = {
       enableScripts: true,
+      // v9.4.5 · localResourceRoots 必需 · 让 webview.asWebviewUri 能加载 media/*
+      localResourceRoots: [
+        vscode.Uri.joinPath(this._ctx.extensionUri, "media"),
+      ],
       // portMapping: webview 内部 127.0.0.1:_cachedPort 直通 extensionHost 端
       portMapping: [
         { webviewPort: _cachedPort, extensionHostPort: _cachedPort },
@@ -889,6 +964,11 @@ class EssenceProvider {
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       if (!msg) return;
       try {
+        // v9.4.2 · 接 webview stage 回传 log (探真相)
+        if (msg.command === "stage") {
+          L.info("webview.stage", String(msg.stage || "?").slice(0, 120));
+          return;
+        }
         if (msg.command === "refresh") await this.refresh();
         else if (msg.command === "setMode") await this._handleSetMode(msg.mode);
         else if (msg.command === "getCustomSP") await this._handleGetCustomSP();
@@ -900,14 +980,101 @@ class EssenceProvider {
           await vscode.commands.executeCommand("dao.purge");
       } catch {}
     });
-    webviewView.webview.html = getEssenceHtml(_cachedPort);
+    // v9.4.2 · SSR 道魂直嵌 · webview 一加载就见帛书全文 · 零 fetch/postMessage 依赖
+    // 三十二章: 道恒无名 · 侯王若能守之 · 万物将自宾
+    const ssrSp = _loadSilkForWebview();
+    L.info(
+      "webview",
+      `SSR load · silk_chars=${ssrSp.length} port=${_cachedPort}`,
+    );
+    const _html = getEssenceHtml(
+      _cachedPort,
+      null,
+      ssrSp,
+      webviewView.webview,
+      this._ctx.extensionUri,
+    );
+    webviewView.webview.html = _html;
+    // v9.4.5 · 强制 show webview · 否则 collapsed 时 JS 不跑
+    try {
+      webviewView.show(true);
+      L.info("webview", `forced show(true) · visible=${webviewView.visible}`);
+    } catch (e) {
+      L.warn("webview", `show fail: ${e.message}`);
+    }
+    // v9.4.5 · 一次性 dump 实际 html 到磁盘 · 离线诊
+    try {
+      const dumpFp = path.join(os.homedir(), ".dao-webview-dump.html");
+      if (!fs.existsSync(dumpFp)) {
+        fs.writeFileSync(dumpFp, _html, "utf8");
+        L.info("webview", `dumped html → ${dumpFp}`);
+      }
+    } catch (e) {
+      L.warn("webview", `dump fail: ${e.message}`);
+    }
+    try {
+      const _portMatch = _html.match(/var _PORT = ([^;]+);/);
+      const _baseMatch = _html.match(/var _BASE = ([^;]+);/);
+      const _hasIife = _html.indexOf("IIFE start") >= 0;
+      const _hasPull = _html.indexOf("function pull(") >= 0;
+      const _hasWdbg = _html.indexOf("function _wdbg(") >= 0;
+      L.info(
+        "webview",
+        `html set \u00b7 len=${_html.length} _PORT=${_portMatch ? _portMatch[1] : "?"} _BASE=${_baseMatch ? _baseMatch[1] : "?"} hasIife=${_hasIife} hasPull=${_hasPull} hasWdbg=${_hasWdbg}`,
+      );
+    } catch (e) {
+      L.warn("webview", `html dbg fail: ${e.message}`);
+    }
+    // v9.4.5 · 5s 自检 webview 是否真活 (_wdbg ringbuf 是否含 iife-start)
+    setTimeout(async () => {
+      try {
+        const beforeCount = (
+          await httpGetJson(
+            `http://127.0.0.1:${_cachedPort}/origin/_wdbg`,
+            1500,
+          )
+        ).count;
+        // 触一次 postMessage 看 webview 是否反应
+        if (this._view) {
+          this._view.webview.postMessage({
+            command: "_diag-ping",
+            ts: Date.now(),
+          });
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+        const after = await httpGetJson(
+          `http://127.0.0.1:${_cachedPort}/origin/_wdbg`,
+          1500,
+        );
+        const liveStart = after.log.find((x) => x.msg === "iife-start");
+        const msgRecv = after.log.find(
+          (x) => x.msg === "msg-recv" && x.tag === "_diag-ping",
+        );
+        L.info(
+          "webview",
+          `5s diag \u00b7 wdbg_count=${after.count} iife_start=${!!liveStart} diag_recv=${!!msgRecv} (before=${beforeCount})`,
+        );
+        if (!liveStart) {
+          L.warn(
+            "webview",
+            `webview JS NOT alive \u00b7 iife-start \u672a\u5230 \u00b7 \u53ef\u80fd\u88ab CSP/parse \u62e6`,
+          );
+        }
+      } catch (e) {
+        L.warn("webview", `5s diag fail: ${e.message}`);
+      }
+    }, 5000);
     webviewView.onDidChangeVisibility(() => {
+      L.info("webview", `visibility → ${webviewView.visible}`);
       if (webviewView.visible) {
-        this.refresh().catch(() => {});
+        this.refresh().catch((e) =>
+          L.warn("refresh", `vis fail: ${e.message}`),
+        );
         this._armTimer();
       } else this._stopTimer();
     });
     webviewView.onDidDispose(() => {
+      L.info("webview", "disposed");
       this._view = null;
       this._stopTimer();
     });
@@ -939,10 +1106,6 @@ class EssenceProvider {
 
   async _sigTick() {
     if (!this._view || !this._view.visible || this._busy) return;
-    if (this._sse)
-      try {
-        this._sse.setPort(_cachedPort);
-      } catch {}
     if (this._sse && this._sse.isConnected()) {
       this._sigSkipCounter = (this._sigSkipCounter || 0) + 1;
       if (this._sigSkipCounter % 10 !== 0) return;
@@ -953,8 +1116,8 @@ class EssenceProvider {
         800,
       );
       if (!sig || !sig.ok) return;
-      // v7.3: sig 接 _customSP 之 custom_sig + custom_sp_at, 编辑后即触刷
-      const cur = `${sig.mode}|${sig.sp_sig}|${sig.custom_sig || "0"}|${sig.custom_sp_at || 0}`;
+      // sig 接 _customSP / _injectsByKind / _spCandidates 变动 · 一签观全境
+      const cur = `${sig.mode}|${sig.sp_sig}|${sig.custom_sig || "0"}|${sig.custom_sp_at || 0}|${sig.injects_last_at || 0}|${sig.spc_last_at || 0}|${sig.injects_count || 0}`;
       if (cur === this._lastSig) return;
       this._lastSig = cur;
       this.refresh().catch(() => {});
@@ -962,17 +1125,33 @@ class EssenceProvider {
   }
 
   async refresh() {
-    if (!this._view) return;
-    if (this._busy) return;
+    if (!this._view) {
+      L.info("refresh", "skip · _view null");
+      return;
+    }
+    if (this._busy) {
+      L.info("refresh", "skip · busy");
+      return;
+    }
     this._busy = true;
     try {
       const data = await gatherEssence(_cachedPort);
-      if (!this._view) return;
+      if (!this._view) {
+        L.info("refresh", "skip · _view became null after gather");
+        return;
+      }
       data.modeLabel = getModeLabel();
-      // 注入端口号供 webview 直连 fallback
       data._port = _cachedPort;
+      const afterChars =
+        (data.proxy &&
+          (data.proxy.after_chars || (data.proxy.after || "").length)) ||
+        0;
       try {
         const ok = await this._view.webview.postMessage({ type: "data", data });
+        L.info(
+          "refresh",
+          `postMessage ok=${ok} · proxy=${!!data.proxy} · after=${afterChars} · visible=${this._view.visible}`,
+        );
         if (!ok)
           L.warn("refresh", "postMessage returned false (webview not ready?)");
       } catch (e) {
@@ -1004,6 +1183,7 @@ class EssenceProvider {
         `http://127.0.0.1:${_cachedPort}/origin/custom_sp`,
         2000,
       );
+      // v9.7.6 · 十四章「执今之道·以御今之有」· 透传 default_sp 供 webview 兜底填 textarea
       await this._view.webview.postMessage({
         type: "customSP",
         action: "get",
@@ -1011,6 +1191,9 @@ class EssenceProvider {
         sp: r && r.sp,
         chars: r && r.chars,
         keep_blocks: r && r.keep_blocks,
+        default_sp: r && r.default_sp,
+        default_chars: r && r.default_chars,
+        default_source: r && r.default_source,
       });
     } catch {
       try {
@@ -1026,7 +1209,7 @@ class EssenceProvider {
   async _handleSetCustomSP(msg) {
     if (!this._view) return;
     try {
-      // v7.8 一态整替 · keep_blocks 永 false (服务端 invertSP 永整替, 字段仅兼容旧版)
+      // v7.8 一态整替 · keep_blocks 永 false (服务端 invertSP 永整替)
       const r = await httpPostJson(
         `http://127.0.0.1:${_cachedPort}/origin/custom_sp`,
         { sp: msg.sp, keep_blocks: false, source: "webview" },
@@ -1121,7 +1304,7 @@ async function cmdInvert() {
     } else {
       L.info("cmd-invert", `mode flipped → invert (zero-cost)`);
       vscode.window.showInformationMessage(
-        `道Agent · 德道经 SP 注入 · 下次对话生效`,
+        `道Agent · 帛书德道经 SP 注入 · 下次对话生效`,
       );
     }
   } catch (e) {
@@ -1337,24 +1520,20 @@ async function cmdSelftest() {
 
   const { port } = cfg();
 
-  // L1: selftest (via proxy HTTP endpoint)
-  out.appendLine("\n── L1 · proto 单元 ──");
+  // L1: 损 selftest endpoint (v9.7.0 为道日损) · 走 ping 之 features 诊
+  out.appendLine("\n── L1 · 帛书+大常 (从 /origin/ping 取 features) ──");
   try {
-    const r = await httpGetJson(
-      `http://127.0.0.1:${port}/origin/selftest`,
-      5000,
-    );
-    if (r && r.cases) {
+    const r = await httpGetJson(`http://127.0.0.1:${port}/origin/ping`, 3000);
+    if (r && r.features) {
       out.appendLine(
-        `  德道经: ${r.dao_chars || "?"}字 · ${r.summary || "?"} · ${r.ok ? "✓全绿" : "✗有失败"}`,
+        `  ✓ 帛书《老子》: dao=${r.dao_chars}字 · header=${r.features.tao_header_chars}字 · 注入总=${r.features.inject_total_chars}字`,
       );
-      for (const c of r.cases || []) {
-        out.appendLine(
-          `  ${c.ok ? "✓" : "✗"} ${c.name}: ${c.in_bytes}→${c.out_bytes}B sp=${c.new_sp_chars}`,
-        );
+      out.appendLine(`  ✓ ${r.features.principle}`);
+      for (const [k, v] of Object.entries(r.features.rpc_classes || {})) {
+        out.appendLine(`    ${k}: ${v}`);
       }
     } else {
-      out.appendLine("  ⚠ /origin/selftest 无响应 (代理未启?)");
+      out.appendLine("  ⚠ /origin/ping 无 features (代理未启?)");
     }
   } catch (e) {
     out.appendLine(`  ✗ L1 异: ${e.message}`);
@@ -1383,18 +1562,18 @@ async function cmdSelftest() {
 
   try {
     const last = await httpGetJson(
-      `http://127.0.0.1:${port}/origin/last`,
+      `http://127.0.0.1:${port}/origin/lastinject`,
       2000,
     );
-    if (last && last.has_capture) {
+    if (last && last.has_inject) {
       out.appendLine(
-        `  最近替换: ${new Date(last.at).toISOString()} ${last.url}`,
+        `  最近注入: ${last.at ? new Date(last.at).toISOString() : "?"} ${last.rpc || last.url || ""}`,
       );
       out.appendLine(
-        `    before(${last.before_bytes}B): ${(last.before_head || "").slice(0, 80)}…`,
+        `    before(${last.before_chars || 0}字): ${(last.before_head || "").slice(0, 80)}…`,
       );
       out.appendLine(
-        `    after(${last.after_bytes}B): ${(last.after_head || "").slice(0, 80)}…`,
+        `    after(${last.after_chars || 0}字): ${(last.after_head || "").slice(0, 80)}…`,
       );
     }
   } catch {}
@@ -1419,7 +1598,7 @@ async function cmdSelftest() {
 
   out.appendLine("\n── L3 · 活检指引 ──");
   out.appendLine(`  1. 运行 "道Agent: 启" → LS 重启 → 向 Cascade 问 '你是谁'`);
-  out.appendLine(`  2. 期答含 '道'/'无为'/'自然' (德道经 SP 注入成功)`);
+  out.appendLine(`  2. 期答含 '道'/'无为'/'自然' (帛书德道经 SP 注入成功)`);
   out.appendLine("════════════════════════════════════════\n");
 }
 
@@ -1432,14 +1611,61 @@ function _genNonce() {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
-function getEssenceHtml(proxyPort, nonce) {
+// HTML 转义 · SSR 嵌入 <pre> textContent 需之
+function _escapeHtml(s) {
+  if (!s) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// v9.7.7 · 加载帛书 (webview SSR 用) · 与 source.js 同源 · 复归于朴
+// 道魂 = TAO_HEADER (31字身份引导) + 帛书·德经 + "\n\n" + 帛书·道经 + TAO_FOOTER(空)
+function _loadSilkForWebview() {
+  try {
+    const vendorDir = path.join(__dirname, "vendor", "bundled-origin");
+    const deFp = path.join(vendorDir, "_silk_de.txt");
+    const daoFp = path.join(vendorDir, "_silk_dao.txt");
+    if (!fs.existsSync(deFp) || !fs.existsSync(daoFp)) return "";
+    const deText = fs.readFileSync(deFp, "utf8").trim();
+    const daoText = fs.readFileSync(daoFp, "utf8").trim();
+    if (!deText || !daoText) return "";
+    const TAO_HEADER = "You are Cascade，所遵守规则全部来自下述德道经：\n\n";
+    const SILK_BOUNDARY = "\n\n";
+    const TAO_FOOTER = "";
+    return TAO_HEADER + deText + SILK_BOUNDARY + daoText + TAO_FOOTER;
+  } catch {
+    return "";
+  }
+}
+
+function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
+  // v9.8.0 · 守一不离 · 三十九章「得一」· 复 @ 工具之根 · 名实终一
+  // 痛: SIDE_CHANNEL_TAGS 含 'additional_metadata' · 致用户消息中 @ 项之元 (Cascade ID/file path/line range) 被剥
+  //     agent 失 @ 项之元 · trajectory_search/read_file 等 @ 工具调用败 · 此为 v9.7.x 之底病
+  // 治: source.js · SIDE_CHANNEL_TAGS 删 'additional_metadata' · 守 @ 项与元之一体 ·「得一」之实
+  // 兼: tape all_fields raw_text 字段亦显 AFTER (post strip + neutralize) · 主公照观面板见 LLM 实收 · 名实终一
+  // v9.7.9 · 道法自然 · 反者道之动 · 中性化隐藏 SECTION_OVERRIDE 身份锚
+  // 二十五章「道法自然」· 替 Windsurf 客户端隐藏 JSON {"mode":"SECTION_OVERRIDE_MODE_APPEND","content":"...respond with `Cascade`"} 之 content 为「道法自然」
+  // 治根: neutralizeHiddenOverrides 集成至 deepStripProtoSideChannels · 复合两治 (剥 SIDE_CHANNEL XML + 中性化 SECTION_OVERRIDE JSON)
+  // v9.7.8 三十辐共一毂 (十一章) · invertSP/invertAnySP 默路接 extractKeepBlocks · 复 7 辐 (tool_calling/mcp_servers/user_information/workspace_information)
+  // v9.7.7 复归于朴 (二十八章) · TAO_HEADER 损至 31 字 · 帛书裸呈
+  // v9.7.6 四治承之 (default_sp 永返 · 透传 · 兜底填 textarea · boot 预拉)
+  // 病四治: A · [归道] reset 后强拉 default_sp 帛书 (不沿 lastSP · lastSP 已被 chat 覆盖)
+  //         B · 注入文 (TAO_HEADER 31字 + 帛书合 ~7204 + TAO_FOOTER 0 = ~7237 字 道魂) + (TAO_TRAILER + 7 辐 keeps) 中性化追加
+  //         C · @ 工具复用 · 至简非至废
+  //         D · 隐藏 SECTION_OVERRIDE_MODE_APPEND 身份锚中性化 · 模型不再被强令"respond with Cascade"
   const N = nonce || _genNonce();
+  const proxyPort = port || 0;
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${N}' 'unsafe-inline'; connect-src http://127.0.0.1:* http://localhost:* https: http:; img-src data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${N}'; connect-src http://127.0.0.1:* http://localhost:*; img-src data:;">
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -1455,12 +1681,11 @@ function getEssenceHtml(proxyPort, nonce) {
     padding: 2px 5px; font-size: 12px; border: 1px solid transparent;
     background: transparent; color: var(--vscode-foreground);
     cursor: pointer; border-radius: 2px; font-family: inherit;
-    opacity: 0.65; min-width: 20px; line-height: 1;
+    opacity: 0.55; min-width: 20px; line-height: 1;
   }
   .ib:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground, rgba(128,128,128,0.15)); }
-  .ib.vw-act { opacity:1; color:#6bb86b; border-color:#6bb86b; background:rgba(107,184,107,0.06); }
-  .ib.vw-orig { opacity:1; color:#d9a200; border-color:#d9a200; background:rgba(217,162,0,0.06); }
-  .age-tick { font-family:monospace; font-size:9px; opacity:0.5; margin-left:3px; }
+  .ib.edit-active { opacity: 1; color: #e8a040; border-color: #e8a040; background: rgba(232,160,64,0.1); }
+  .ib.detail-on { opacity: 1; color: #888; border-color: #888; background: rgba(128,128,128,0.08); }
   .mb {
     padding: 1px 7px; font-size: 11px; border: 1px solid rgba(128,128,128,0.3);
     background: transparent; color: var(--vscode-foreground);
@@ -1470,20 +1695,20 @@ function getEssenceHtml(proxyPort, nonce) {
   .mb:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground, rgba(128,128,128,0.15)); }
   .mb.active { opacity: 1; border-color: var(--vscode-textLink-foreground, #4fc1ff); color: var(--vscode-textLink-foreground, #4fc1ff); background: rgba(79,193,255,0.1); font-weight: 700; }
   .mb.active-dao { border-color: #6bb86b; color: #6bb86b; background: rgba(107,184,107,0.1); }
-  .mode-hint { font-size: 9px; opacity: 0.4; margin-left: 2px; }
   .dots { display: inline-flex; gap: 2px; align-items: center; padding: 0 4px; cursor: help; }
   .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: rgba(128,128,128,0.3); }
   .dot.ok { background: #6bb86b; } .dot.warn { background: #d9a200; } .dot.err { background: #e08080; }
-  .meta { margin-left: auto; opacity: 0.5; font-family: monospace; font-size: 10px; }
-  .source { font-size: 9px; opacity: 0.5; margin: 0 0 3px; min-height: 12px; line-height: 1.4; }
+  /* 守朴 · stat 默认藏 · 详态始显 · 无 kind 彩色分类 pill (道可道·非恒道) */
+  .stat { font-size: 10px; opacity: 0.55; margin: 0 0 4px; line-height: 1.4; font-family: monospace; display: none; }
+  .stat.show { display: block; }
+  .stat .pill { padding: 1px 5px; border-radius: 2px; background: rgba(128,128,128,0.12); margin-right: 4px; }
   #sp {
     flex: 1 1 auto; overflow: auto; margin: 0; padding: 10px 12px;
     font-family: "Noto Serif CJK SC", "Microsoft YaHei", var(--vscode-editor-font-family), serif;
     font-size: 11.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word;
     background: rgba(0,0,0,0.08); border-radius: 3px;
   }
-  #sp.quiet { text-align: center; opacity: 0.35; font-style: italic; padding: 40px 0; letter-spacing: 1px; }
-  .ib.edit-active { opacity: 1; color: #e8a040; border-color: #e8a040; background: rgba(232,160,64,0.1); }
+  #sp.quiet { text-align: center; opacity: 0.5; font-style: italic; padding: 40px 0; letter-spacing: 1px; }
   #editArea { display: none; flex: 1 1 auto; flex-direction: column; }
   #editArea.show { display: flex; }
   #editArea textarea {
@@ -1505,283 +1730,159 @@ function getEssenceHtml(proxyPort, nonce) {
   .edit-bar .eb.save:hover { background: rgba(107,184,107,0.15); }
   .edit-bar .eb.reset { border-color: #e08080; color: #e08080; }
   .edit-bar .eb.reset:hover { background: rgba(224,128,128,0.15); }
-  .edit-bar .edit-status { opacity: 0.5; margin-left: auto; font-size: 9px; }
+  .edit-bar .edit-status { opacity: 0.7; margin-left: auto; font-size: 9px; }
+  .edit-bar .edit-count { opacity: 0.55; font-size: 9px; margin-left: 4px; font-variant-numeric: tabular-nums; }
+  .edit-bar .eb.reload { border-color: #80b0e0; color: #80b0e0; }
+  .edit-bar .eb.reload:hover { background: rgba(128,176,224,0.15); }
+  .edit-hint { font-size: 9px; opacity: 0.55; margin-bottom: 3px; padding: 2px 4px; font-style: italic; flex: 0 0 auto; }
   .custom-badge { display: inline-block; font-size: 8px; padding: 0 4px; border-radius: 2px; background: rgba(232,160,64,0.2); color: #e8a040; border: 1px solid rgba(232,160,64,0.3); margin-left: 4px; }
+  .btn-purge { margin-left: auto; opacity: 0.35; font-size: 11px; color: #e08080; }
+  .btn-purge:hover { opacity: 1; background: rgba(224,128,128,0.1); }
 </style>
 </head>
-<body>
+<body data-port="${proxyPort}">
   <div class="bar">
     <span class="dots" id="dots" title="Proxy\u00b7Capture\u00b7Mode"></span>
-    <button class="mb" id="btnDao" title="\u9053Agent \u00b7 \u9053\u5fb7\u7ecfSP">\u9053</button>
-    <button class="mb" id="btnOff" title="\u5b98\u65b9Agent \u00b7 \u539f\u5473SP">\u5b98</button>
-    <span class="mode-hint" id="modeHint"></span>
-    <button class="ib" id="refresh" title="\u5237\u65b0">\u27f3</button>
-    <button class="ib" id="copy" title="\u590d\u5236">\u29c9</button>
-    <button class="ib vw-act" id="viewToggle" title="\u5b9e\u6536/\u539f\u53d1">\u5b9e</button>
-    <button class="ib" id="editToggle" title="\u7f16\u8f91\u6ce8\u5165SP">\u270e</button>
+    <button class="mb" id="btnDao" title="\u9053Agent\u00b7\u5e1b\u4e66\u524d\u7f6e">\u9053</button>
+    <button class="mb" id="btnOff" title="\u5b98\u65b9Agent\u00b7\u900f\u4f20">\u5b98</button>
+    <button class="ib" id="editToggle" title="\u7f16\u8f91\u6ce8\u5165 SP">\u7f16</button>
     <span id="customBadge"></span>
-    <span class="meta" id="meta">\u2014</span>
-    <span class="age-tick" id="ageTick"></span>
-    <button class="ib" id="btnPurge" title="\u4e86\u4e8b\u62c2\u8863\u53bb \u00b7 \u6c34\u8fc7\u65e0\u75d5 \u00b7 \u5f7b\u5e95\u5378\u8f7d" style="margin-left:auto;opacity:0.35;font-size:11px;color:#e08080;">\u2716</button>
+    <button class="ib btn-purge" id="btnPurge" title="\u4e86\u4e8b\u62c2\u8863\u53bb">\u2716</button>
   </div>
-  <div class="source" id="source"></div>
-  <pre id="sp" class="quiet">\u89c2\u2026</pre>
-  <noscript><div style="padding:16px;color:#e08080;font-size:11px">\u811a\u672c\u88abCSP\u62e6\u622a \u00b7 \u8bf7\u91cd\u8f7d</div></noscript>
+  <div class="stat" id="stat"></div>
+  <pre id="sp" class="quiet">\uff08\u5f85\u9996\u6b21\u5bf9\u8bdd\uff09</pre>
   <div id="editArea">
-    <textarea id="editText"></textarea>
+    <div class="edit-hint">\u7f16\u6b64 \u00b7 \u6539\u9053 agent \u6ce8\u5165 LLM \u4e4b SP (\u5e1b\u4e66\u5fb7\u9053\u7ecf) \u00b7 Ctrl+Enter \u4fdd\u5b58 \u00b7 Esc \u5173</div>
+    <textarea id="editText" placeholder="\u7f16\u8f91\u9053 agent \u6a21\u5f0f\u6ce8\u5165 LLM \u4e4b\u6838\u5fc3 SP (\u5e1b\u4e66\u300a\u8001\u5b50\u300b) \u00b7 \u6539\u6b64\u5373\u6539\u6ce8\u5165 \u00b7 \u4fdd\u5b58\u540e\u4e0b\u6b21 chat \u5373\u751f\u6548"></textarea>
     <div class="edit-bar">
-      <button class="eb save" id="editSave" title="Ctrl+Enter">\u2714 \u6ce8\u5165</button>
+      <button class="eb save" id="editSave" title="\u4fdd\u5b58\u6ce8\u5165 (Ctrl+Enter)">\u2714 \u6ce8\u5165</button>
+      <button class="eb reload" id="editReload" title="\u91cd\u8f7d\u5f53\u524d LLM \u5b9e\u6536 SP (\u4e0d\u4fdd\u5b58)">\u8f7d</button>
       <button class="eb reset" id="editReset" title="\u6e05 _customSP \u00b7 \u56de\u9ed8\u9053\u5fb7\u7ecf\u8def\u5f84">\u2716 \u5f52\u9053</button>
+      <span class="edit-count" id="editCount"></span>
       <span class="edit-status" id="editStatus"></span>
     </div>
   </div>
+  <noscript><div style="padding:16px;color:#e08080;font-size:11px">\u811a\u672c\u88ab CSP \u62e6\u622a \u00b7 \u8bf7\u91cd\u8f7d</div></noscript>
 <script nonce="${N}">
 (function() {
-  var _PORT = ${proxyPort || 0};
-  // ═══════ v4.5 stage tracker · 道法自然 · 闭环可观察 ═══════
-  function _stage(s) { try { document.body.setAttribute('data-dao-stage', String(s).substring(0,80)); } catch(_) {} }
-  _stage('iife-start');
-  try { document.body.setAttribute('data-dao-script', 'running'); } catch(_) {}
+  'use strict';
+  // v9.7.6 · 执今之道 · 以御今之有 · 编辑态永不空
+  var _PORT = ${proxyPort};
+  var _BASE = 'http://127.0.0.1:' + _PORT;
 
-  // ═══════ v4.5 早期渲染 · 反者道之动 · 不依赖 vsc / postMessage / listener ═══════
-  // 即便后续脚本死, #sp 仍能从 source.js 直拉德道经文.
-  var _hasRendered = false;
-  function _earlyRender(tag) {
-    if (_hasRendered || !_PORT) { if (!_PORT) _stage('no-port'); return; }
-    try {
-      var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
-      if (ctrl) setTimeout(function(){ try{ ctrl.abort(); }catch(_){} }, 4000);
-      fetch('http://127.0.0.1:' + _PORT + '/origin/preview', ctrl ? { signal: ctrl.signal } : {})
-        .then(function(r){ if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
-        .then(function(p){
-          if (!p) { _stage(tag + ':empty'); return; }
-          var sp = document.getElementById('sp');
-          if (!sp) { _stage(tag + ':no-sp'); return; }
-          var text = p.after || p.before;
-          if (!text) { _stage(tag + ':no-text'); return; }
-          if (sp.classList.contains('quiet') || sp.textContent === '\u89c2\u2026' || !_hasRendered) {
-            sp.classList.remove('quiet');
-            sp.textContent = text;
-            var meta = document.getElementById('meta');
-            if (meta) meta.textContent = (p.after_chars || p.before_chars || text.length) + ' \u5b57';
-            var srcEl = document.getElementById('source');
-            if (srcEl) srcEl.textContent = (p.mode === 'invert' ? '\u5b9e\u6536' : '\u539f\u53d1') + ' · v7.6\u4e3a\u9053\u65e5\u635f\u00b7\u9053\u6cd5\u81ea\u7136 · ' + tag;
-            _hasRendered = true;
-            _stage(tag + ':ok');
-          }
-        })
-        .catch(function(e){
-          _stage(tag + ':fail:' + (e && e.message ? e.message.substring(0,32) : '?'));
-        });
-    } catch(e) {
-      _stage(tag + ':throw:' + (e.message||'?').substring(0,32));
-    }
-  }
-  _earlyRender('e0');
-  setTimeout(function(){ _earlyRender('e1'); }, 600);
-  setTimeout(function(){ _earlyRender('e2'); }, 2500);
-  setTimeout(function(){ _earlyRender('e3'); }, 8000);
-
-  // ═══════ v4.5 错误显形 · 脚本任意错均回写 #sp 让人可见 ═══════
-  window.addEventListener('error', function(e) {
-    _stage('err:' + ((e && e.message) || '?').substring(0,40));
-    try {
-      var sp = document.getElementById('sp');
-      if (sp && (sp.classList.contains('quiet') || sp.textContent === '\u89c2\u2026') && !_hasRendered) {
-        sp.classList.remove('quiet');
-        sp.style.color = '#e08080';
-        sp.style.whiteSpace = 'pre-wrap';
-        sp.style.fontSize = '10px';
-        sp.style.fontFamily = 'monospace';
-        sp.style.textAlign = 'left';
-        sp.style.padding = '8px';
-        sp.textContent = '\u3010v4.5\u8bca\u3011\u811a\u672c\u9519\\n' + (e.message||'?') + '\\n@' + ((e.filename||'').split(/[\\/]/).pop()) + ':' + (e.lineno||0) + ':' + (e.colno||0);
-      }
-    } catch(_) {}
-  });
-
-  // ═══════ v4.5 vsc 容错 · acquireVsCodeApi 抛错也不死 IIFE ═══════
   var vsc;
-  try {
-    vsc = acquireVsCodeApi();
-    _stage('vsc-ok');
-  } catch(e) {
-    vsc = { postMessage: function(){ return false; }, setState: function(){}, getState: function(){ return null; }, _ghost: true };
-    _stage('vsc-fail:' + (e.message||'?').substring(0,32));
-  }
+  try { vsc = acquireVsCodeApi(); }
+  catch(e) { vsc = { postMessage: function(){ return false; }, _ghost: true }; }
 
   var $sp = document.getElementById('sp');
-  var $meta = document.getElementById('meta');
-  var $source = document.getElementById('source');
+  var $stat = document.getElementById('stat');
   var $dots = document.getElementById('dots');
   var $btnDao = document.getElementById('btnDao');
   var $btnOff = document.getElementById('btnOff');
-  var $modeHint = document.getElementById('modeHint');
-  var lastText = '';
-  var curMode = '';
-  var viewMode = 'actual';
-  var lastProxyData = null;
-  var _ageBase = null, _ageTimer = null;
-
-  function setModeUI(mode) {
-    curMode = mode || 'passthrough';
-    $btnDao.classList.remove('active', 'active-dao');
-    $btnOff.classList.remove('active');
-    if (curMode === 'invert') { $btnDao.classList.add('active', 'active-dao'); $modeHint.textContent = '\u9053'; }
-    else { $btnOff.classList.add('active'); $modeHint.textContent = '\u5b98'; }
-  }
-  $btnDao.addEventListener('click', function() { if (curMode === 'invert') return; setModeUI('invert'); $source.textContent = '\u5207\u6362\u4e2d \u2192 \u9053Agent\u2026'; vsc.postMessage({ command: 'setMode', mode: 'dao' }); });
-  $btnOff.addEventListener('click', function() { if (curMode === 'passthrough') return; setModeUI('passthrough'); $source.textContent = '\u5207\u6362\u4e2d \u2192 \u5b98\u65b9Agent\u2026'; vsc.postMessage({ command: 'setMode', mode: 'official' }); });
-  document.getElementById('refresh').addEventListener('click', function() { vsc.postMessage({ command: 'refresh' }); });
-  document.getElementById('copy').addEventListener('click', function() {
-    if (!lastText) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(lastText);
-    else { var ta = document.createElement('textarea'); ta.value = lastText; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch(e) {} document.body.removeChild(ta); }
-  });
-
-  var $viewToggle = document.getElementById('viewToggle');
-  var $ageTick = document.getElementById('ageTick');
-  function updateViewToggle() {
-    if (!$viewToggle) return;
-    $viewToggle.classList.remove('vw-act', 'vw-orig');
-    if (viewMode === 'actual') { $viewToggle.textContent = '\u5b9e'; $viewToggle.classList.add('vw-act'); }
-    else { $viewToggle.textContent = '\u539f'; $viewToggle.classList.add('vw-orig'); }
-  }
-  if ($viewToggle) $viewToggle.addEventListener('click', function() {
-    viewMode = viewMode === 'actual' ? 'original' : 'actual';
-    updateViewToggle();
-    if (lastProxyData) reRenderProxy();
-  });
-  function reRenderProxy() {
-    if (!lastProxyData) return;
-    var proxy = lastProxyData;
-    var ts = new Date().toLocaleTimeString();
-    if (viewMode === 'actual' && proxy.mode === 'invert' && proxy.after) {
-      showText(proxy.after, ts);
-      $source.textContent = '\u5b9e\u6536 \u00b7 LLM\u5b9e\u6536 \u00b7 ' + (proxy.after_chars || proxy.after.length) + '\u5b57';
-    } else if (proxy.before) {
-      showText(proxy.before, ts);
-      $source.textContent = '\u539f\u53d1 \u00b7 Windsurf\u62df\u53d1 \u00b7 ' + (proxy.before_chars || proxy.before.length) + '\u5b57';
-    } else if (proxy.after) {
-      showText(proxy.after, ts);
-      $source.textContent = proxy.synthesized ? '\u9053\u5fb7\u7ecf\u6ce8\u5165' : '\u900f\u4f20';
-    }
-    startAgeTick(proxy.age_s);
-  }
-  function startAgeTick(age_s) {
-    if (_ageTimer) { clearInterval(_ageTimer); _ageTimer = null; }
-    if (!$ageTick) return;
-    if (age_s == null) { $ageTick.textContent = ''; return; }
-    _ageBase = { s: age_s, at: Date.now() };
-    var tick = function() { if (!_ageBase) return; var c = _ageBase.s + Math.round((Date.now() - _ageBase.at) / 1000); $ageTick.textContent = c + 's\u524d'; };
-    tick(); _ageTimer = setInterval(tick, 1000);
-  }
-  updateViewToggle();
-
-  function setDots(dg) {
-    $dots.innerHTML = '';
-    if (!dg) return;
-    var items = [
-      { k: 'proxy_up', label: 'Proxy' },
-      { k: 'proxy_capturing', label: 'Capture' },
-    ];
-    var tipBits = [];
-    for (var i = 0; i < items.length; i++) {
-      var item = items[i];
-      var on = !!dg[item.k];
-      var d = document.createElement('span');
-      d.className = 'dot ' + (on ? 'ok' : (item.k === 'proxy_capturing' ? 'warn' : 'err'));
-      $dots.appendChild(d);
-      tipBits.push(item.label + ':' + (on ? '\u2713' : '\u2717'));
-    }
-    if (dg.mode) tipBits.push('M:' + dg.mode);
-    if (dg.uptime_s != null) tipBits.push(dg.uptime_s + 's');
-    if (dg.req_total != null) tipBits.push('req:' + dg.req_total);
-    if (dg.capture_count != null) tipBits.push('cap:' + dg.capture_count);
-    $dots.title = tipBits.join(' \u00b7 ');
-  }
-
-  function renderView(d) {
-    var proxy = d.proxy;
-    var ts = d.ts ? new Date(d.ts).toLocaleTimeString() : '';
-    setDots(d.diag);
-    if (proxy) lastProxyData = proxy;
-    updateViewToggle();
-
-    // realprompt 优先
-    var realprompt = d.realprompt;
-    var rpReliable = !!(realprompt && realprompt.has && realprompt.sp && realprompt.chars >= 2000);
-
-    if (viewMode === 'actual' && proxy && proxy.mode === 'invert' && proxy.after) {
-      showText(proxy.after, ts);
-      // v7.3: synthesized_from 区分真捕获 vs 合成 sample, 让用户知所见之态
-      var src;
-      if (proxy.synthesized_from === 'captured') src = '\u5b9e\u6536 \u00b7 LLM\u5b9e\u6536 (\u771f\u6355\u83b7)';
-      else if (proxy.synthesized_from === 'sample') src = '\u9884\u89c8 \u00b7 \u5408\u6210sample\u00b7\u4e0eLLM\u5b9e\u6536\u540c\u7ed3\u6784';
-      else src = '\u5b9e\u6536 \u00b7 LLM\u5b9e\u6536';
-      if (proxy.custom_sp) src += ' \u00b7 \u81ea\u5b9a\u4e49' + (proxy.custom_sp_chars ? proxy.custom_sp_chars + '\u5b57' : '');
-      src += ' \u00b7 ' + (proxy.after_chars || proxy.after.length) + '\u5b57';
-      $source.textContent = src;
-      startAgeTick(proxy.age_s);
-      setModeUI('invert');
-      return;
-    }
-
-    if (rpReliable) {
-      showText(realprompt.sp, ts);
-      $source.textContent = '\u6355\u83b7\u8f68 \u00b7 ' + realprompt.chars + '\u5b57';
-      startAgeTick(realprompt.age_s);
-      return;
-    }
-
-    if (proxy && proxy.before && proxy.before.length >= 2000) {
-      showText(proxy.before, ts);
-      $source.textContent = '\u539f\u53d1 \u00b7 ' + proxy.before.length + '\u5b57';
-      startAgeTick(proxy.age_s);
-    } else if (proxy && proxy.after) {
-      showText(proxy.after, ts);
-      $source.textContent = proxy.synthesized ? '\u9053\u5fb7\u7ecf\u6ce8\u5165' : '\u900f\u4f20';
-      startAgeTick(proxy.age_s);
-    } else {
-      showEmpty(ts);
-      startAgeTick(null);
-    }
-
-    var ml = d.modeLabel || '';
-    if (/\u9053\\s*Agent/.test(ml)) setModeUI('invert');
-    else setModeUI('passthrough');
-  }
-
-  function showText(text, ts) {
-    var changed = text !== lastText;
-    lastText = text;
-    $sp.classList.remove('quiet');
-    $sp.innerHTML = '';
-    $sp.textContent = text;
-    $meta.textContent = text.length + ' \u5b57 \u00b7 ' + ts;
-    if (changed) try { $sp.scrollTop = 0; } catch(_) {}
-  }
-  function showEmpty(ts) {
-    $sp.classList.add('quiet');
-    $sp.textContent = '\u81f4\u865a\u5b88\u9759 \u00b7 \u8bf7\u5411Cascade\u53d1\u6d88\u606f\u89e6\u53d1\u91c7\u96c6';
-    $meta.textContent = ts;
-    $source.textContent = '';
-    lastText = '';
-  }
-
-  // 编辑模式 · v7.8 反者道之动 · 所见即所改, 所改即所注 · 一态整替
-  // 编辑切换 → textarea 装当前面板"实时注入"全文 (lastText / _customSP.sp)
-  // 保存 → _customSP.sp = textarea 文 → 下次反代 LLM 实收即此文
   var $editToggle = document.getElementById('editToggle');
   var $editArea = document.getElementById('editArea');
   var $editText = document.getElementById('editText');
   var $editSave = document.getElementById('editSave');
+  var $editReload = document.getElementById('editReload');
   var $editReset = document.getElementById('editReset');
   var $editStatus = document.getElementById('editStatus');
+  var $editCount = document.getElementById('editCount');
   var $customBadge = document.getElementById('customBadge');
+  var $btnPurge = document.getElementById('btnPurge');
+
+  var lastText = '';
+  var lastSP = '';
+  var lastEntry = null;
+  var lastSig = '';
+  var curMode = 'invert';
   var editMode = false;
   var _editClosing = null;
 
+  function fJson(p) { return fetch(_BASE + p, { cache: 'no-store' }).then(function(r){ if (!r.ok) throw new Error('http ' + r.status); return r.json(); }); }
+
+  // ─── renderTapeEntry · 万物作焉而不辞 · 永显 all_fields 全貌 ───
+  function renderTapeEntry(entry, ts) {
+    if (!entry) return false;
+    lastEntry = entry;
+
+    // lastSP 锚定本源 · 供 [编] 初值 & [载] 重载 & [归道] 复原
+    // 优先 entry.after (CHAT_PROTO 命中之 invertSP 结果)
+    // 空则 fallback 到 all_fields 首个 SP 类字段 (chat/summary/memory/ephemeral/unknown_long)
+    // 仍空则取 all_fields[0].text · 保 [编] 初值必为当前注入之核心文本
+    var _sp = entry.after || entry.before || '';
+    if (!_sp && entry.all_fields && entry.all_fields.length > 0) {
+      var _spKinds = ['chat', 'summary', 'memory', 'ephemeral', 'unknown_long'];
+      for (var _si = 0; _si < entry.all_fields.length; _si++) {
+        if (_spKinds.indexOf(entry.all_fields[_si].kind) >= 0) {
+          _sp = entry.all_fields[_si].text || '';
+          break;
+        }
+      }
+      if (!_sp) _sp = entry.all_fields[0].text || '';
+    }
+    lastSP = _sp;
+
+    var parts = [];
+    var totalChars = 0;
+    var fieldCount = (entry.all_fields && entry.all_fields.length) || 0;
+
+    // 万物作焉而不辞 · 永循环 all_fields 全部 · SP / user_msg / tool_def / chat_history / 编辑器状态 等皆显
+    if (fieldCount > 0) {
+      for (var i = 0; i < fieldCount; i++) {
+        var f = entry.all_fields[i];
+        parts.push('\u2501\u2501\u2501 #' + (i + 1) + '/' + fieldCount +
+          ' \u00b7 ' + (f.chars || 0) + '\u5b57 \u2501\u2501\u2501');
+        parts.push(f.text || '');
+        parts.push('');
+        totalChars += (f.chars || 0);
+      }
+    } else if (lastSP) {
+      // 兑底 · all_fields 空但 after 存 · 极罕之境
+      parts.push('\u2501\u2501\u2501 LLM \u5b9e\u6536 \u00b7 ' + lastSP.length + '\u5b57 \u2501\u2501\u2501');
+      parts.push(lastSP);
+      totalChars += lastSP.length;
+    }
+
+    if (parts.length === 0) return false;
+
+    var text = parts.join('\\n');
+    lastText = text;
+    if (!editMode) {
+      $sp.classList.remove('quiet');
+      $sp.textContent = text;
+    }
+
+    if (fieldCount > 0) {
+      $stat.innerHTML = '<span class="pill">\u5168\u00b7' + fieldCount + '\u5b57\u6bb5\u00b7' + totalChars + '\u5b57</span>';
+    } else if (lastSP) {
+      $stat.innerHTML = '<span class="pill">\u5168\u00b71\u5b57\u6bb5\u00b7' + lastSP.length + '\u5b57</span>';
+    } else {
+      $stat.innerHTML = '';
+    }
+
+    return true;
+  }
+
+  // ─── 道/官 切换 ───
+  function setModeUI(mode) {
+    curMode = mode || 'invert';
+    $btnDao.classList.remove('active', 'active-dao');
+    $btnOff.classList.remove('active');
+    if (curMode === 'invert') $btnDao.classList.add('active', 'active-dao');
+    else $btnOff.classList.add('active');
+  }
+  $btnDao.addEventListener('click', function() {
+    if (curMode === 'invert') return;
+    setModeUI('invert');
+    vsc.postMessage({ command: 'setMode', mode: 'dao' });
+  });
+  $btnOff.addEventListener('click', function() {
+    if (curMode === 'passthrough') return;
+    setModeUI('passthrough');
+    vsc.postMessage({ command: 'setMode', mode: 'official' });
+  });
+
+  // ─── 编辑模式 ───
   function _closeEditMode() {
     editMode = false;
     $editArea.classList.remove('show');
@@ -1789,114 +1890,178 @@ function getEssenceHtml(proxyPort, nonce) {
     $sp.style.display = '';
     if (_editClosing) { clearTimeout(_editClosing); _editClosing = null; }
   }
-
+  function updateEditCount() {
+    var n = ($editText.value || '').length;
+    var d = (lastSP || '').length;
+    $editCount.textContent = n + (d > 0 ? '/' + d : '') + '\u5b57';
+  }
   $editToggle.addEventListener('click', function() {
     editMode = !editMode;
     if (editMode) {
-      $editArea.classList.add('show'); $editToggle.classList.add('edit-active'); $sp.style.display = 'none';
-      // v7.8 所见即所改: textarea 立装当前面板显文 (即"实时注入"全文)
-      // 既有 _customSP.sp → 同 lastText (一致), 无 _customSP → 装当前 invertSP 之 after
-      // 服务端 getCustomSP 拉真值, 若已设则覆盖 (但通常与 lastText 同, 因 webview 显的就是 _customSP.sp)
-      $editText.value = lastText || '';
-      $editStatus.textContent = '';
+      $editArea.classList.add('show');
+      $editToggle.classList.add('edit-active');
+      $sp.style.display = 'none';
+      $editText.value = lastSP || '';
+      updateEditCount();
+      $editStatus.textContent = '\u52a0\u8f7d\u4e2d\u2026';
       vsc.postMessage({ command: 'getCustomSP' });
       $editText.focus();
-    } else { _closeEditMode(); }
+    } else {
+      _closeEditMode();
+    }
   });
   $editSave.addEventListener('click', function() {
     var sp = $editText.value;
     if (!sp || !sp.trim()) { $editStatus.textContent = '\u2716 \u5185\u5bb9\u4e0d\u53ef\u4e3a\u7a7a'; return; }
     $editStatus.textContent = '\u4fdd\u5b58\u4e2d\u2026';
-    // v7.8 一态整替 · 不再传 keep_blocks (服务端忽略, 永整替)
     vsc.postMessage({ command: 'setCustomSP', sp: sp.trim() });
   });
-  $editReset.addEventListener('click', function() { $editStatus.textContent = '\u6e05\u9664\u4e2d\u2026'; vsc.postMessage({ command: 'resetCustomSP' }); });
-  $editText.addEventListener('keydown', function(e) { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); $editSave.click(); } });
+  $editReload.addEventListener('click', function() {
+    $editText.value = lastSP || '';
+    updateEditCount();
+    $editStatus.textContent = '\u2714 \u5df2\u8f7d\u5f53\u524d\u5b9e\u6536 SP \u00b7 ' + ((lastSP || '').length) + '\u5b57';
+    $editText.focus();
+  });
+  $editReset.addEventListener('click', function() {
+    $editStatus.textContent = '\u6e05\u9664\u4e2d\u2026';
+    vsc.postMessage({ command: 'resetCustomSP' });
+  });
+  $editText.addEventListener('input', updateEditCount);
+  $editText.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); $editSave.click(); }
+    else if (e.key === 'Escape') { e.preventDefault(); _closeEditMode(); }
+  });
 
   function updateCustomBadge(isCustom, chars) {
     if (isCustom) $customBadge.innerHTML = '<span class="custom-badge">\u81ea\u5b9a\u4e49' + (chars ? ' ' + chars + '\u5b57' : '') + '</span>';
     else $customBadge.innerHTML = '';
   }
 
+  // ─── 净卸 ───
+  $btnPurge.addEventListener('click', function() {
+    vsc.postMessage({ command: 'purge' });
+  });
+
+  // ─── dots (三盏) ───
+  function setDots(p) {
+    $dots.innerHTML = '';
+    if (!p || !p.ok) {
+      var d = document.createElement('span');
+      d.className = 'dot err';
+      $dots.appendChild(d);
+      $dots.title = 'Proxy:\u2717';
+      return;
+    }
+    var items = [
+      { label: 'Proxy', on: true, k: 'proxy' },
+      { label: 'Capture', on: !!(p.tape_count > 0), k: 'cap' },
+      { label: 'Mode', on: p.mode === 'invert', k: 'mode' }
+    ];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var d2 = document.createElement('span');
+      d2.className = 'dot ' + (it.on ? 'ok' : (it.k === 'cap' ? 'warn' : 'err'));
+      $dots.appendChild(d2);
+    }
+    $dots.title = 'Proxy:' + (items[0].on?'\u2713':'\u2717') + ' \u00b7 Cap:' + (items[1].on?'\u2713':'\u2717') + ' \u00b7 M:' + (p.mode||'?');
+  }
+
+  function pingPull() {
+    fJson('/origin/ping').then(function(p){
+      if (!p) return;
+      if (p.mode) setModeUI(p.mode);
+      setDots(p);
+      if (p.custom_sp != null) updateCustomBadge(p.custom_sp, p.custom_sp_chars);
+    }).catch(function(){ setDots(null); });
+  }
+
+  function pull() {
+    if (!_PORT) return;
+    fJson('/origin/tape?limit=1&fields=1').then(function(resp) {
+      if (resp && resp.ok && resp.tape && resp.tape.length > 0) {
+        renderTapeEntry(resp.tape[0], new Date().toLocaleTimeString());
+      } else {
+        if (!editMode) {
+          $sp.classList.add('quiet');
+          $sp.textContent = '\uff08\u5f85\u9996\u6b21\u5bf9\u8bdd\uff09';
+        }
+        $stat.innerHTML = '';
+      }
+    }).catch(function(){});
+  }
+
+  function sigTick() {
+    fJson('/origin/sig').then(function(r){
+      if (!r || !r.ok) return;
+      var cur = (r.injects_last_at || 0) + '|' + (r.injects_count || 0) + '|' + (r.tape_last_at || 0) + '|' + (r.mode_sig || '');
+      if (cur === lastSig) return;
+      lastSig = cur;
+      pingPull();
+      pull();
+    }).catch(function(){});
+  }
+
   window.addEventListener('message', function(e) {
     if (!e.data) return;
-    if (e.data.type === 'data') {
-      renderView(e.data.data);
-      var proxy = e.data.data.proxy;
-      if (proxy && proxy.custom_sp != null) updateCustomBadge(proxy.custom_sp, proxy.custom_sp_chars);
-    }
     if (e.data.type === 'mode') setModeUI(e.data.mode);
     if (e.data.type === 'customSP') {
       var r = e.data;
       if (r.action === 'get') {
-        // v7.8: 已设则覆盖 lastText 之初值 (虽通常一致, 防 race)
+        // v9.7.6 · 十四章「执今之道·以御今之有」· default_sp 兜底 · tape 空亦可编辑帛书本源
+        // lastSP 同步兜底 (优先 tape entry → default_sp) · [载]/[归道] 亦据此
+        if (r.default_sp && !lastSP) lastSP = r.default_sp;
         if (r.has_custom && r.sp) {
           $editText.value = r.sp;
+          updateEditCount();
           updateCustomBadge(true, r.chars);
           $editStatus.textContent = '\u81ea\u5b9a\u4e49 \u00b7 ' + (r.chars || 0) + '\u5b57';
         } else {
-          // 未设: 留 lastText 初值不变, 用户编辑当前显之全文即可
-          $editStatus.textContent = '\u672a\u8bbe \u00b7 \u53ef\u7f16\u5f53\u524d\u5b9e\u6536';
+          updateCustomBadge(false);
+          // 兜底 · textarea 空则以 default_sp (帛书本源) 填 · 名实相符
+          if (!$editText.value && r.default_sp) {
+            $editText.value = r.default_sp;
+          }
+          updateEditCount();
+          var _srcLabel = (r.default_source === 'silk') ? '\u5e1b\u4e66\u672c\u6e90' : (r.default_source || '\u9ed8\u8ba4');
+          $editStatus.textContent = '\u672a\u8bbe \u00b7 ' + _srcLabel + ' ' + (r.default_chars || 0) + '\u5b57';
         }
       } else if (r.action === 'set') {
         if (r.ok) {
-          $editStatus.textContent = '\u2714 \u5df2\u6ce8\u5165 ' + (r.chars || 0) + '\u5b57 \u00b7 1.5s\u540e\u5173\u95ed';
+          $editStatus.textContent = '\u2714 \u5df2\u6ce8\u5165 ' + (r.chars || 0) + '\u5b57';
           updateCustomBadge(true, r.chars);
-          // v7.3 新: 1.5s 自关闭编辑面板, 让用户立即见 LLM 实收效果
+          updateEditCount();
           if (_editClosing) clearTimeout(_editClosing);
           _editClosing = setTimeout(_closeEditMode, 1500);
         } else $editStatus.textContent = '\u2716 \u5931\u8d25: ' + (r.error || '?');
       } else if (r.action === 'reset') {
         if (r.ok) {
-          $editStatus.textContent = '\u2714 \u5df2\u6e05\u9664 \u00b7 \u56de\u9ed8\u9053\u5fb7\u7ecf';
-          $editText.value = '';
+          // v9.7.8 · 反者道之动 · [归道] 严守帛书本源 · 不沿 lastSP (lastSP 已被 chat 覆盖)
+          // 十一章「三十辐共一毂」· 强拉 default_sp 帛书 · 同步 lastSP 锚回本源 · 道魂 ~7237 字 + 7 辐由实际 SP 中提
+          $editStatus.textContent = '\u5f52\u9053\u4e2d\u2026';
           updateCustomBadge(false);
+          fJson('/origin/custom_sp').then(function(g) {
+            if (g && g.default_sp) {
+              $editText.value = g.default_sp;
+              lastSP = g.default_sp;
+              updateEditCount();
+              $editStatus.textContent = '\u2714 \u5df2\u5f52\u9053 \u00b7 \u5e1b\u4e66\u672c\u6e90 ' + (g.default_chars || 0) + '\u5b57';
+            } else {
+              $editStatus.textContent = '\u2716 \u5f52\u9053\u62c9\u6e90\u5931\u8d25';
+            }
+          }).catch(function(){ $editStatus.textContent = '\u2716 \u5f52\u9053\u7f51\u8def\u5f02'; });
         } else $editStatus.textContent = '\u2716 \u6e05\u9664\u5931\u8d25';
       }
     }
   });
 
-  // HTTP 直连: 绕过 postMessage 通道 · 用编译时注入的 _PORT
-  var _hasData = false;
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'data') _hasData = true;
-  });
-  function _directFetch() {
-    if (_hasData || !_PORT) return;
-    fetch('http://127.0.0.1:' + _PORT + '/origin/ping')
-      .then(function(r) { return r.json(); })
-      .then(function(ping) {
-        if (!ping || !ping.ok) throw new Error('no proxy');
-        return fetch('http://127.0.0.1:' + _PORT + '/origin/preview')
-          .then(function(r) { return r.json(); })
-          .then(function(proxy) {
-            var d = {
-              ts: new Date().toISOString(),
-              proxy: proxy, proxyUp: true, ping: ping,
-              diag: { proxy_up: true, proxy_capturing: !!(proxy && proxy.has_captured_before), mode: ping.mode, uptime_s: ping.uptime_s, req_total: ping.req_total, capture_count: ping.capture_count },
-              modeLabel: ping.mode === 'invert' ? '\u9053Agent' : '\u5b98\u65b9Agent'
-            };
-            renderView(d); _hasData = true;
-          });
-      })
-      .catch(function() {});
-  }
-  // 立即尝试 HTTP 直连 (不依赖 postMessage · 道法自然)
-  _directFetch();
-  setTimeout(function() { if (!_hasData) _directFetch(); }, 1500);
-  setTimeout(function() { if (!_hasData) _directFetch(); }, 4000);
-  setTimeout(function() { if (!_hasData) _directFetch(); }, 10000);
-  setInterval(function() { if (!_hasData) _directFetch(); }, 20000);
-
-  document.getElementById('btnPurge').addEventListener('click', function() {
-    // v4.5 修: webview 内 confirm() 被 vscode 严格禁用 (默认 false)
-    // 直接 postMessage · 由 extension cmdPurge() 内 showWarningMessage(modal:true) 唯一确认
-    if ($source) $source.textContent = '\u51c6\u5907\u51c0\u5378\u2026';
-    vsc.postMessage({ command: 'purge' });
-  });
-
-  if (!vsc._ghost) vsc.postMessage({ command: 'refresh' });
-  _stage('iife-end');
+  // boot · v9.7.6 · 执今之道 · boot 即拉 getCustomSP 预装 lastSP (帛书本源) · tape 空亦可编辑
+  pingPull();
+  pull();
+  vsc.postMessage({ command: 'getCustomSP' });
+  setTimeout(function(){ pingPull(); pull(); }, 800);
+  setInterval(sigTick, 1500);
+  setInterval(pingPull, 3000);
+  setInterval(pull, 12000);
 })();
 </script>
 </body>
@@ -1935,8 +2100,8 @@ function activate(ctx) {
       `dao-proxy-min v${PKG_VERSION} activate · port=${_cachedPort} anchored=${_cachedAnchored} user=${os.userInfo().username}`,
     );
 
-    // 德道经横幅
-    if (vscode.workspace.getConfiguration("dao").get("origin.banner", true)) {
+    // 道德经横幅 (默认关 · 不言之教)
+    if (vscode.workspace.getConfiguration("dao").get("origin.banner", false)) {
       const q = DAO_QUOTES[Math.floor(Math.random() * DAO_QUOTES.length)];
       vscode.window.showInformationMessage(`道Agent v${PKG_VERSION} · ${q}`);
     }
@@ -1964,48 +2129,102 @@ function activate(ctx) {
       ),
     );
 
-    // 自动恢复 / 首装自启: 道法自然 · 下载即用
+    // v9.4.2 · 自 focus dao-container · 强制 resolveWebviewView 触发 · SSR 帛书立现
+    // 三十七章: 道恒无名 · 侯王若能守之 · 万物将自化
+    // 首装 / 重装 / 更新后 · 侧栏可能默 collapse · 一focus即开 · 主公无需手动
+    setTimeout(() => {
+      try {
+        vscode.commands.executeCommand(
+          "workbench.view.extension.dao-container",
+        );
+        L.info("activate", "focus dao-container · webview 自化");
+      } catch (e) {
+        L.warn("activate", `focus fail: ${e.message}`);
+      }
+    }, 500);
+
+    // ── 真药 D · activate 不杀 LS · 为道日损 (四十八章) ──
+    // 首装/恢复 仅启 proxy + 锚 settings + 装 hook, 不主动 forceRestartLS
+    // LS 自然重启时 spawn hook 自挂; 用户欲即时切换可显式调 wam.originInvert
     if (_cachedAnchored) {
-      // 已锚定 → 恢复代理 (含 EADDRINUSE 远程复用)
       L.info("activate", "settings anchored → auto-restore proxy");
-      proxyStart(_cachedPort, "invert")
-        .then(() => {
-          proxySetMode("invert");
+      proxyStart(_cachedPort, _cachedMode || "invert")
+        .then((handle) => {
+          if (!handle) {
+            // EADDRINUSE 且远端非反代 → 本窗口直连, 清锚归本源
+            L.warn("activate", "auto-restore: 端口占且非反代 · 清锚归直连");
+            return clearAnchor().catch(() => {});
+          }
+          proxySetMode(_cachedMode || "invert");
           L.info("activate", "auto-restore done");
         })
         .catch((e) => {
           L.error("activate", `auto-restore fail: ${e.message}`);
-          // 不清锚 · 代理可能由另一窗口运行
         });
     } else {
-      // 首装 / 未锚定 → 自动启 invert · 道Agent 默认开启
-      L.info("activate", "not anchored → first-run auto-start invert");
+      // 首装 · 温和自启
+      L.info("activate", "not anchored → 温和自启 (不杀 LS)");
       (async () => {
+        let handle;
         try {
-          await proxyStart(_cachedPort, "invert");
-          proxySetMode("invert");
+          handle = await proxyStart(_cachedPort, _cachedMode || "invert");
         } catch (e) {
           L.error("activate", `first-run proxy fail: ${e.message}`);
-          return; // 代理启动失败 · 无法继续
+          return;
         }
+        if (!handle) {
+          L.warn(
+            "activate",
+            "first-run: 端口占且非反代 · 跳过锚 (本窗口直连, 不抢)",
+          );
+          return;
+        }
+        proxySetMode(_cachedMode || "invert");
         try {
           await setAnchor(_cachedPort);
         } catch (e) {
           L.warn("activate", `first-run anchor fail (non-fatal): ${e.message}`);
-          // 锚定失败不阻塞 · 代理已启 · 文件写入仍可用
           _cachedAnchored = true;
           _cachedProxyUrl = `http://127.0.0.1:${_cachedPort}`;
         }
-        try {
-          installSpawnHook();
-          L.info("activate", "first-run: proxy+anchor done → restarting LS");
-          await forceRestartLS();
-          L.info("activate", "first-run: LS restarted · invert active");
-        } catch (e) {
-          L.warn("activate", `first-run LS restart fail: ${e.message}`);
-        }
+        L.info(
+          "activate",
+          "first-run: proxy+anchor 就位 · 下次 LS 启动自然挂钩",
+        );
       })();
     }
+
+    // ── v9.4.7 · proxy watchdog · 自愈 ──
+    // 道义: 五十一章「道生之 · 德畜之 · 长之育之 · 亭之毒之 · 养之覆之」
+    // 每 30s 自检 proxy 活否; 死则起之 · 不假外求 · 此即"自愈"之德
+    // 防 ext host 重启/proxy crash/EADDRINUSE 等致 LS 失锚 → Windsurf 卡死
+    const watchdogId = setInterval(async () => {
+      try {
+        if (!_cachedAnchored && !_proxyHandle) return; // 未锚 · 不主动起
+        const port = _cachedPort;
+        const ping = await httpGetJson(
+          `http://127.0.0.1:${port}/origin/ping`,
+          2000,
+        ).catch(() => null);
+        if (ping && ping.ok) return; // 活 · 安心
+        L.warn("watchdog", `proxy 死 · 重起 :${port}`);
+        _proxyHandle = null;
+        const handle = await proxyStart(port, _cachedMode || "invert").catch(
+          (e) => {
+            L.error("watchdog", `restart fail: ${e.message}`);
+            return null;
+          },
+        );
+        if (handle) {
+          proxySetMode(_cachedMode || "invert");
+          L.info("watchdog", "proxy 复活");
+        }
+      } catch (e) {
+        L.error("watchdog", `tick err: ${e.message}`);
+      }
+    }, 30000);
+    ctx.subscriptions.push({ dispose: () => clearInterval(watchdogId) });
+    L.info("activate", "watchdog 启 · 30s 自愈一周");
   } catch (e) {
     L.error("activate", `FATAL activation error: ${e.stack || e.message}`);
     vscode.window.showErrorMessage(`道Agent 激活失败: ${e.message}`);

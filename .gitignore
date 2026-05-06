@@ -45,6 +45,12 @@ diagnostics/
 research/
 bundled-origin/
 
+# 例外 · packages/dao-proxy-min/vendor/bundled-origin/ 内之 essence (source.js + 帛书二篇) 必入库
+!packages/dao-proxy-min/vendor/bundled-origin/
+!packages/dao-proxy-min/vendor/bundled-origin/source.js
+!packages/dao-proxy-min/vendor/bundled-origin/_silk_de.txt
+!packages/dao-proxy-min/vendor/bundled-origin/_silk_dao.txt
+
 # scripts/ 细规则: 保留合法构建脚本 (build-vsix.js / deploy.js)
 # 屏蔽敏感一键批处理 (→ 开头 · 中文 .cmd/.ps1/.py)
 scripts/→*

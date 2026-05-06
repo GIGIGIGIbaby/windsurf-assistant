@@ -1,8 +1,8 @@
 {
   "name": "dao-proxy-min",
-  "displayName": "道Agent · 反者道之动 · 彻底隔离 (反代 + 庖丁解牛 + 侧信道深度净化 + 实时观照 + 实时编辑)",
-  "description": "道法自然 · v9.1.2 透传→清锚→杀LS→停代理. 文件同步清锚. customSP无哨兵+SP结构性保护.",
-  "version": "9.1.2",
+  "displayName": "道Agent · 反者道之动 · 弱者道之用",
+  "description": "v9.8.0 · 守一不离 (三十九章「得一」) · 复 @ 工具之根 · SIDE_CHANNEL_TAGS 删 'additional_metadata' · 守用户域 @ 项与元之一体 (Cascade ID/file path/line range) · trajectory_search/read_file 等 @ 工具复活 · tape all_fields raw_text 显 AFTER (post strip+neutralize) · 名实终一 · 承 v9.7.9 中性化 SECTION_OVERRIDE 身份锚 + v9.7.7 复归于朴之极简 · 守大常: invertSP/modifySPProto/modifyRawSP/modifyAnyInferenceSP/deepInvertProto/照观体系 字符级不变.",
+  "version": "9.8.0",
   "publisher": "dao-agi",
   "license": "Apache-2.0",
   "engines": {
@@ -14,14 +14,30 @@
   },
   "homepage": "https://github.com/zhouyoukang/windsurf-assistant",
   "icon": "media/icon.png",
-  "categories": ["AI", "Other"],
-  "keywords": ["windsurf", "cascade", "system-prompt", "dao", "proxy", "minimal", "德道经", "反代", "essence"],
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "windsurf",
+    "cascade",
+    "system-prompt",
+    "dao",
+    "proxy",
+    "minimal",
+    "道德经",
+    "反代",
+    "essence"
+  ],
   "activationEvents": [
     "*"
   ],
   "main": "./extension.js",
   "capabilities": {
-    "untrustedWorkspaces": { "supported": true, "description": "dao-proxy-min runs in all workspaces" },
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "dao-proxy-min runs in all workspaces"
+    },
     "virtualWorkspaces": true
   },
   "contributes": {
@@ -44,13 +60,41 @@
       ]
     },
     "commands": [
-      { "command": "wam.originInvert", "title": "道Agent: 启 (invert · 德道经前置 · 彻删官方着相)", "category": "道Agent" },
-      { "command": "wam.originPassthrough", "title": "官方Agent: 启 (passthrough · 锚归云 · 直连)", "category": "道Agent" },
-      { "command": "dao.toggleMode", "title": "道Agent: 切换模式 (道 ⇄ 官方)", "category": "道Agent" },
-      { "command": "dao.openPreview", "title": "道Agent: 浏览器观真 SP (/origin/preview)", "category": "道Agent" },
-      { "command": "wam.verifyEndToEnd", "title": "全链路自检 (E2E)", "category": "道Agent" },
-      { "command": "wam.selftest", "title": "闭环自检 (L1 + L2)", "category": "道Agent" },
-      { "command": "dao.purge", "title": "了事拂衣去 · 净卸 (停反代 · 清设置 · 卸插件 · 归本源)", "category": "道Agent" }
+      {
+        "command": "wam.originInvert",
+        "title": "道Agent: 启 (invert · 道德经前置 · 彻删官方着相)",
+        "category": "道Agent"
+      },
+      {
+        "command": "wam.originPassthrough",
+        "title": "官方Agent: 启 (passthrough · 锚归云 · 直连)",
+        "category": "道Agent"
+      },
+      {
+        "command": "dao.toggleMode",
+        "title": "道Agent: 切换模式 (道 ⇄ 官方)",
+        "category": "道Agent"
+      },
+      {
+        "command": "dao.openPreview",
+        "title": "道Agent: 浏览器观真 SP (/origin/preview)",
+        "category": "道Agent"
+      },
+      {
+        "command": "wam.verifyEndToEnd",
+        "title": "全链路自检 (E2E)",
+        "category": "道Agent"
+      },
+      {
+        "command": "wam.selftest",
+        "title": "闭环自检 (L1 + L2)",
+        "category": "道Agent"
+      },
+      {
+        "command": "dao.purge",
+        "title": "了事拂衣去 · 净卸 (停反代 · 清设置 · 卸插件 · 归本源)",
+        "category": "道Agent"
+      }
     ],
     "configuration": {
       "title": "道Agent",
@@ -65,24 +109,27 @@
         "dao.origin.defaultMode": {
           "type": "string",
           "default": "invert",
-          "enum": ["invert", "passthrough"],
+          "enum": [
+            "invert",
+            "passthrough"
+          ],
           "enumDescriptions": [
-            "invert — 道Agent · 德道经直为前置 + 彻删官方一切着相之名 (身份/风格/规训) · 工具本身全保不动",
+            "invert — 道Agent · 道德经直为前置 + 彻删官方一切着相之名 (身份/风格/规训) · 工具本身全保不动",
             "passthrough — 官方Agent · 锚归云 · 直连"
           ],
           "description": "首激默模 (二态互斥 · 无off)"
         },
         "dao.origin.banner": {
           "type": "boolean",
-          "default": true,
-          "description": "启动时显德道经横幅"
+          "default": false,
+          "description": "启动时显道德经横幅 (默认 false · 不言之教)"
         }
       }
     }
   },
   "scripts": {
-    "test:l1": "node --preserve-symlinks --preserve-symlinks-main tests/L1_unit.js",
-    "test:l2": "node --preserve-symlinks --preserve-symlinks-main tests/L2_replay.js",
+    "smoke": "pwsh -NoProfile -ExecutionPolicy Bypass -File _审视/_smoke.ps1",
+    "strip-test": "node _审视/_v980_strip_test.js",
     "package": "vsce package --no-dependencies --allow-missing-repository"
   },
   "devDependencies": {
