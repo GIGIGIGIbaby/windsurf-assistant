@@ -23,7 +23,10 @@
 const fs = require("fs");
 const path = require("path");
 
-const WEB = path.join(__dirname, "..", "web", "index.html");
+// 印 81 修: 印 67 已迁 web/index.html 为三态 (gate/onboarding/mine);
+//          印 63 原五-Tab 形保于 web/legacy.html · 由本测把守.
+//          新 index.html 由 _seal67_smoke.cjs / _seal69_smoke.cjs 全审.
+const WEB = path.join(__dirname, "..", "web", "legacy.html");
 let pass = 0;
 let fail = 0;
 
@@ -54,10 +57,7 @@ function main() {
   // ── [B] 五 Tab ──────────────────────────────────────────
   console.log("[B] 五 Tab 齐备");
   for (const tab of ["setup", "chat", "api", "deploy", "docs"]) {
-    ok(
-      new RegExp(`data-tab="${tab}"`).test(html),
-      `tab[${tab}] · data-tab`,
-    );
+    ok(new RegExp(`data-tab="${tab}"`).test(html), `tab[${tab}] · data-tab`);
     ok(new RegExp(`id="sec-${tab}"`).test(html), `section[sec-${tab}]`);
   }
 
@@ -99,10 +99,7 @@ function main() {
   ok(/function\s+detectRepo\s*\(/.test(html), "detectRepo() 在");
   ok(/location\.hostname/.test(html), "读 location.hostname");
   ok(/location\.pathname/.test(html), "读 location.pathname");
-  ok(
-    /\.github\.io/i.test(html),
-    "识 *.github.io 模式",
-  );
+  ok(/\.github\.io/i.test(html), "识 *.github.io 模式");
   ok(
     /raw\.githubusercontent\.com/.test(html),
     "rawBase() 用 raw.githubusercontent.com",
@@ -113,7 +110,10 @@ function main() {
   ok(/genAuthKey/.test(html), "genAuthKey 函数在");
   ok(/genAuthKeyValue/.test(html), "genAuthKeyValue 函数在");
   ok(/sk-ws-proxy-/.test(html), "前缀 sk-ws-proxy-");
-  ok(/crypto\.getRandomValues/.test(html), "用 crypto.getRandomValues (强随机)");
+  ok(
+    /crypto\.getRandomValues/.test(html),
+    "用 crypto.getRandomValues (强随机)",
+  );
 
   // ── [F] chat 附 Authorization ──────────────────────────
   console.log("[F] chat fetch 附 Authorization");
@@ -130,23 +130,34 @@ function main() {
   const externalScripts = [
     ...html.matchAll(/<script[^>]+src\s*=\s*["']([^"']+)["']/gi),
   ].filter((m) => /^https?:\/\//i.test(m[1]));
-  ok(externalScripts.length === 0, `<script src=外部> 数=${externalScripts.length} (期 0)`);
+  ok(
+    externalScripts.length === 0,
+    `<script src=外部> 数=${externalScripts.length} (期 0)`,
+  );
 
   // <link href="http..." rel=stylesheet 外部
   const externalLinks = [
     ...html.matchAll(/<link[^>]+href\s*=\s*["']([^"']+)["']/gi),
   ].filter((m) => /^https?:\/\//i.test(m[1]) && /stylesheet|style/i.test(m[0]));
-  ok(externalLinks.length === 0, `<link href=外部 stylesheet> 数=${externalLinks.length} (期 0)`);
+  ok(
+    externalLinks.length === 0,
+    `<link href=外部 stylesheet> 数=${externalLinks.length} (期 0)`,
+  );
 
   // CSS @import 外部
-  const cssImports = [...html.matchAll(/@import\s+(?:url\()?["']?(https?:\/\/[^)"';\s]+)/gi)];
+  const cssImports = [
+    ...html.matchAll(/@import\s+(?:url\()?["']?(https?:\/\/[^)"';\s]+)/gi),
+  ];
   ok(cssImports.length === 0, `@import 外部 数=${cssImports.length} (期 0)`);
 
   // <iframe src="http..." 外部
   const externalIframes = [
     ...html.matchAll(/<iframe[^>]+src\s*=\s*["']([^"']+)["']/gi),
   ].filter((m) => /^https?:\/\//i.test(m[1]));
-  ok(externalIframes.length === 0, `<iframe src=外部> 数=${externalIframes.length} (期 0)`);
+  ok(
+    externalIframes.length === 0,
+    `<iframe src=外部> 数=${externalIframes.length} (期 0)`,
+  );
 
   // 不允 CDN host 链接
   const cdnHosts = [

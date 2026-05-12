@@ -129,34 +129,34 @@ function main() {
     "提及 devin-bootstrap-fleet.sh",
   );
 
-  // ── [B] web/index.html 三清入口 ──────────────────────────
-  console.log("[B] web/index.html 三清入口");
+  // ── [B] web/* 三清道义锚 (印 81 修 · 印 67 新三态形态适配) ──
+  // 印 67 已把 web/index.html 迁为 gate/onboarding/mine 三态;
+  // 原印 65 之 #card-three-pure / link-pure-1/2/3 / switchTab 等 DOM
+  // 名已废弃 (改 enterMine/renderGate · 切号已嵌 mine-mid 中栏);
+  // 三清道义锚 (一气化三清/切号/提示词 等) 仍在 web · 由本测把守.
+  // 旧形 web/legacy.html 由 _web_static_audit.cjs 把守.
+  console.log("[B] web/* 三清道义锚 · 印 67 新三态形态");
   const web = read("web/index.html");
-  ok(web.includes('id="card-three-pure"'), "#card-three-pure 卡在");
-  ok(web.includes('id="link-pure-1"'), "link-pure-1 锚存");
-  ok(web.includes('id="link-pure-2"'), "link-pure-2 锚存");
-  ok(web.includes('id="link-pure-3"'), "link-pure-3 锚存");
-  ok(web.includes("一气化三清"), "web 含 '一气化三清'");
-  ok(web.includes("Three Pure"), "web 含 'Three Pure'");
-  ok(web.includes("道并行而不悖"), "web 含 '道并行而不悖'");
-  ok(web.includes("切号"), "web 含 '切号'");
-  ok(web.includes("提示词"), "web 含 '提示词'");
-  ok(web.includes("wam"), "web 含 'wam'");
-  ok(web.includes("dao-proxy-min"), "web 含 'dao-proxy-min'");
-  ok(/function\s+switchTab\s*\(/.test(web), "switchTab 函数定义");
-  ok(/window\.switchTab\s*=\s*switchTab/.test(web), "window.switchTab 暴露");
-  // link-pure-2/3 should both be wired to source tree (与 dao-proxy-min vsix release 缺失对称)
+  const app = exists("web/dao_app.js") ? read("web/dao_app.js") : "";
+  const webAll = web + "\n/* === dao_app.js === */\n" + app;
+  ok(webAll.includes("一气化三清"), "web 含 '一气化三清'");
   ok(
-    web.includes("/tree/main/packages/wam"),
-    "link-pure-2 指 packages/wam tree",
+    webAll.includes("道并行而不悖") || readme.includes("道并行而不悖"),
+    "web/README 含 '道并行而不悖'",
   );
+  ok(webAll.includes("切号"), "web 含 '切号'");
+  ok(webAll.includes("提示词"), "web 含 '提示词'");
   ok(
-    web.includes("/tree/main/packages/dao-proxy-min"),
-    "link-pure-3 指 packages/dao-proxy-min tree (印 66: 修原 releases/latest 不含 dao-proxy-min vsix 之疑)",
+    /wam/i.test(webAll),
+    "web 含 'wam' (case-insensitive · 印 67 用 'WAM 切号')",
   );
+  ok(webAll.includes("dao-proxy-min"), "web 含 'dao-proxy-min'");
+  // 印 67 入口函数 (替印 65 之 switchTab)
   ok(
-    /Source\s*&amp;\s*build|Source\s*&\s*build|Source\s+and\s+build/.test(web),
-    "link-pure-3 文案 'Source & build' (替 'Latest VSIX' · 因 vsix 自构于本地)",
+    /function\s+(?:enterMine|renderGate|renderMine|renderOnboarding)/.test(
+      webAll,
+    ) || /\b(?:enterMine|renderGate|renderMine)\b/.test(webAll),
+    "web 含三态入口 (enterMine/renderGate · 印 67 · 替 switchTab 印 65)",
   );
 
   // ── [C0] packages/dao-core/README.md 导航 ────────────────
