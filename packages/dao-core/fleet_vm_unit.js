@@ -35,7 +35,10 @@
  *     GET /health · GET /fleet/info
  *
  *   闸口端点 (有 auth-key 时需 Authorization: Bearer):
- *     POST /v1/chat/completions · GET /v1/models · GET /quota
+ *     POST /v1/chat/completions · GET /v1/models · GET /quota · GET /stats
+ *
+ *   印 64 · Windsurf 账号底层 4 步链 (--allow-auth 闸 · 默 OFF · auth-key 仍验):
+ *     POST /auth/login · /auth/postauth · /auth/register · /auth/status · /auth/auto
  *
  *   零外部依赖 · 仅 Node.js 内置 (http, https, crypto, fs, path, os, dns)
  */
@@ -106,6 +109,8 @@ const AUTH_KEYS = AUTH_KEY_RAW.split(/[,\s]+/)
   .map((k) => k.trim())
   .filter(Boolean);
 const AUTH_REQUIRED = AUTH_KEYS.length > 0;
+const ALLOW_AUTH =
+  ARGS.includes("--allow-auth") || process.env.DAO_ALLOW_AUTH === "1";
 const VERBOSE = ARGS.includes("-v") || ARGS.includes("--verbose");
 
 // 从 ~/.dao/accounts.json 读取 (若无 --api-key)
@@ -152,6 +157,64 @@ const STATS = {
   lastProbeAt: null,
 };
 
+// 印 64 · windsurf_auth lazy load (最小 2 文件部署也不强要)
+let _WA = null;
+function getWindsurfAuth() {
+  if (_WA === null) {
+    try {
+      _WA = require("./windsurf_auth");
+    } catch {
+      try {
+        _WA = require(path.join(__dirname, "windsurf_auth"));
+      } catch {
+        _WA = false;
+      }
+    }
+  }
+  return _WA || null;
+}
+
+// 印 64 · SSE heartbeat · 优雅 drain
+//   帛书·八: 「上善如水 · 水善利万物而有静」
+const SSE_HEARTBEAT_MS = 15000;
+const _activeSse = new Set();
+let _draining = false;
+
+// 印 64 · stats ring · latency p50/p95/avg · 三窗
+const STATS_RING_MAX = 2000;
+const _statsRing = []; // [{at, ms, model, ok, code}]
+function _recordStat(s) {
+  _statsRing.push(s);
+  if (_statsRing.length > STATS_RING_MAX) _statsRing.shift();
+}
+function _percentile(arr, p) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.min(
+    sorted.length - 1,
+    Math.floor((sorted.length * p) / 100),
+  );
+  return sorted[idx];
+}
+function _statsWindow(windowMs) {
+  const now = Date.now();
+  const slice = _statsRing.filter((s) => now - s.at <= windowMs);
+  const lats = slice.map((s) => s.ms).filter((m) => typeof m === "number");
+  const ok = slice.filter((s) => s.ok).length;
+  const err = slice.length - ok;
+  return {
+    count: slice.length,
+    ok,
+    err,
+    avgMs: lats.length
+      ? Math.round(lats.reduce((a, b) => a + b, 0) / lats.length)
+      : 0,
+    p50Ms: _percentile(lats, 50),
+    p95Ms: _percentile(lats, 95),
+    p99Ms: _percentile(lats, 99),
+  };
+}
+
 // ════════════════════════════════════════════════════════════════
 // §4  OpenAI 兼容 API · /v1/chat/completions
 //     帛书·廿八: 「朴散则为器 · 圣人用则为官长 · 大制无割」
@@ -189,15 +252,35 @@ async function handleChatCompletions(req, res, body) {
   const modelUid = CE.resolveModel(model);
 
   if (stream) {
-    // ── SSE 流式 ─────────────────────────────────────────────
+    // ── SSE 流式 ──────────────────────────────
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-store",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
       "Access-Control-Allow-Origin": "*",
       "X-Dao-Fleet-Unit": UNIT_ID,
     });
 
+    // 印 64 · SSE heartbeat + 优雅 drain entry
+    const sseEntry = { res, requestId, at: Date.now() };
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(": dao-heartbeat\n\n");
+      } catch {
+        clearInterval(heartbeat);
+      }
+    }, SSE_HEARTBEAT_MS);
+    sseEntry.heartbeat = heartbeat;
+    _activeSse.add(sseEntry);
+    const cleanup = () => {
+      clearInterval(heartbeat);
+      _activeSse.delete(sseEntry);
+    };
+    res.on("close", cleanup);
+    res.on("finish", cleanup);
+
+    const _t0 = Date.now();
     let tokenCount = 0;
 
     try {
@@ -246,11 +329,26 @@ async function handleChatCompletions(req, res, body) {
       };
       res.write(`data: ${JSON.stringify(finalChunk)}\n\n`);
       res.write("data: [DONE]\n\n");
+      cleanup();
       res.end();
 
       STATS.tokens += result.tokens || tokenCount;
+      _recordStat({
+        at: Date.now(),
+        ms: Date.now() - _t0,
+        model: modelUid,
+        ok: true,
+        stream: true,
+      });
     } catch (e) {
       STATS.errors++;
+      _recordStat({
+        at: Date.now(),
+        ms: Date.now() - _t0,
+        model: modelUid,
+        ok: false,
+        err: e.message?.slice(0, 80),
+      });
       const errChunk = {
         id: requestId,
         object: "chat.completion.chunk",
@@ -259,6 +357,7 @@ async function handleChatCompletions(req, res, body) {
       try {
         res.write(`data: ${JSON.stringify(errChunk)}\n\n`);
         res.write("data: [DONE]\n\n");
+        cleanup();
         res.end();
       } catch {}
     }
@@ -297,6 +396,13 @@ async function handleChatCompletions(req, res, body) {
       });
     } catch (e) {
       STATS.errors++;
+      _recordStat({
+        at: Date.now(),
+        ms: Date.now() - _t0,
+        model: modelUid,
+        ok: false,
+        err: e.message?.slice(0, 80),
+      });
       // 限流检测
       if (
         e.message.includes("rate") ||
@@ -316,6 +422,105 @@ async function handleChatCompletions(req, res, body) {
         });
       }
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// §4b  /auth/* · 印 64 · Windsurf 账号底层 4 步链 · --allow-auth 闸
+//      帛书·四十: 「反者道之动 · 弱者道之用 · 天下之物生于有 · 有生于无」
+// ═══════════════════════════════════════════════════════════════
+
+async function handleAuthRoute(req, res, body, action) {
+  if (!ALLOW_AUTH) {
+    return sendJson(res, 403, {
+      error: {
+        message: "/auth/* disabled · start unit with --allow-auth to enable",
+        type: "auth_disabled",
+      },
+    });
+  }
+  const WA = getWindsurfAuth();
+  if (!WA) {
+    return sendJson(res, 503, {
+      error: {
+        message:
+          "windsurf_auth.js not available · ensure same dir as fleet_vm_unit.js",
+        type: "module_unavailable",
+      },
+    });
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(body || "{}");
+  } catch {
+    return sendJson(res, 400, {
+      error: { message: "invalid JSON body", type: "invalid_request_error" },
+    });
+  }
+  try {
+    let result;
+    switch (action) {
+      case "login":
+        result = await WA.devinLogin(parsed.email, parsed.password, {
+          insecure: !!parsed.insecure,
+        });
+        break;
+      case "postauth":
+        result = await WA.windsurfPostAuth(parsed.auth1, parsed.orgId || null, {
+          insecure: !!parsed.insecure,
+        });
+        break;
+      case "register":
+        result = await WA.registerUserViaSession(parsed.sessionToken, {
+          insecure: !!parsed.insecure,
+        });
+        break;
+      case "status":
+        result = await WA.fetchUserStatus(
+          parsed.apiKey,
+          parsed.apiServerUrl || null,
+          { insecure: !!parsed.insecure },
+        );
+        if (!result) {
+          return sendJson(res, 400, {
+            error: { message: "missing apiKey", type: "invalid_request_error" },
+          });
+        }
+        break;
+      case "auto":
+        result = await WA.autoChain(parsed.email, parsed.password, {
+          insecure: !!parsed.insecure,
+          fetchQuota: parsed.fetchQuota !== false,
+          orgId: parsed.orgId || null,
+        });
+        break;
+      default:
+        return sendJson(res, 404, {
+          error: { message: `unknown auth action: ${action}` },
+        });
+    }
+    return sendJson(res, 200, { ok: true, ...result });
+  } catch (e) {
+    if (e && e.name === "AuthError") {
+      const code =
+        e.code === 401
+          ? 401
+          : e.code && e.code >= 400 && e.code < 600
+            ? e.code
+            : 502;
+      return sendJson(res, code, {
+        error: {
+          message: e.reason,
+          step: e.step,
+          code: e.code,
+          type: "auth_chain_error",
+        },
+        body: e.body,
+      });
+    }
+    return sendJson(res, 500, {
+      error: { message: e.message, type: "server_error" },
+    });
   }
 }
 
@@ -358,10 +563,37 @@ function handleHealth(req, res) {
       : "(none)",
     authRequired: AUTH_REQUIRED,
     authKeysCount: AUTH_KEYS.length,
+    authAllowed: ALLOW_AUTH, // 印 64
+    sseActive: _activeSse.size, // 印 64
+    statsCount: _statsRing.length, // 印 64
+    draining: _draining, // 印 64
     hostname: os.hostname(),
     platform: os.platform(),
     nodeVersion: process.version,
-    seal: "印 63 · 守门有度",
+    seal: "印 64 · 为大于其细",
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// §6b  /stats · 印 64 · ring buffer 三窗 (60s/600s/3600s) p50/p95/p99/avg
+// ═══════════════════════════════════════════════════════════════
+
+function handleStats(req, res) {
+  sendJson(res, 200, {
+    ok: true,
+    unit: UNIT_ID,
+    ringSize: _statsRing.length,
+    ringMax: STATS_RING_MAX,
+    sseActive: _activeSse.size,
+    cumulative: {
+      requests: STATS.requests,
+      errors: STATS.errors,
+      tokens: STATS.tokens,
+    },
+    last1m: _statsWindow(60_000),
+    last10m: _statsWindow(600_000),
+    last1h: _statsWindow(3_600_000),
+    seal: "印 64 · 为大于其细",
   });
 }
 
@@ -609,6 +841,13 @@ const server = http.createServer(async (req, res) => {
   // ── /v1/chat/completions ──────────────────────────────────
   if (pathname === "/v1/chat/completions" && method === "POST") {
     if (!gate(req, res)) return;
+    if (_draining)
+      return sendJson(res, 503, {
+        error: {
+          message: "unit draining · try again shortly",
+          type: "draining",
+        },
+      });
     try {
       const body = await readBody(req);
       return handleChatCompletions(req, res, body);
@@ -651,6 +890,24 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  // ── /stats (印 64 · 闸守) ──────────────────────────────────
+  if (pathname === "/stats" && method === "GET") {
+    if (!gate(req, res)) return;
+    return handleStats(req, res);
+  }
+
+  // ── /auth/* (印 64 · --allow-auth + auth-key 双闸) ────────────
+  if (pathname.startsWith("/auth/") && method === "POST") {
+    if (!gate(req, res)) return; // sk-ws-proxy-* 仍需
+    try {
+      const body = await readBody(req);
+      const action = pathname.slice("/auth/".length);
+      return handleAuthRoute(req, res, body, action);
+    } catch (e) {
+      return sendJson(res, 500, { error: { message: e.message } });
+    }
+  }
+
   // 404
   sendJson(res, 404, { error: { message: `not found: ${pathname}` } });
 });
@@ -661,9 +918,9 @@ const server = http.createServer(async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 server.listen(PORT, BIND, () => {
-  console.log("╔══════════════════════════════════════════════════════════╗");
-  console.log("║  道 Fleet VM Unit · 底层之底层 · 印 62                    ║");
-  console.log("╚══════════════════════════════════════════════════════════╝");
+  console.log("╔════════════════════════════════════════════════════════╗");
+  console.log("║  道 Fleet VM Unit · 底层之底层 · 印 64 为大于其细     ║");
+  console.log("╚════════════════════════════════════════════════════════╝");
   console.log("");
   console.log(`  Unit ID  : ${UNIT_ID}`);
   console.log(`  Account  : ${ACCOUNT}`);
@@ -673,19 +930,36 @@ server.listen(PORT, BIND, () => {
   );
   console.log(`  Fleet    : ${FLEET_CONTROLLER || "(独立运行)"}`);
   if (AUTH_REQUIRED) {
-    console.log(`  Auth     : ${AUTH_KEYS.length} key(s) · /v1/* /quota 闸守`);
+    console.log(
+      `  Auth     : ${AUTH_KEYS.length} key(s) · /v1/* /quota /stats 闸守`,
+    );
   } else {
     console.log(`  Auth     : (空 · 全公开 · 公网部署强烈建议设 --auth-key)`);
   }
+  console.log(
+    `  AuthFlow : ${ALLOW_AUTH ? "开 (--allow-auth) · /auth/* 4 步链可用" : "闭 (默认)"}`,
+  );
   console.log("");
   console.log("  端点:");
-  console.log(`    POST /v1/chat/completions  · OpenAI 兼容 (SSE 流式)`);
+  console.log(
+    `    POST /v1/chat/completions  · OpenAI 兼容 (SSE 流式 + heartbeat 15s)`,
+  );
   console.log(
     `    GET  /v1/models            · 模型列表 (${CE.MODEL_CATALOG.length} 个)`,
   );
   console.log(`    GET  /health               · 健康检查`);
   console.log(`    GET  /quota                · 配额探测`);
+  console.log(`    GET  /stats                · p50/p95/p99 三窗 (印 64)`);
   console.log(`    GET  /fleet/info           · fleet 信息`);
+  if (ALLOW_AUTH) {
+    console.log(`    POST /auth/login           · email+pwd → auth1`);
+    console.log(`    POST /auth/postauth        · auth1 → sessionToken`);
+    console.log(`    POST /auth/register        · sessionToken → sk-*`);
+    console.log(`    POST /auth/status          · sk-* → quota`);
+    console.log(
+      `    POST /auth/auto            · email+pwd → sk-* + quota (一键)`,
+    );
+  }
   console.log("");
 
   // 初始配额探测
@@ -724,11 +998,28 @@ server.on("error", (e) => {
   process.exit(1);
 });
 
-// 优雅停
+// 优雅停 · 印 64 · 先标 draining · 等 SSE 流出 · 再关 server
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, () => {
-    console.log(`\n  · ${sig} · 停 unit :${PORT}`);
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 2000).unref();
+    if (_draining) {
+      // 二次 SIGINT · 硬退
+      console.log(`\n  · ${sig} 二次 · 硬退`);
+      process.exit(1);
+    }
+    _draining = true;
+    const active = _activeSse.size;
+    console.log(
+      `\n  · ${sig} · 优雅停中 · active SSE=${active} · 拒新 chat · 等现活流结 (max 8s)`,
+    );
+    // 1) 领 _activeSse drain
+    const drainStart = Date.now();
+    const drainTick = setInterval(() => {
+      if (_activeSse.size === 0 || Date.now() - drainStart > 8000) {
+        clearInterval(drainTick);
+        // 2) 关 server
+        server.close(() => process.exit(0));
+        setTimeout(() => process.exit(0), 1500).unref();
+      }
+    }, 200);
   });
 }

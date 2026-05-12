@@ -83,6 +83,14 @@ fleet_state.json
 **/_seal*_kernel.*
 **/_lsp_bridge.json
 
+# 印 64 · 测试运行时产物 (子进程 stdout/stderr 重定向)
+packages/dao-core/_*.out
+packages/dao-core/_*.err
+tests/_*.out
+tests/_*.err
+**/_*_unit.out
+**/_*_unit.err
+
 # 例外 · packages/wam/账号库.example.md (脱敏 example · 主公私产真账号由 .gitignore 屏蔽)
 !packages/wam/账号库.example.md
 

@@ -41,20 +41,27 @@ curl -sL https://raw.githubusercontent.com/zhouyoukang/windsurf-assistant/main/s
 | File | Purpose |
 |------|---------|
 | `cloud_engine.js` | Zero-dep Connect-RPC protocol · protobuf · auth · inference |
-| `fleet_vm_unit.js` | Self-contained proxy microservice · OpenAI SSE · fleet integration |
+| `fleet_vm_unit.js` | Self-contained proxy microservice · OpenAI SSE · fleet integration · SSE heartbeat · stats ring (印 64) |
 | `fleet_controller.js` | Fleet management · registration · heartbeat · gateway with retry/failover |
 | `dao_accounts.js` | Account pool management |
 | `model_registry.js` | Model catalog and resolution |
+| `windsurf_auth.js` | Windsurf 4-step auth chain Node port · email+password → sk-ws-* + quota (印 64) |
 
 ## API Endpoints
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/v1/chat/completions` | POST | gated | OpenAI-compatible chat (SSE streaming + JSON) |
+| `/v1/chat/completions` | POST | gated | OpenAI-compatible chat (SSE w/ 15s heartbeat · 印 64) |
 | `/v1/models` | GET | gated | Model list (54+ models) |
 | `/quota` | GET | gated | Real-time quota (daily%/weekly%) |
-| `/health` | GET | public | Health + `authRequired` + stats |
+| `/stats` | GET | gated | Latency p50/p95/p99 over 1m/10m/1h windows (印 64) |
+| `/health` | GET | public | Health + `authRequired` + `authAllowed` + `sseActive` + `draining` |
 | `/fleet/info` | GET | public | Unit metadata |
+| `/auth/login` | POST | gated + `--allow-auth` | Step 1 · email+pwd → auth1 (印 64) |
+| `/auth/postauth` | POST | gated + `--allow-auth` | Step 2 · auth1 → sessionToken (印 64) |
+| `/auth/register` | POST | gated + `--allow-auth` | Step 3 · sessionToken → sk-ws-* (印 64) |
+| `/auth/status` | POST | gated + `--allow-auth` | Step 4 · sk-ws-* → quota (印 64) |
+| `/auth/auto` | POST | gated + `--allow-auth` | All four in one call (印 64) |
 
 When `--auth-key` (or `DAO_AUTH_KEY`) is set, **gated** endpoints require `Authorization: Bearer <key>`. `/health` & `/fleet/info` always stay public so probes / load-balancers can monitor without secrets. When auth-key is empty, the unit runs in *open mode* (local dev only).
 
@@ -64,6 +71,7 @@ When `--auth-key` (or `DAO_AUTH_KEY`) is set, **gated** endpoints require `Autho
 |----------|----------|-------------|---------|
 | `DAO_FLEET_API_KEY` | `--api-key` | Windsurf API key (sk-ws-01-...) | (required) |
 | `DAO_AUTH_KEY` | `--auth-key` | Reverse-proxy gate key(s) (sk-ws-proxy-... · comma-separated for multiple) | (empty = open) |
+| `DAO_ALLOW_AUTH` | `--allow-auth` | Open `/auth/*` 4-step auth chain endpoints (印 64). Off by default since they accept user passwords. | `0` (off) |
 | `DAO_FLEET_ACCOUNT` | `--account` | Account email identifier | `unit@fleet.local` |
 | `DAO_FLEET_PORT` | `--port` | Listen port | `7862` |
 | -- | `--bind` / `--public` | Listen address (`--public` = `0.0.0.0`) | `127.0.0.1` |
@@ -87,7 +95,20 @@ Browser/Client
 
 ## Zero Dependencies
 
-This entire package uses **only Node.js built-in modules**: `http`, `https`, `crypto`, `fs`, `path`, `os`, `dns`. No npm install needed.
+This entire package uses **only Node.js built-in modules**: `http`, `https`, `crypto`, `fs`, `path`, `os`, `dns`, `child_process`, `url`. No npm install needed.
+
+## CLI · windsurf_auth.js (印 64)
+
+`windsurf_auth.js` is also a stand-alone CLI:
+
+```bash
+# 4-step chain in one shot (writes apiKey to stdout)
+node windsurf_auth.js auto --email a@b.com --password xxx --json
+
+# Single steps
+node windsurf_auth.js login  --email a@b.com --password xxx
+node windsurf_auth.js status --api-key sk-ws-01-XXX
+```
 
 ---
 

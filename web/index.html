@@ -178,6 +178,37 @@ details > div{margin-top:8px;padding:10px;background:var(--panel2);border-radius
     <input type="text" id="cfg-email" placeholder="user@example.com">
   </div>
 
+  <!-- 印 64 · 反者道之动 · Windsurf 账号底层 4 步链 · 一键取 sk-* -->
+  <div class="card">
+    <h3>2.5 &middot; Windsurf 账号底层 <span class="opt" style="font-size:11px;color:var(--dim2)">&middot; 一键取 sk-* (印 64 · 4 步链)</span></h3>
+    <p class="hint">
+      No API key on hand? Enter your Windsurf email + password &mdash; the VM walks the
+      <code>login → postauth → register → status</code> chain on your behalf and returns a fresh
+      <code>sk-ws-*</code>. Endpoint must be reachable AND <code>--allow-auth</code> must be set on the VM
+      (default OFF; turn on by appending <code>DAO_ALLOW_AUTH=1</code> to the bootstrap env).
+      <br>
+      <b>Privacy</b>: password leaves your browser only to your own VM (which calls windsurf.com directly).
+      It is never persisted unless you tick "Remember password" below.
+    </p>
+    <label>Email</label>
+    <input type="email" id="ws-email" placeholder="you@windsurf.com" autocomplete="username">
+    <label>Password</label>
+    <div class="row">
+      <input type="password" id="ws-password" class="grow" placeholder="********" autocomplete="current-password">
+      <button class="secondary tiny" onclick="toggleVisibility('ws-password')">Show</button>
+    </div>
+    <label style="margin-top:6px;font-size:12px;color:var(--dim);user-select:none;cursor:pointer">
+      <input type="checkbox" id="ws-remember" style="width:auto;display:inline-block;margin:0 6px 0 0;vertical-align:middle">
+      Remember password (localStorage only · clear=untick + Save Config)
+    </label>
+    <div class="btn-row" style="margin-top:8px">
+      <button onclick="mintApiKey()">Mint API Key (1-click 4-step)</button>
+      <button class="secondary" onclick="fetchAuthQuota()">Fetch Quota</button>
+    </div>
+    <div id="ws-mint-status" style="margin-top:10px"></div>
+    <div id="ws-quota-box" style="display:none;margin-top:8px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border2);border-radius:4px;font-size:12px"></div>
+  </div>
+
   <div class="card">
     <h3>3 · Self-Host Settings <span class="opt" style="font-size:11px;color:var(--dim2)">&middot; auto-detected</span></h3>
     <p class="hint">
@@ -510,6 +541,7 @@ function saveConfig(){
     $('cfg-authkey').value=authKey;
     showStatus('cfg-status','warn','Auto-generated auth-key for public endpoint');
   }
+  const wsRemember=!!($('ws-remember') && $('ws-remember').checked);
   const cfg={
     endpoint:ep,
     authKey,
@@ -518,8 +550,16 @@ function saveConfig(){
     owner:$('cfg-owner').value.trim()||detectRepo().owner,
     repo:$('cfg-repo').value.trim()||detectRepo().repo,
     branch:$('cfg-branch').value.trim()||'main',
+    // 印 64 · ws 字段 · 密码默不存
+    wsEmail:($('ws-email')||{}).value?.trim()||'',
+    wsRemember,
+    wsPassword: wsRemember?(($('ws-password')||{}).value||''):'',
     savedAt:new Date().toISOString(),
   };
+  // 不勾"记住密码" → 立即清 wsPassword (反 印 63 设计)
+  if(!wsRemember && $('ws-password')) {
+    // 不影响当前输入框 · 仅持久化为空
+  }
   localStorage.setItem(CFG_KEY,JSON.stringify(cfg));
   showStatus('cfg-status','ok','Config saved · '+Object.keys(cfg).filter(k=>cfg[k]&&k!=='savedAt').length+' fields');
   refreshAllDerived();
@@ -527,9 +567,12 @@ function saveConfig(){
 function clearConfig(){
   if(!confirm('Clear all config from localStorage?'))return;
   localStorage.removeItem(CFG_KEY);
-  ['cfg-endpoint','cfg-authkey','cfg-apikey','cfg-email','cfg-owner','cfg-repo'].forEach(id=>{const e=$(id);if(e)e.value=''});
+  ['cfg-endpoint','cfg-authkey','cfg-apikey','cfg-email','cfg-owner','cfg-repo','ws-email','ws-password'].forEach(id=>{const e=$(id);if(e)e.value=''});
+  if($('ws-remember'))$('ws-remember').checked=false;
   $('cfg-branch').value='main';
   $('card-status').style.display='none';
+  $('ws-mint-status').innerHTML='';
+  $('ws-quota-box').style.display='none';
   showStatus('cfg-status','warn','Cleared');
   refreshAllDerived();
 }
@@ -543,6 +586,10 @@ function restoreConfig(){
   $('cfg-owner').value=cfg.owner||det.owner;
   $('cfg-repo').value=cfg.repo||det.repo;
   $('cfg-branch').value=cfg.branch||'main';
+  // 印 64 · ws 字段
+  if($('ws-email'))$('ws-email').value=cfg.wsEmail||'';
+  if($('ws-remember'))$('ws-remember').checked=!!cfg.wsRemember;
+  if($('ws-password'))$('ws-password').value=cfg.wsRemember?(cfg.wsPassword||''):'';
 }
 
 function genAuthKeyValue(){
@@ -604,6 +651,66 @@ function renderUnitInfo(d){
     <div style="margin-top:8px;font-size:11px;color:var(--dim2)">
       ${escapeHtml(d.platform||'?')} · node ${escapeHtml(d.nodeVersion||'?')} · key ${escapeHtml(d.apiKeyPreview||'(none)')}
     </div>`;
+}
+
+// §3b · 印 64 · 4 步链 一键取 sk-*
+async function mintApiKey(){
+  const cfg=loadConfig();
+  const ep=(cfg.endpoint||$('cfg-endpoint').value||'').trim().replace(/\/+$/,'');
+  const email=$('ws-email').value.trim();
+  const password=$('ws-password').value;
+  if(!ep)return showMintStatus('err','No endpoint configured');
+  if(!email||!password)return showMintStatus('err','Email + password required');
+  showMintStatus('warn','4-step · login → postauth → register → status ...');
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(cfg.authKey)headers['Authorization']='Bearer '+cfg.authKey;
+    const r=await fetch(ep+'/auth/auto',{method:'POST',headers,body:JSON.stringify({email,password,fetchQuota:true}),signal:AbortSignal.timeout(45000)});
+    const j=await r.json().catch(()=>({error:{message:'invalid JSON'}}));
+    if(r.status===403)return showMintStatus('err','VM /auth/* disabled · restart with --allow-auth');
+    if(r.status===401)return showMintStatus('err','Auth-key invalid · check Setup §1');
+    if(!r.ok||!j.ok){const step=j.error?.step?` (step=${j.error.step})`:'';return showMintStatus('err',`Failed${step}: ${j.error?.message||'HTTP '+r.status}`)}
+    if(j.apiKey){$('cfg-apikey').value=j.apiKey;if(!$('cfg-email').value)$('cfg-email').value=email}
+    const t=j.timing||{};
+    const tStr=`login=${t.login_ms||'?'} postauth=${t.postauth_ms||'?'} register=${t.register_ms||'?'}${t.status_ms!==undefined?' status='+t.status_ms:''} ms`;
+    showMintStatus('ok',`✓ apiKey ${j.apiKey?j.apiKey.slice(0,14)+'...'+j.apiKey.slice(-4):'?'} · ${tStr} · click Save to persist`);
+    if(j.quota&&!j.quota._failed)renderQuotaBox(j.quota);
+  }catch(e){showMintStatus('err','Network: '+e.message)}
+}
+async function fetchAuthQuota(){
+  const cfg=loadConfig();
+  const ep=(cfg.endpoint||$('cfg-endpoint').value||'').trim().replace(/\/+$/,'');
+  const apiKey=$('cfg-apikey').value.trim()||cfg.apiKey;
+  if(!ep)return showMintStatus('err','No endpoint');
+  if(!apiKey)return showMintStatus('err','No apiKey · run Mint first');
+  showMintStatus('warn','Querying quota...');
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(cfg.authKey)headers['Authorization']='Bearer '+cfg.authKey;
+    const r=await fetch(ep+'/auth/status',{method:'POST',headers,body:JSON.stringify({apiKey}),signal:AbortSignal.timeout(15000)});
+    const j=await r.json().catch(()=>({error:{message:'invalid JSON'}}));
+    if(r.status===403)return showMintStatus('err','VM /auth/* disabled');
+    if(!r.ok||!j.ok)return showMintStatus('err',j.error?.message||'HTTP '+r.status);
+    if(j._failed)return showMintStatus('err','Quota failed: '+(j._last_text||'no response'));
+    showMintStatus('ok','✓ Quota refreshed');renderQuotaBox(j);
+  }catch(e){showMintStatus('err','Network: '+e.message)}
+}
+function showMintStatus(type,msg){const el=$('ws-mint-status');if(el)el.innerHTML=`<span class="status ${type}">${escapeHtml(msg)}</span>`}
+function renderQuotaBox(q){
+  const box=$('ws-quota-box');if(!box)return;
+  const plan=q.planName||'(?)';const tier=q.teamsTier?' · '+q.teamsTier:'';
+  const end=q.planEnd?q.planEnd.slice(0,10):'';
+  const d=q.dailyQuotaRemainingPercent;const w=q.weeklyQuotaRemainingPercent;
+  const dCls=d>=20?'ok':(d>=5?'warn':'err');
+  const wCls=w>=20?'ok':(w>=5?'warn':'err');
+  box.innerHTML=`<div style="font-weight:600;color:var(--accent2)">${escapeHtml(plan+tier)}${end?` <span style="color:var(--dim);font-weight:400">· end ${end}</span>`:''}</div>
+    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+      <span class="status ${dCls}">D ${d}%</span><span class="status ${wCls}">W ${w}%</span>
+      <span class="status dim">prompt ${q.availablePromptCredits||0}</span>
+      <span class="status dim">flow ${q.availableFlowCredits||0}</span>
+      ${q.availableFlexCredits?`<span class="status dim">flex ${q.availableFlexCredits}</span>`:''}
+    </div>`;
+  box.style.display='block';
 }
 
 async function fetchModels(ep){

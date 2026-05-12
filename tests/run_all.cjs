@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * run_all.cjs — 印 63 · 全套 ws-deploy 测试串跑
+ * run_all.cjs — 印 64 · 全套 ws-deploy 测试串跑
  * ════════════════════════════════════════════════════════════════════════
  *   帛书·六十四: 「为之于其未有也, 治之于其未乱也」
  *
- *   顺序:
- *     1. _web_static_audit  (无 IO · 最快)
- *     2. _dao_core_syntax   (require · 静态)
- *     3. _auth_smoke        (启 fleet_vm_unit 子进程 · 长)
+ *   顺序 (由轻至重):
+ *     1. _web_static_audit  (无 IO · 最快 · ~1s)
+ *     2. _dao_core_syntax   (require · 静态 · ~1s)
+ *     3. _auth_smoke        (启 unit · 印 63 · ~6s)
+ *     4. _seal64_smoke      (启 unit · 印 64 · 4 步链/SSE/stats · ~10s)
  *
  *   每测独立子进程 · 互不污染
  */
@@ -16,12 +17,17 @@
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-const TESTS = ["_web_static_audit", "_dao_core_syntax", "_auth_smoke"];
+const TESTS = [
+  "_web_static_audit",
+  "_dao_core_syntax",
+  "_auth_smoke",
+  "_seal64_smoke", // 印 64 · 4 步链 + SSE + /stats
+];
 
 let allOk = true;
 const results = [];
 
-console.log("═══ ws-deploy 全套测试 · 印 63 ═══\n");
+console.log("═══ ws-deploy 全套测试 · 印 64 ═══\n");
 
 for (const t of TESTS) {
   const script = path.join(__dirname, `${t}.cjs`);

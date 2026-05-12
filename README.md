@@ -99,6 +99,17 @@ Drop those into ChatGPT clients (LobeChat, OpenWebUI, NextChat, Cherry Studio,
 …), `openai` Python/JS SDK, Continue.dev, Aider, Cursor's "OpenAI override",
 anything that speaks OpenAI &mdash; instant Windsurf access.
 
+### 3.5. Even simpler &mdash; one-click API key from email + password (印 64)
+
+No Windsurf API key on hand? The Setup tab has a **"Windsurf 账号底层 · 一键取 sk-*"**
+card. Enter your Windsurf email + password &mdash; the VM walks the four-step
+auth chain (`login → postauth → register → status`) on your behalf and the
+web page auto-fills `cfg-apikey` with a fresh `sk-ws-*`.
+
+Requires the VM to be started with `--allow-auth` (or `DAO_ALLOW_AUTH=1`),
+off by default for safety. The password leaves your browser only to your
+own VM; it is **never persisted** unless you explicitly tick "Remember password".
+
 ---
 
 ## Repository Layout
@@ -123,11 +134,17 @@ prefer an in-editor experience.
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| `POST` | `/v1/chat/completions` | gated | OpenAI-compatible chat &middot; SSE streaming when `stream: true` |
+| `POST` | `/v1/chat/completions` | gated | OpenAI-compatible chat &middot; SSE streaming with 15s heartbeat (印 64) |
 | `GET`  | `/v1/models`           | gated | Model list (54+ models) |
 | `GET`  | `/quota`               | gated | Real-time daily/weekly quota |
-| `GET`  | `/health`              | public | Health, uptime, `authRequired`, stats |
+| `GET`  | `/stats`               | gated | Latency p50/p95/p99 over 1m/10m/1h windows (印 64) |
+| `GET`  | `/health`              | public | Health, uptime, `authRequired`, `authAllowed`, `sseActive`, `draining` |
 | `GET`  | `/fleet/info`          | public | Unit metadata for fleet discovery |
+| `POST` | `/auth/login`          | gated + `--allow-auth` | Step 1 &middot; email + password → auth1 token (印 64) |
+| `POST` | `/auth/postauth`       | gated + `--allow-auth` | Step 2 &middot; auth1 → sessionToken (印 64) |
+| `POST` | `/auth/register`       | gated + `--allow-auth` | Step 3 &middot; sessionToken → `sk-ws-*` (印 64) |
+| `POST` | `/auth/status`         | gated + `--allow-auth` | Step 4 &middot; `sk-ws-*` → quota (印 64) |
+| `POST` | `/auth/auto`           | gated + `--allow-auth` | All four steps in one call (印 64) |
 
 **Auth**: when `--auth-key` (or `DAO_AUTH_KEY`) is set, `/v1/*` and `/quota`
 require `Authorization: Bearer <key>`. Multiple keys can be passed
@@ -174,7 +191,8 @@ Runs three independent suites in fresh sub-processes:
 | `_web_static_audit.cjs`  | 72  | ~70ms   | 5 tabs, key DOM ids, soft-coded repo, zero CDN, OpenAI examples present |
 | `_dao_core_syntax.cjs`   | 47  | ~600ms  | 5 files parse, all expected exports present, fleet_controller logic, zero deps |
 | `_auth_smoke.cjs`        | 26  | ~2.3s   | Spawns `fleet_vm_unit`, validates `--auth-key` gate, CORS preflight, multi-header forms, open-mode fallback |
-| **Total** | **145** | **~3s** | All on Node.js builtins, no real Windsurf account needed |
+| `_seal64_smoke.cjs`      | 79  | ~2.6s   | `windsurf_auth.js` exports + `parsePlanStatusJson`, `--allow-auth` flag, `/stats` 3-window structure, `/auth/*` 5 routes (incl. live `windsurf.com` step=login round-trip) |
+| **Total** | **224** | **~5.5s** | All on Node.js builtins, no real Windsurf account needed (login test uses fake creds and asserts auth_chain_error step=login) |
 
 CI runs the full suite on every PR against `packages/`, `web/`, `tests/`,
 or `scripts/`.
@@ -188,7 +206,9 @@ or `scripts/`.
 * **软编码** &mdash; URLs, owners, repos, ports, keys all configurable;
   the page auto-detects from `location.*` so a fresh fork "just works".
 * **守门有度** &mdash; `/health` and `/fleet/info` are intentionally public
-  so probes work without secrets; `/v1/*` and `/quota` are gated.
+  so probes work without secrets; `/v1/*` `/quota` `/stats` are gated.
+  `/auth/*` carries an extra `--allow-auth` flag (default off) on top of
+  the auth-key check, because it accepts user passwords.
 * **向后兼容** &mdash; running without `--auth-key` is allowed for local dev
   (open mode); production deployments should always set one.
 * **道法自然** &mdash; the upstream-default soft-codes default to
