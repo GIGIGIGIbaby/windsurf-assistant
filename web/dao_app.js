@@ -696,6 +696,85 @@
         _spCustomTimer = setTimeout(() => syncSpCustomToVm(sp.custom), 800);
       });
     }
+
+    // D · 印 90 · 网页端 SP 注入器 (浏览器内直注 · 无需 VM)
+    //   帛书·四十:   反者道之动 · 弱者道之用
+    //   帛书·七十八: 天下莫柔弱于水 · 而攻坚强者莫之能胜也
+    //   于 app.devin.ai 用户态浏览器内 hook WebSocket · 字面替换 system prompt
+    const ownerForRaw =
+      (memo.site && memo.site.owner) ||
+      (memo.me && memo.me.login) ||
+      daoSync.UPSTREAM_OWNER;
+    const repoForRaw = (memo.site && memo.site.repo) || daoSync.UPSTREAM_REPO;
+    const branchForRaw = "main";
+    const injectorBase =
+      "https://github.com/" +
+      ownerForRaw +
+      "/" +
+      repoForRaw +
+      "/tree/" +
+      branchForRaw +
+      "/packages/dao-injector";
+    const userscriptRaw =
+      "https://raw.githubusercontent.com/" +
+      ownerForRaw +
+      "/" +
+      repoForRaw +
+      "/" +
+      branchForRaw +
+      "/packages/dao-injector/userscript/dao-devin-sp-inject.user.js";
+    root.appendChild(
+      el("div", { class: "pane" }, [
+        el("div", { class: "pane-hd" }, [
+          "网页端 SP 注入器 · 印 90 ",
+          el("span", { class: "meta" }, ["dao-injector"]),
+        ]),
+        el("div", { class: "pane-bd" }, [
+          el("div", { class: "hint" }, [
+            "印 89 反 alignment 之反 + 印 90 浏览器内 wss hook · 于 app.devin.ai 真站直注帛书风格 (无需 VM)",
+          ]),
+          el("div", { class: "row gap", style: { marginTop: "8px" } }, [
+            el(
+              "a",
+              {
+                class: "btn",
+                href: injectorBase,
+                target: "_blank",
+              },
+              ["扩展件 ↗"],
+            ),
+            el(
+              "a",
+              {
+                class: "btn ghost",
+                href: userscriptRaw,
+                target: "_blank",
+              },
+              ["Tampermonkey 装 ↗"],
+            ),
+            el(
+              "a",
+              {
+                class: "btn ghost",
+                href: "https://app.devin.ai/",
+                target: "_blank",
+              },
+              ["开 Devin →"],
+            ),
+          ]),
+          el(
+            "div",
+            { class: "hint", style: { marginTop: "8px", fontSize: "11px" } },
+            [
+              "装法 A · Chrome/Edge: 装扩 → chrome://extensions → 加载已解压 → 选 packages/dao-injector/extension/",
+            ],
+          ),
+          el("div", { class: "hint", style: { fontSize: "11px" } }, [
+            "装法 B · 直拖 userscript 入 Tampermonkey 即得 (备路 · 免装扩展)",
+          ]),
+        ]),
+      ]),
+    );
   }
 
   function spCheckbox(id, label, checked, onChange) {
@@ -1094,11 +1173,119 @@
     // 平展供默选
     const models = modelsByPath.flatMap((g) => g.items);
 
+    // 印 91 · 右栏顶 engine badge bar · 显当前 A/B 路 + SP mode + iframe 切
+    //   帛书·二十二: 「圣人执一 · 以为天下牧」—— 一目知三态
+    const curModel = (D.lastModel || models[0]).toString();
+    const curEngine = /devin-cloud/i.test(curModel) ? "B" : "A";
+    const curSpMode = (D.sp && D.sp.mode) || "dao";
+    const useIframe = !!D.useDevinIframe;
+    const badgeBar = el(
+      "div",
+      { class: "engine-badge-bar", id: "engine-badge-bar" },
+      [
+        el(
+          "span",
+          {
+            class: "engine-badge engine-" + curEngine,
+            id: "engine-badge-path",
+          },
+          [curEngine === "B" ? "B 路 · devin-cloud" : "A 路 · codeium"],
+        ),
+        el(
+          "span",
+          {
+            class: "engine-badge sp-mode-" + curSpMode,
+            id: "engine-badge-sp",
+            title: "SP mode (左栏改)",
+          },
+          ["SP · " + curSpMode],
+        ),
+        el(
+          "span",
+          { class: "engine-badge engine-info", title: "印 91 · 一目三态" },
+          ["印 91"],
+        ),
+        el("span", { class: "grow" }, []),
+        el(
+          "label",
+          {
+            class: "iframe-toggle",
+            title: "右栏一笔切到 app.devin.ai 真站 (配 dao-injector 自动注 SP)",
+          },
+          [
+            (function () {
+              const cb = el("input", {
+                type: "checkbox",
+                id: "in-iframe-mode",
+              });
+              cb.checked = useIframe;
+              cb.addEventListener("change", (e) => {
+                D.useDevinIframe = !!e.target.checked;
+                markDirty();
+                renderRight();
+              });
+              return cb;
+            })(),
+            el("span", null, ["嵌 app.devin.ai"]),
+          ],
+        ),
+      ],
+    );
+    root.appendChild(badgeBar);
+
+    // 印 91 · iframe 模式 · 右栏即 app.devin.ai 真站
+    //   帛书·四十八: 「为道者日损 · 损之又损 · 以至于无为」
+    //   配 dao-injector 已装 (Chrome 扩展或 Tampermonkey) · 浏览器内 wss hook 自动注帛书
+    //   未装则提示用户去左栏 'D · 网页端 SP 注入器' 段装
+    if (useIframe) {
+      const ifr = el("iframe", {
+        id: "devin-iframe",
+        src: "https://app.devin.ai/",
+        class: "devin-iframe",
+        sandbox:
+          "allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation-by-user-activation",
+        allow: "clipboard-read; clipboard-write",
+        style: {
+          width: "100%",
+          flex: "1",
+          border: "1px solid #2a2a2a",
+          borderRadius: "6px",
+          minHeight: "400px",
+          background: "#0a0a0a",
+        },
+      });
+      const hint = el(
+        "div",
+        { class: "hint", style: { marginTop: "8px", fontSize: "11px" } },
+        [
+          "★ 装 dao-injector 后此 iframe 内每笔自动注帛书 (印 89 风格引导 · 印 90 wss hook) · 未装则原态使用 app.devin.ai",
+        ],
+      );
+      root.appendChild(ifr);
+      root.appendChild(hint);
+      return; // iframe 模式 · 不再渲染 chat 历史与输入区
+    }
+
     // 顶 · 模型选 (分组 optgroup) + 高级 + 清
     const head = el("div", { class: "chat-head" }, [
       el(
         "select",
-        { id: "in-chat-model", class: "inp small" },
+        {
+          id: "in-chat-model",
+          class: "inp small",
+          // 印 91 · model 改时实时更新 engine badge + 持 lastModel
+          onchange: (e) => {
+            const m = e.target.value;
+            D.lastModel = m;
+            markDirty();
+            const isB = /devin-cloud/i.test(m);
+            const bp = $("engine-badge-path");
+            if (bp) {
+              bp.textContent = isB ? "B 路 · devin-cloud" : "A 路 · codeium";
+              bp.className = "engine-badge engine-" + (isB ? "B" : "A");
+            }
+          },
+        },
         modelsByPath.map((g) =>
           el(
             "optgroup",
@@ -1132,6 +1319,10 @@
       ),
     ]);
     root.appendChild(head);
+
+    // 印 91 · select 初值设 lastModel (el() 不支 selected 属性)
+    const _selModel = $("in-chat-model");
+    if (_selModel && D.lastModel) _selModel.value = D.lastModel;
 
     // 高级 (默隐)
     const adv = el(

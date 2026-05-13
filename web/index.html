@@ -884,6 +884,77 @@
           flex-wrap: wrap;
         }
       }
+
+      /* ═══ 印 91 · 右栏 engine badge bar (A/B 路 + SP mode + iframe 切) ═══ */
+      /*   帛书·廿二: 圣人执一 · 以为天下牧 —— 一目知三态                     */
+      .engine-badge-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        margin-bottom: 8px;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        background: #0d0d0d;
+        font-size: 11px;
+        flex-wrap: wrap;
+      }
+      .engine-badge {
+        padding: 3px 8px;
+        border-radius: 10px;
+        border: 1px solid #2a2a2a;
+        color: #aaa;
+        background: #151515;
+        white-space: nowrap;
+      }
+      .engine-badge.engine-A {
+        color: #6cf;
+        border-color: #244;
+        background: #0a1518;
+      }
+      .engine-badge.engine-B {
+        color: #fa6;
+        border-color: #442;
+        background: #1a1108;
+      }
+      .engine-badge.engine-info {
+        color: #888;
+        border-color: #333;
+      }
+      .engine-badge.sp-mode-dao {
+        color: var(--gold, #d4af37);
+        border-color: #443014;
+        background: #1a1408;
+      }
+      .engine-badge.sp-mode-passthrough {
+        color: #888;
+      }
+      .engine-badge.sp-mode-custom {
+        color: #c9a;
+        border-color: #423248;
+        background: #150a18;
+      }
+      .iframe-toggle {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        color: #888;
+      }
+      .iframe-toggle:hover {
+        color: #ccc;
+      }
+      .iframe-toggle input[type="checkbox"] {
+        margin: 0;
+      }
+      .devin-iframe {
+        width: 100%;
+        flex: 1;
+        min-height: 400px;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        background: #0a0a0a;
+      }
     </style>
   </head>
   <body>

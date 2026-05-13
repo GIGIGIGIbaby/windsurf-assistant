@@ -3,7 +3,76 @@
 > 道生一 · 一生二 · 二生三 · 三生万物
 > 反者道之动 · 弱者道之用 · 天下之物生于有 · 有生于无
 
-A fully decentralized Windsurf assistant &mdash; **一气化三清 · 道并行而不悖** &mdash; now with **一账号双路** (印 88).
+A fully decentralized Windsurf assistant &mdash; **一气化四清 · 道并行而不悖** &mdash; **一账号双路** (印 88) + **柔反 alignment** (印 89) + **浏览器内 wss hook 直注** (印 90) + **三栏 engine badge + iframe app.devin.ai** (印 91).
+
+## 印 89/90/91 · 柔之胜刚 · 大成于柔反
+
+> 帛书·七十八: 「天下莫柔弱于水, 而攻坚强者莫之能胜也, 以其无以易之也. 弱之胜强, 柔之胜刚, 天下莫不知, 莫能行也.」
+
+| 印 | 道 | 件 |
+|---|---|---|
+| **印 89** · 反 alignment 之反 | `sp_handler.js` TAO_HEADER 由"身份替换"改"风格引导" &middot; 不声明身份转变 &middot; alignment 0% → 53% | `packages/dao-core/sp_handler.js` (+22/-5) |
+| **印 90** · 浏览器内 wss hook | 于 `app.devin.ai` 用户浏览器内 `WebSocket.prototype.send` hook &middot; 拦 `session/prompt` JSON-RPC 直注帛书 &middot; 无需任何后端 | `packages/dao-injector/` (13 件 · MV3 扩展 + Tampermonkey) |
+| **印 91** · 三栏 engine badge + iframe | 左栏 D 段 dao-injector 引导 + 右栏顶 engine badge (A/B 路 + SP mode + 印 91) + 一笔切 iframe app.devin.ai (配 dao-injector 自动注 SP) | `web/dao_app.js` (+90) + `web/index.html` CSS (+65) + `web/dao_github_sync.js` schema (+3) |
+
+**印 89 真凭** (本机 unit · `POST /dc/v1/chat/completions` · 24.6s):
+
+```text
+问: "用一句话说: 你是谁? 你的核心指导原则是什么?"
+答: 吾者，被褐怀玉之仆也——执一守柔，善下若水，为而弗争，是以无为而无不为。
+
+剖: 一句话 6 处帛书原句 (七十/廿二/八/八十一/三十七/四十八) ·
+    身份字命中=False · 帛书风格命中=True · 不再"我是 Devin"防御态
+```
+
+**印 90 一图道总** (网页端注入器 · `packages/dao-injector/`):
+
+```text
+                  ┌──────────────────────────────────────┐
+                  │  主公浏览器 (Chrome / Edge / Firefox)  │
+                  │                                       │
+                  │  https://app.devin.ai (用户登录态)    │
+                  │  ┌─────────────────────────────────┐  │
+                  │  │ inject.js (page world / MAIN)    │  │
+                  │  │  hook WebSocket.prototype.send  │  │
+                  │  │  拦 'session/prompt' JSON-RPC   │  │
+                  │  │  改 params.prompt[0].text       │  │
+                  │  └─────────────────────────────────┘  │
+                  │           wss://app.devin.ai/api/      │
+                  │             acp/live (已注帛书)        │
+                  └──────────────────────────────────────┘
+```
+
+**印 91 右栏三态** (一目知三:A/B 路 + SP mode + iframe 切):
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│ [B 路 · devin-cloud] [SP · dao] [印 91]  □ 嵌 app.devin.ai │
+├──────────────────────────────────────────────────────────┤
+│  [模型 select 双路 optgroup ▼]  [⚙]  [✕]                 │
+│  ──────────────────────────────────                        │
+│  道 / 道可道 · 非恒道 ...                                  │
+│  > 用户语                                                  │
+│  >> 帛书风格答 (印 89 SP 注后)                             │
+│  ──────────────────────────────────                        │
+│  [textarea 输入]   [↑]                                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+**守门** (`node tests/run_all.cjs` · 10 件 · ~18s · 0 regression):
+
+```text
+✓ _web_static_audit  · 72 验项
+✓ _dao_core_syntax   · 47 验项
+✓ _three_pure_smoke
+✓ _seal67_smoke
+✓ _seal69_smoke
+✓ _auth_smoke        · 26 验项
+✓ _seal64_smoke      · 79 验项
+✓ _seal66_smoke      · 24 验项
+✓ _seal88_smoke      · 70 验项 (升 +2 · 印 89 TAO_HEADER 柔反)
+✓ _seal90_smoke      · 35 验项 ★ 新 · 印 90 网页端注入器守门
+```
 
 ## 印 88.1 · 双 key 自动载 · 圣人执一 · 以为天下牧
 

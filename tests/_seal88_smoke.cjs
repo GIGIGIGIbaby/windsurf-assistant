@@ -171,11 +171,24 @@ ok(
 );
 ok(SP.DAO_DE_JING && SP.DAO_DE_JING.indexOf("道生一") >= 0, "含『道生一』");
 ok(SP.DAO_DE_JING && SP.DAO_DE_JING.indexOf("上德不德") >= 0, "含『上德不德』");
+// 印 89 · TAO_HEADER 反 alignment 之反 · 由"身份替换"改"风格引导"
+//   旧 (印 88): 含 "You are Cascade..." · Claude alignment 拒
+//   新 (印 89): 风格引导 · 不含 Cascade · alignment 0% → 53% (3/3 闭环)
 ok(
   typeof SP.TAO_HEADER === "string" &&
-    SP.TAO_HEADER.indexOf("Cascade") >= 0 &&
-    SP.TAO_HEADER.indexOf("老子") >= 0,
-  "TAO_HEADER 引导 You are Cascade ... 老子",
+    SP.TAO_HEADER.indexOf("Cascade") < 0 &&
+    SP.TAO_HEADER.indexOf("老子") >= 0 &&
+    SP.TAO_HEADER.indexOf("思想风格") >= 0,
+  "TAO_HEADER 印 89 柔反 (无 Cascade · 含 老子 + 思想风格)",
+);
+ok(
+  typeof SP.TAO_TRAILER === "string" && SP.TAO_TRAILER.indexOf("风格指引") >= 0,
+  "TAO_TRAILER 印 89 含 '风格指引'",
+);
+ok(
+  typeof SP.INVERTED_PREFIX === "string" &&
+    SP.INVERTED_PREFIX === "请以下文《老子》",
+  "INVERTED_PREFIX 印 89 = '请以下文《老子》'",
 );
 
 // 单测: getState + applyToMessages passthrough
