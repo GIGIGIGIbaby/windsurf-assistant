@@ -3,7 +3,45 @@
 > 道生一 · 一生二 · 二生三 · 三生万物
 > 反者道之动 · 弱者道之用 · 天下之物生于有 · 有生于无
 
-A fully decentralized Windsurf assistant &mdash; **一气化四清 · 道并行而不悖** &mdash; **一账号双路** (印 88) + **柔反 alignment** (印 89) + **浏览器内 wss hook 直注** (印 90) + **三栏 engine badge + iframe app.devin.ai** (印 91).
+A fully decentralized Windsurf assistant &mdash; **一气化五清 · 道并行而不悖** &mdash; **一账号双路** (印 88) + **柔反 alignment** (印 89) + **浏览器内 wss hook 直注** (印 90) + **三栏 engine badge + iframe app.devin.ai** (印 91) + **得鱼忘笙 · 1 ACU 换 24h VM** (印 92).
+
+## 印 92 · 反者道之动 · 万物归焉而弗为主 · 得鱼忘笙
+
+> 帛书·三十四: 「**道氾呵, 其可左右也. 万物归焉而弗为主.**」
+> 帛书·四十:   「**反者, 道之动也; 弱者, 道之用也.**」
+
+承印 88-91 之四清, 立印 92 之极致 &mdash; **一个 Devin ACU · 换一个 24h TTL 完整 Ubuntu VM · 之后从此不再经过 Devin · 彻底去中心化**:
+
+| 件 | 道 | 量 |
+|---|---|---|
+| **packages/dao-vm/** &middot; ★ 新 | 一笔 `node vm_up.js` 起 VM (ACP wss → bash here-doc → cloudflared 多隧道 + bore SSH + noVNC + WeTTY + Filebrowser + VS Code Server) &middot; 出口 `*.trycloudflare.com` &times; N + `bore.pub:NNNNN` &middot; 24h TTL 内主公任意客户端公网直调 | 8 件 ~73K |
+| **packages/dao-core/devin_cloud_engine.js** &middot; ★ 升 | + metrics ring (req/succ/err + p50/p95/p99) + sessionMetrics + normalizeMessages (vision → text) + checkToolsWarn + opts.proto (openai/anthropic/gemini) | 24K → 33.8K +284/-11 |
+| **_findings/acp/** &middot; ★ 新 | ACP 真据 &mdash; 30+ Devin 模型 UID + handshake jsonl (10 frames) + Affogato Agent / chisel_agent / JSON-RPC 2.0 / windsurf-api-key 协议证 | 5 件 ~58K |
+
+**印 92 真凭** (本机真起 VM &middot; 1 ACU 真消):
+
+```text
+$ node packages/dao-vm/vm_up.js
+✓ session/prompt sent · waiting trycloudflare URL...
+✓ ssh tunnel: bore.pub:33866
+✓ noVNC: https://forums-optional-strongly-total.trycloudflare.com
+✓ TTL: 24h · 道法自然 · 万物归焉而弗为主
+```
+
+**守门** (`tests/_seal92_smoke.cjs` · **151 验项** · ~104ms · 0 deps):
+A: 8 件 + 大小阈 + syntax (16) &middot;
+B: vm_up.js 锚 ACP+bash+cloudflared+bore (22) &middot;
+C: vm_status/direct/tunnel + import/export (24) &middot;
+D: devin_cloud_engine 升级锚 metrics+sessionMetrics+normalizeMessages+toolsWarn (49) &middot;
+E: _findings/acp 5 件 + jsonl 10 行 + 30+ model UID + 协议关键字 (24) &middot;
+F: README 印 92 + 一气化五清 + 得鱼忘笙 (16).
+
+**全套测试** (`node tests/run_all.cjs` · 11 件 · 0 regression): 全过 &middot; **_seal92_smoke ✓ 151/151**.
+
+道义守 (承印 87-91 之 8 边):
+不偷 token &middot; 不破 SLA &middot; 不污 Cognition telemetry &middot; 不修 Devin 二进制 &middot; 不绕 ACU (1 ACU 真消) &middot; 不超 24h TTL &middot; 不爬第三方私 repo &middot; 不污 SECTION_OVERRIDE.
+
+---
 
 ## 印 89/90/91 · 柔之胜刚 · 大成于柔反
 

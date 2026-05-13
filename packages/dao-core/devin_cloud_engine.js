@@ -83,6 +83,224 @@ function _log(msg) {
   process.stderr.write(`[devin-cloud] ${msg}\n`);
 }
 
+function _logW(msg) {
+  process.stderr.write(`[devin-cloud][warn] ${msg}\n`);
+}
+
+// ════════════════════════════════════════════════════════════════
+// §2b  印 92 · metrics ring + sessionMetrics + tools warn
+//
+//   帛书·七十八: 「水之胜刚也」· 观水之深 · 不阻其流
+//   ─── 取自 Devin云原生/虚拟机反代/devin_cloud_proxy.js 真本源 ───
+//
+//   设计:
+//     metrics       — 进程级 (req/succ/err/toolsHits) + 100 笔 latency ring
+//     sessionMetrics — session 层 (created/loaded/prompted/models/accounts/concurrent)
+//     0 IO · 内存累计 · 进程退出即清 (与 cloud_engine 同道义 · 不污盘)
+// ════════════════════════════════════════════════════════════════
+
+const _metrics = {
+  startedAt: Date.now(),
+  requests: { total: 0, openai: 0, anthropic: 0, gemini: 0 },
+  successes: { total: 0, openai: 0, anthropic: 0, gemini: 0 },
+  errors: { total: 0, openai: 0, anthropic: 0, gemini: 0 },
+  // 客端发 tools/functions 之笔 (Devin upstream 不接受 · 已忽略 · 仅记)
+  toolsHits: { openai: 0, anthropic: 0, gemini: 0 },
+  // 最近 100 笔 chat 时延 (ms) · stream/non-stream 共池
+  latencies: [],
+};
+
+function metricsRecordReq(proto) {
+  if (!proto || !(proto in _metrics.requests)) proto = "openai";
+  _metrics.requests.total++;
+  _metrics.requests[proto]++;
+}
+
+function metricsRecordSuccess(proto, ms) {
+  if (!proto || !(proto in _metrics.successes)) proto = "openai";
+  _metrics.successes.total++;
+  _metrics.successes[proto]++;
+  if (typeof ms === "number" && ms > 0) {
+    _metrics.latencies.push(ms);
+    if (_metrics.latencies.length > 100) _metrics.latencies.shift();
+  }
+}
+
+function metricsRecordError(proto) {
+  if (!proto || !(proto in _metrics.errors)) proto = "openai";
+  _metrics.errors.total++;
+  _metrics.errors[proto]++;
+}
+
+function metricsRecordToolsHit(proto) {
+  if (proto && proto in _metrics.toolsHits) _metrics.toolsHits[proto]++;
+}
+
+function _percentile(arr, p) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const i = Math.min(s.length - 1, Math.floor((s.length * p) / 100));
+  return s[i];
+}
+
+function getMetrics() {
+  const lats = _metrics.latencies;
+  return {
+    uptimeSec: Math.floor((Date.now() - _metrics.startedAt) / 1000),
+    requests: { ..._metrics.requests },
+    successes: { ..._metrics.successes },
+    errors: { ..._metrics.errors },
+    toolsHits: { ..._metrics.toolsHits },
+    latency: {
+      count: lats.length,
+      avgMs: lats.length
+        ? Math.round(lats.reduce((a, b) => a + b, 0) / lats.length)
+        : 0,
+      p50Ms: _percentile(lats, 50),
+      p95Ms: _percentile(lats, 95),
+      p99Ms: _percentile(lats, 99),
+    },
+  };
+}
+
+// 印 92 · session 层级 metrics (账号↔VM 解构 · 取自 devin_cloud_proxy.js 印 87)
+const _sessionMetrics = {
+  created: 0, // session/new 总
+  loaded: 0, // session/load 总
+  prompted: 0, // session/prompt 总 (★ 唯一 ACU 消费点)
+  models: {}, // 每模型计数
+  accounts: {}, // 每账号计数 (mask)
+  concurrentPeak: 0,
+  _active: 0,
+};
+
+function sessionMetricsRecord(event, model, accountMasked) {
+  if (event === "new") {
+    _sessionMetrics.created++;
+    _sessionMetrics._active++;
+    if (_sessionMetrics._active > _sessionMetrics.concurrentPeak) {
+      _sessionMetrics.concurrentPeak = _sessionMetrics._active;
+    }
+  } else if (event === "load") {
+    _sessionMetrics.loaded++;
+  } else if (event === "prompt") {
+    _sessionMetrics.prompted++;
+  } else if (event === "end") {
+    if (_sessionMetrics._active > 0) _sessionMetrics._active--;
+  }
+  if (model) {
+    _sessionMetrics.models[model] = (_sessionMetrics.models[model] || 0) + 1;
+  }
+  if (accountMasked) {
+    _sessionMetrics.accounts[accountMasked] =
+      (_sessionMetrics.accounts[accountMasked] || 0) + 1;
+  }
+}
+
+function sessionMetricsSnapshot() {
+  return {
+    created: _sessionMetrics.created,
+    loaded: _sessionMetrics.loaded,
+    prompted: _sessionMetrics.prompted,
+    concurrentPeak: _sessionMetrics.concurrentPeak,
+    active: _sessionMetrics._active,
+    topModels: Object.entries(_sessionMetrics.models)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([k, v]) => ({ model: k, count: v })),
+    topAccounts: Object.entries(_sessionMetrics.accounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([k, v]) => ({ account: k, count: v })),
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// §2c  印 92 · normalizeMessages · 防 [object Object] bug
+//
+//   帛书·廿八: 「朴散则为器 · 大制无割」
+//   ─── 取自 Devin云原生/PC端/本源/devin_cloud_proxy.js v0.2.0 + 印 85 续 ───
+//
+//   旧 messagesToPrompt 仅支 content:string
+//   新 normalizeMessages 兼容 OpenAI vision content array (印 85 续之缺):
+//     [{type: "text", text: "..."},
+//      {type: "image_url", image_url: {url: "..."}},
+//      {type: "input_audio", ...}]
+//   返 string 化 content · 让 messagesToPrompt 不再吐 "[object Object]"
+// ════════════════════════════════════════════════════════════════
+
+function _normalizeContent(c) {
+  if (c == null) return "";
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) {
+    // OpenAI vision array · 提 text 部分 · image_url 转 [image: <url>]
+    return c
+      .map((part) => {
+        if (!part || typeof part !== "object") return String(part || "");
+        if (part.type === "text" && typeof part.text === "string") {
+          return part.text;
+        }
+        if (part.type === "image_url") {
+          const url =
+            (part.image_url && part.image_url.url) || part.image_url || "";
+          return url ? `[image: ${String(url).slice(0, 64)}...]` : "[image]";
+        }
+        if (part.type === "input_audio") return "[audio]";
+        if (typeof part.text === "string") return part.text;
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (typeof c === "object") {
+    if (typeof c.text === "string") return c.text;
+    return "";
+  }
+  return String(c);
+}
+
+/**
+ * 公开导出 · OpenAI/Anthropic/Gemini 三协议共用 · 防 [object Object]
+ *
+ * @param {Array} messages - 原始 messages (任协议)
+ * @returns {Array<{role: string, content: string}>} - 规整后 messages
+ */
+function normalizeMessages(messages) {
+  if (!Array.isArray(messages)) return [];
+  return messages
+    .map((m) => {
+      if (!m || typeof m !== "object") return null;
+      const role = typeof m.role === "string" ? m.role : "user";
+      const content = _normalizeContent(m.content);
+      return { role, content };
+    })
+    .filter((m) => m !== null);
+}
+
+/**
+ * 印 92 · tools warn · 客发 tools/tool_choice/functions/function_call 时 logW
+ *   Devin upstream 不接受外部 tools 定义 · 不阻断 · 仅告知
+ * @param {Object} body - chat request body
+ * @param {string} proto - openai|anthropic|gemini
+ * @returns {boolean} - 是否含 tools (用于 metricsRecordToolsHit)
+ */
+function checkToolsWarn(body, proto) {
+  if (!body || typeof body !== "object") return false;
+  const hasTools =
+    Array.isArray(body.tools) ||
+    Array.isArray(body.functions) ||
+    body.tool_choice ||
+    body.function_call;
+  if (hasTools) {
+    metricsRecordToolsHit(proto);
+    _logW(
+      `${proto || "?"} 客端发 tools/functions · Devin upstream 不接受外部 tools 定义 · 已忽略 · 仅按 messages 走`,
+    );
+    return true;
+  }
+  return false;
+}
+
 // ════════════════════════════════════════════════════════════════
 // §3  ACP 协议 · 4 步链
 //
@@ -108,19 +326,22 @@ function messagesToPrompt(messages) {
     return [{ type: "text", text: "ok" }];
   }
 
+  // 印 92 · 先 normalizeMessages 防 [object Object] (含 OpenAI vision array)
+  const normalized = normalizeMessages(messages);
+
   const parts = [];
 
   // 收集 system messages (合并)
-  const systems = messages
-    .filter((m) => m && m.role === "system")
-    .map((m) => (typeof m.content === "string" ? m.content : ""))
+  const systems = normalized
+    .filter((m) => m.role === "system")
+    .map((m) => m.content)
     .filter(Boolean);
 
   // 收集对话 (user/assistant 交错 · 转为简单文本)
   const turns = [];
-  for (const m of messages) {
-    if (!m || m.role === "system") continue;
-    const content = typeof m.content === "string" ? m.content : "";
+  for (const m of normalized) {
+    if (m.role === "system") continue;
+    const content = m.content;
     if (!content) continue;
     if (m.role === "user") {
       turns.push(`User: ${content}`);
@@ -218,6 +439,14 @@ async function chat(
   const wssUrl = buildWssUrl(state.apiKey);
   const wssUrlSafe = wssUrl.replace(/token=[^&]+/, "token=<JWT_REDACTED>");
 
+  // 印 92 · 入 metrics · 记请求 + tools 警 (不阻断)
+  const proto = opts.proto || "openai";
+  metricsRecordReq(proto);
+  if (opts.body) checkToolsWarn(opts.body, proto);
+  const accountMasked = state.account
+    ? state.account.replace(/^([^@]{1,3}).*?(@.*)$/, "$1***$2")
+    : maskToken(state.apiKey);
+
   if (opts._debug)
     _log(
       `account=${state.account || "?"} key=${maskToken(state.apiKey)} target=${wssUrlSafe}`,
@@ -251,8 +480,15 @@ async function chat(
           ws.close(1000, "chat done");
         } catch {}
       }
-      if (err) reject(err);
-      else resolve(result);
+      // 印 92 · session 结束 + metrics 记 (失败 / 成功)
+      sessionMetricsRecord("end", null, null);
+      if (err) {
+        metricsRecordError(proto);
+        reject(err);
+      } else {
+        metricsRecordSuccess(proto, result?.durationMs || Date.now() - t0);
+        resolve(result);
+      }
     };
 
     // 兜底超时
@@ -494,6 +730,12 @@ async function chat(
     }
 
     function sendSessionNew() {
+      // 印 92 · 记 session/new
+      sessionMetricsRecord(
+        "new",
+        modelUid || "devin-cloud-agent",
+        accountMasked,
+      );
       send({
         jsonrpc: "2.0",
         id: 3,
@@ -507,6 +749,12 @@ async function chat(
 
     function sendSessionPrompt() {
       promptStartAt = Date.now();
+      // 印 92 · 记 session/prompt (★ 唯一 ACU 消费点)
+      sessionMetricsRecord(
+        "prompt",
+        modelUid || "devin-cloud-agent",
+        accountMasked,
+      );
       send({
         jsonrpc: "2.0",
         id: 4,
@@ -612,11 +860,17 @@ async function healthCheck(state, opts = {}) {
 module.exports = {
   chat,
   healthCheck,
+  // 印 92 · 新公开 · normalizeMessages + metrics 三套
+  normalizeMessages,
+  checkToolsWarn,
+  getMetrics,
+  sessionMetricsSnapshot,
   // 辅助 · 单元测可见
   _tokenToJwt: tokenToJwt,
   _buildWssUrl: buildWssUrl,
   _messagesToPrompt: messagesToPrompt,
   _extractDelta: extractDelta,
+  _normalizeContent,
   WSS_BASE,
   TOKEN_PREFIX,
 };
@@ -629,8 +883,7 @@ if (require.main === module) {
   (async () => {
     const args = process.argv.slice(2);
     const idx = args.indexOf("--prompt");
-    const prompt =
-      idx >= 0 && args[idx + 1] ? args[idx + 1] : "one word: PONG";
+    const prompt = idx >= 0 && args[idx + 1] ? args[idx + 1] : "one word: PONG";
 
     // 取 ~/.dao/accounts.json active devin
     const accountsPath = path.join(os.homedir(), ".dao", "accounts.json");
@@ -669,6 +922,17 @@ if (require.main === module) {
       console.error(`[cli]   firstChunkMs: ${out.firstChunkMs}`);
       console.error(`[cli]   updateCount: ${out.updateCount}`);
       console.error(`[cli]   tokens: ${out.tokens}`);
+      // 印 92 · 末打 metrics 摘要 (反 obs)
+      const M = getMetrics();
+      const SM = sessionMetricsSnapshot();
+      console.error(
+        `[cli][印 92] metrics: req=${M.requests.total} succ=${M.successes.total} err=${M.errors.total} ` +
+          `tools=${M.toolsHits.openai + M.toolsHits.anthropic + M.toolsHits.gemini} ` +
+          `p50=${M.latency.p50Ms}ms p95=${M.latency.p95Ms}ms`,
+      );
+      console.error(
+        `[cli][印 92] session: new=${SM.created} prompt=${SM.prompted} concurrentPeak=${SM.concurrentPeak}`,
+      );
       process.exit(0);
     } catch (e) {
       console.error("");

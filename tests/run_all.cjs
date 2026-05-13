@@ -34,6 +34,7 @@ const TESTS = [
   "_seal66_smoke", // 印 66 · 反者道之动 · 公网视角 fake-key crash-proof + CORS Allow-Headers
   "_seal88_smoke", // 印 88 · 一账号双路 · 物无非彼物无非是 · 整合 Devin 云原生
   "_seal90_smoke", // 印 90 · 网页端注入器 · 反者道之动 · 弱之胜强 (印 89 TAO_HEADER 柔反)
+  "_seal92_smoke", // 印 92 · 反者道之动 · 万物归焉而弗为主 · dao-vm + devin_cloud_engine 升 + ACP 真据
 ];
 
 let allOk = true;
