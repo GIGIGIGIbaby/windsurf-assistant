@@ -776,30 +776,58 @@
       ]),
     );
 
-    // E · 印 93 · Devin 中枢 C 道身桥 (本机 :11445/:11446 独立体)
+    // E · 印 93/94 · Devin 中枢 + 万法归一笔 C 道身桥
     //   帛书·廿二: 圣人执一 · 以为天下牧
-    //   帛书·廿五: 独立而不垓 · 可以为天地母
-    //   道并行而不悖 — 本面 (公网/VM) 与本机 Devin 云原生中枢 (印 91/92) 同源同道 · 各得其用
-    //   此 pane 仅作导航 + 健康探 (不替不夺 · 不强用 · 不强连)
+    //   帛书·四十二: 道生一 · 一生二 · 二生三 · 三生万物
+    //   印 94 (cascade 升) · 承印 93 + Devin 印 100 unified_dao_daemon (主公已立 · cascade 修 syntax)
+    //   一处探五本机服 · 道并行不悖 · 各得其用
     root.appendChild(
       el("div", { class: "pane" }, [
         el("div", { class: "pane-hd" }, [
-          "Devin 中枢 · 印 93 ",
-          el("span", { class: "meta" }, ["本机 :11445/:11446 · 独立体"]),
+          "本机·万法归一笔 · 印 93/94 ",
+          el("span", { class: "meta" }, ["五服一探 · 独立体"]),
         ]),
         el("div", { class: "pane-bd" }, [
           el("div", { class: "hint" }, [
-            "本机 Devin 云原生中枢 (独立体) · 切号/备份/git/IDE桥 + 太上 pilot 操 app.devin.ai · 与上方 VM 反代道并行不悖",
+            "本机 unified daemon :11440 (印 100 · 双反代统一 thin layer · 合 :11441 Devin + :8878 Windsurf) + 印 91 中枢 + 印 92 pilot · 与上方公网 VM 道并行不悖",
           ]),
-          el("div", { class: "row gap", style: { marginTop: "8px" } }, [
+          el("div", { class: "row gap wrap", style: { marginTop: "8px" } }, [
             el(
               "a",
               {
                 class: "btn",
+                href: "http://127.0.0.1:11440",
+                target: "_blank",
+                title: "印 100 · 统一笔 · 双反代合点",
+              },
+              ["★ 统一 :11440 ↗"],
+            ),
+            el(
+              "a",
+              {
+                class: "btn ghost",
+                href: "http://127.0.0.1:11441",
+                target: "_blank",
+              },
+              ["Devin :11441 ↗"],
+            ),
+            el(
+              "a",
+              {
+                class: "btn ghost",
+                href: "http://127.0.0.1:8878",
+                target: "_blank",
+              },
+              ["WS :8878 ↗"],
+            ),
+            el(
+              "a",
+              {
+                class: "btn ghost",
                 href: "http://127.0.0.1:11445",
                 target: "_blank",
               },
-              ["中枢 ↗"],
+              ["中枢 :11445 ↗"],
             ),
             el(
               "a",
@@ -808,15 +836,15 @@
                 href: "http://127.0.0.1:11446",
                 target: "_blank",
               },
-              ["Pilot ↗"],
+              ["Pilot :11446 ↗"],
             ),
             el(
               "button",
               {
-                class: "btn ghost",
+                class: "btn",
                 onclick: probeDevinHub,
               },
-              ["探健康"],
+              ["⚡ 探五服"],
             ),
           ]),
           el(
@@ -824,9 +852,9 @@
             {
               id: "devin-hub-status",
               class: "status-line",
-              style: { marginTop: "6px" },
+              style: { marginTop: "6px", whiteSpace: "pre-wrap" },
             },
-            ["(点 探健康 · 或见折叠之一键启)"],
+            ["(点 ⚡ 探五服 · 或见折叠之一键启)"],
           ),
           el("details", { style: { marginTop: "8px" } }, [
             el(
@@ -835,7 +863,7 @@
                 class: "hint",
                 style: { cursor: "pointer", fontSize: "11px" },
               },
-              ["▸ 一键启 · 本机 Devin 中枢 (印 91 + 印 92)"],
+              ["▸ 一键启 · 本机 五服全栈 (印 91/92/100)"],
             ),
             el(
               "pre",
@@ -848,12 +876,16 @@
                 },
               },
               [
-                "# 1. 起印 91 中枢 (五职 · :11445)\n" +
+                "# A · 起印 100 unified daemon (★ 双反代合点 · :11440)\n" +
+                  "cd Devin云原生\\虚拟机反代\n" +
+                  ".\\起统一daemon.ps1   # 或 node unified_dao_daemon.js --port 11440\n\n" +
+                  "# B · 起 Devin 反代 :11441 + Windsurf 反代 :8878 (一笔全启)\n" +
+                  "cd Devin云原生\\虚拟机反代 ; .\\一笔全启.cmd\n\n" +
+                  "# C · 起印 91/92 中枢与 pilot (可选)\n" +
                   "cd Devin云原生\\PC端\\本源\n" +
-                  "node 印91_万法归宗中枢\\server.js\n\n" +
-                  "# 2. 起印 92 太上 pilot (:11446 · playwright 操 app.devin.ai)\n" +
+                  "node 印91_万法归宗中枢\\server.js\n" +
                   "node 印92_太上_pilot\\pilot.js\n\n" +
-                  "# 3. (可选) 公网入口 (cloudflared / localhost.run / bore)\n" +
+                  "# D · (可选) 公网入口\n" +
                   ".\\起公网入口.ps1",
               ],
             ),
@@ -863,46 +895,74 @@
     );
   }
 
-  // 印 93 · 探 Devin 中枢 C 道身健康 (本机 :11445 + :11446 · 独立体桥)
-  //   道法自然 · 不通则静 · 不强连
+  // 印 94 (cascade) · 探本机五服 (unified :11440 ★ + devin :11441 + ws :8878 + 中枢 :11445 + pilot :11446)
+  //   承印 93 单探升五服并探 · 道法自然 · 不通则静 · 不强连
+  //   主公印 100 已立 unified_dao_daemon · cascade 修 syntax bug · 真活验之
   async function probeDevinHub() {
     const stEl = $("devin-hub-status");
     if (!stEl) return;
-    stEl.textContent = "↻ 探 :11445/health ...";
-    let hubOk = false;
-    let hubMsg = "";
-    try {
-      const r = await fetch("http://127.0.0.1:11445/health", {
-        cache: "no-store",
-      });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const j = await r.json();
-      hubOk = true;
-      const d = j.data || j;
-      hubMsg =
-        "✓ 中枢 :11445" +
-        (d.windsurfAccounts != null ? " · ws=" + d.windsurfAccounts : "") +
-        (d.devinAccounts != null ? " · dv=" + d.devinAccounts : "") +
-        (d.uptime ? " · up " + ((d.uptime / 1000) | 0) + "s" : "");
-    } catch (e) {
-      hubMsg = "✗ :11445 不通 (印 91 未起 · 见上一键启)";
-    }
-    let pilotMsg = "";
-    try {
-      const r2 = await fetch("http://127.0.0.1:11446/health", {
-        cache: "no-store",
-      });
-      if (r2.ok) {
-        pilotMsg = " · pilot :11446 ✓";
+    stEl.textContent = "↻ 并探五本机服 ...";
+    const services = [
+      { name: "★统一", port: 11440, isUnified: true },
+      { name: "Devin", port: 11441 },
+      { name: "WS", port: 8878 },
+      { name: "中枢", port: 11445 },
+      { name: "Pilot", port: 11446 },
+    ];
+    const results = await Promise.all(
+      services.map(async (s) => {
+        try {
+          const r = await fetch(`http://127.0.0.1:${s.port}/health`, {
+            cache: "no-store",
+            signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
+          });
+          if (!r.ok) return { ...s, ok: false, msg: "HTTP " + r.status };
+          let extra = "";
+          try {
+            const j = await r.json();
+            const b = j.data || j;
+            if (s.isUnified) {
+              // unified :11440 · 显 upstreams 真态
+              const ups = j.upstreams || {};
+              const dOk = ups.devin && ups.devin.ok;
+              const wOk = ups.windsurf && ups.windsurf.ok;
+              const ver = j.version || "?";
+              extra = ` v${ver} · D${dOk ? "✓" : "✗"}W${wOk ? "✓" : "✗"}`;
+            } else if (b.pool && b.pool.total) {
+              extra = ` · pool ${b.pool.total}`;
+            } else if (b.models) {
+              extra = ` · ${b.models} models`;
+            } else if (b.version || b.ver) {
+              extra = ` v${b.version || b.ver}`;
+            }
+          } catch {}
+          return { ...s, ok: true, msg: "✓" + extra };
+        } catch (e) {
+          return { ...s, ok: false, msg: "✗ 未起" };
+        }
+      }),
+    );
+    const lines = results
+      .map(
+        (r) =>
+          (r.ok ? "✓ " : "✗ ") +
+          r.name +
+          " :" +
+          r.port +
+          (r.ok ? " " + (r.msg.replace(/^✓\s?/, "") || "") : " " + r.msg),
+      )
+      .join("\n");
+    stEl.textContent = lines;
+    const unified = results.find((r) => r.isUnified);
+    if (unified && unified.ok) {
+      toast("★ 统一 :11440 ✓ · 万法归一笔 · 双反代真合", "ok");
+    } else {
+      const liveCount = results.filter((r) => r.ok).length;
+      if (liveCount > 0) {
+        toast(`本机 ${liveCount}/5 服活 · 道并行不悖`, "info");
       } else {
-        pilotMsg = " · pilot :11446 ⚠";
+        toast("本机五服皆未起 · 见折叠之一键启", "warn");
       }
-    } catch {
-      pilotMsg = " · pilot :11446 ✗";
-    }
-    stEl.textContent = hubMsg + pilotMsg;
-    if (hubOk) {
-      toast("Devin 中枢 ✓ · 道并行而不悖", "ok");
     }
   }
 
