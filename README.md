@@ -5,6 +5,40 @@
 
 A fully decentralized Windsurf assistant &mdash; **一气化三清 · 道并行而不悖** &mdash; now with **一账号双路** (印 88).
 
+## 印 88.1 · 双 key 自动载 · 圣人执一 · 以为天下牧
+
+> 帛书·廿二: 「圣人执一 · 以为天下牧 · 不自视故明 · 不自见故章.」
+
+承印 88 之骨 · 立印 88.1 之纹 &mdash; **同一 fleet_vm_unit 自动从 `~/.dao/accounts.json` 双载 A/B 两型 key**:
+
+| 角 | key 型 | 用 | 自动从何取 |
+|---|---|---|---|
+| **A 路** (`_A_KEY` / `CODEIUM_API_KEY`) | `sk-ws-01-*` | `cloud_engine` 调 `server.codeium.com` Connect-RPC | active 帐若 type=sk-ws · 否则 fallback 第一个 type=sk-ws 帐 |
+| **B 路** (`DEVIN_API_KEY`) | `devin-session-token$JWT` | `devin_cloud_engine` 调 `wss://app.devin.ai` ACP | active 帐若 type=devin · 否则 fallback 第一个 type=devin 帐 |
+| **主 key** (`RESOLVED_API_KEY`) | 任型 | 兼容旧 `/quota` `/stats` | active 帐 · 或 `--api-key` 显传 |
+
+启动 banner 显双 key 真态:
+
+```text
+  API Key  : sk-ws-01-YpSJ6...sy-YlQ (主 · 源=accounts.json[active=optimal-sk-ws@dao.local])
+  A key    : sk-ws-01-YpSJ6...sy-YlQ (sk-ws)
+  B key    : devin-session-...bn-5Ko (devin-session-token$)
+```
+
+`/health.dualPath` 升级 (印 88.1):
+
+```json
+{
+  "pathA": { "ready": true, "keyType": "sk-ws", "keyPreview": "sk-ws-01-YpSJ6...sy-YlQ" },
+  "pathB": { "ready": true, "keyType": "devin-session-token$", "keyPreview": "devin-session-...bn-5Ko" },
+  "keysSource": "accounts.json[active=optimal-sk-ws@dao.local]"
+}
+```
+
+**真验** (本机 unit 起 · 主 key=sk-ws · B 路调 wss):
+- B 路 `POST /dc/v1/chat/completions` → 19.1s · `finish=end_turn` · `content="道"` · 自动选 devin key 入 wss
+- SP `mode=dao` 真生效 · `/sp/observe` 显 `sysAfter=7238 字` (TAO_HEADER + 帛书 7204) · `silkInjected=True`
+
 ## 印 88 · 一账号双路 · 物无非彼物无非是 (整合 Devin 云原生)
 
 > 庄子·齐物论: 「物无非彼，物无非是；自彼则不见，自是则知之.」

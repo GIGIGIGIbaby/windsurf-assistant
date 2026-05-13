@@ -176,24 +176,57 @@ const ALLOW_AUTH =
   ARGS.includes("--allow-auth") || process.env.DAO_ALLOW_AUTH === "1";
 const VERBOSE = ARGS.includes("-v") || ARGS.includes("--verbose");
 
-// 从 ~/.dao/accounts.json 读取 (若无 --api-key)
-function loadApiKeyFromAccounts() {
-  if (API_KEY) return API_KEY;
+// 印 88.1 · 一账号双路之真意 · 从 ~/.dao/accounts.json 双载 A/B 两型 key
+//   A 路 codeium 需 sk-ws-01-* (或 sk-ws-proxy-*)
+//   B 路 devin-cloud 需 devin-session-token$JWT
+//   同一 unit 同时载 · 按路自选 · “圣人执一·以为天下牧” (帛书·廿二)
+function loadApiKeysFromAccounts() {
+  const out = { primary: null, codeium: null, devin: null, source: "none" };
+  // 1. 优先 --api-key 主 key
+  if (API_KEY) {
+    out.primary = API_KEY;
+    out.source = "--api-key";
+    // 按 prefix 判型
+    if (API_KEY.startsWith("devin-session-token$")) out.devin = API_KEY;
+    else if (API_KEY.startsWith("sk-ws-")) out.codeium = API_KEY;
+  }
+  // 2. 扣 ~/.dao/accounts.json 补 missing 型
   try {
     const accFile = path.join(os.homedir(), ".dao", "accounts.json");
     if (fs.existsSync(accFile)) {
       const j = JSON.parse(fs.readFileSync(accFile, "utf8"));
       if (j.accounts && j.accounts.length > 0) {
-        const active =
-          j.accounts.find((a) => a.email === j.active) || j.accounts[0];
-        if (active && active.apiKey) return active.apiKey;
+        // 主 key 从 active 帐取
+        if (!out.primary) {
+          const active =
+            j.accounts.find((a) => a.email === j.active) || j.accounts[0];
+          if (active && active.apiKey) {
+            out.primary = active.apiKey;
+            out.source = `accounts.json[active=${active.email}]`;
+            if (active.type === "devin") out.devin = active.apiKey;
+            else if (active.type === "sk-ws") out.codeium = active.apiKey;
+          }
+        }
+        // 补 codeium key (sk-ws 型)
+        if (!out.codeium) {
+          const skws = j.accounts.find((a) => a.type === "sk-ws" && a.apiKey);
+          if (skws) out.codeium = skws.apiKey;
+        }
+        // 补 devin key (devin-session-token$ 型)
+        if (!out.devin) {
+          const dev = j.accounts.find((a) => a.type === "devin" && a.apiKey);
+          if (dev) out.devin = dev.apiKey;
+        }
       }
     }
   } catch {}
-  return null;
+  return out;
 }
 
-const RESOLVED_API_KEY = loadApiKeyFromAccounts();
+const _KEYS = loadApiKeysFromAccounts();
+const RESOLVED_API_KEY = _KEYS.primary; // 兼容旧 · 仅 A 路默 + /quota
+const CODEIUM_API_KEY = _KEYS.codeium; // A 路用 (sk-ws-*)
+const DEVIN_API_KEY = _KEYS.devin; // B 路用 (devin-session-token$)
 if (!RESOLVED_API_KEY) {
   console.error(
     "[fatal] 无 apiKey · 用 --api-key sk-ws-01-... 或配置 ~/.dao/accounts.json",
@@ -201,11 +234,19 @@ if (!RESOLVED_API_KEY) {
   process.exit(1);
 }
 
+function maskKey(k) {
+  if (typeof k !== "string" || !k) return "(none)";
+  if (k.length <= 24) return k.slice(0, 6) + "...";
+  return k.slice(0, 14) + "..." + k.slice(-6);
+}
+
 // ════════════════════════════════════════════════════════════════
 // §3  CloudClient 初始化
 // ════════════════════════════════════════════════════════════════
 
-const client = new CE.CloudClient({ apiKey: RESOLVED_API_KEY });
+// A 路 cloud_engine 客 · 优选 sk-ws · 后退主 key (兼容另型不合但尝试)
+const _A_KEY = CODEIUM_API_KEY || RESOLVED_API_KEY;
+const client = new CE.CloudClient({ apiKey: _A_KEY });
 client.authenticated = true; // apiKey 直传 · 已认证
 
 // 运行时统计
@@ -353,8 +394,9 @@ async function handleChatCompletions(req, res, body) {
     let tokenCount = 0;
 
     try {
+      // 印 88.1 · A 路用 _A_KEY (优 sk-ws · 后退主 key)
       const result = await CE.chatStream(
-        RESOLVED_API_KEY,
+        _A_KEY,
         modelUid,
         chatMessages,
         (delta) => {
@@ -435,15 +477,10 @@ async function handleChatCompletions(req, res, body) {
   } else {
     // ── 非流式 ───────────────────────────────────────────────
     try {
-      const result = await CE.chatStream(
-        RESOLVED_API_KEY,
-        modelUid,
-        chatMessages,
-        null,
-        {
-          timeoutMs: 180000,
-        },
-      );
+      // 印 88.1 · A 路用 _A_KEY (优 sk-ws · 后退主 key)
+      const result = await CE.chatStream(_A_KEY, modelUid, chatMessages, null, {
+        timeoutMs: 180000,
+      });
 
       STATS.tokens += result.tokens || 0;
 
@@ -615,10 +652,11 @@ async function handleDevinCloudChat(req, res, body) {
     });
   }
   // Devin Cloud 仅接 devin-session-token$ 型 apiKey
-  if (!RESOLVED_API_KEY.startsWith(DC_.TOKEN_PREFIX)) {
+  const bKey = DEVIN_API_KEY || RESOLVED_API_KEY;
+  if (!bKey || !bKey.startsWith(DC_.TOKEN_PREFIX)) {
     return sendJson(res, 400, {
       error: {
-        message: `Devin Cloud B 路需 devin-session-token$ 型 apiKey · 当前 prefix=${RESOLVED_API_KEY.slice(0, 8)}... · 配 type=devin 账号入 ~/.dao/accounts.json`,
+        message: `Devin Cloud B 路需 devin-session-token$ 型 apiKey · 配 type=devin 账号入 ~/.dao/accounts.json (当前 codeium=${maskKey(CODEIUM_API_KEY)} devin=${maskKey(DEVIN_API_KEY)})`,
         type: "invalid_request_error",
         code: "wrong_api_key_type",
       },
@@ -684,8 +722,9 @@ async function handleDevinCloudChat(req, res, body) {
 
     let tokenCount = 0;
     try {
+      // 印 88.1 · B 路用 bKey (DEVIN_API_KEY 优 · 后退主 key)
       const result = await DC_.chat(
-        { apiKey: RESOLVED_API_KEY, account: ACCOUNT },
+        { apiKey: bKey, account: ACCOUNT },
         model,
         chatMessages,
         (delta) => {
@@ -764,8 +803,9 @@ async function handleDevinCloudChat(req, res, body) {
     }
   } else {
     try {
+      // 印 88.1 · B 路用 bKey (DEVIN_API_KEY 优 · 后退主 key)
       const result = await DC_.chat(
-        { apiKey: RESOLVED_API_KEY, account: ACCOUNT },
+        { apiKey: bKey, account: ACCOUNT },
         model,
         chatMessages,
         null,
@@ -934,14 +974,24 @@ function handleModels(req, res) {
 // ════════════════════════════════════════════════════════════════
 
 function handleHealth(req, res) {
-  // 印 88 · 探 dual-path 真态
+  // 印 88 · 探 dual-path 真态 (印 88.1 · 双 key)
   const DC_ = getDevinCloudEngine();
   const SP_ = getSpHandler();
   const dcAvail = !!DC_;
-  const dcCompat =
-    dcAvail &&
-    typeof RESOLVED_API_KEY === "string" &&
-    RESOLVED_API_KEY.startsWith(DC_.TOKEN_PREFIX);
+  // B 路 ready: 有 devin key (or 主 key 是 devin 型)
+  const bKey =
+    DEVIN_API_KEY ||
+    (RESOLVED_API_KEY && DC_ && RESOLVED_API_KEY.startsWith(DC_.TOKEN_PREFIX)
+      ? RESOLVED_API_KEY
+      : null);
+  const dcCompat = dcAvail && !!bKey;
+  // A 路 ready: 有 sk-ws key (or 主 key 是 sk-ws 型)
+  const aKey =
+    CODEIUM_API_KEY ||
+    (RESOLVED_API_KEY && RESOLVED_API_KEY.startsWith("sk-ws-")
+      ? RESOLVED_API_KEY
+      : null);
+  const aReady = !!aKey;
   const spState = SP_ ? SP_.getState() : null;
   sendJson(res, 200, {
     ok: true,
@@ -962,14 +1012,23 @@ function handleHealth(req, res) {
     hostname: os.hostname(),
     platform: os.platform(),
     nodeVersion: process.version,
-    // 印 88 · 一账号双路 · 物无非彼物无非是
+    // 印 88 + 88.1 · 一账号双路 · 物无非彼物无非是 · 双 key 真态
     dualPath: {
       pathA: {
         engine: "codeium",
         endpoint: "/v1/*",
         target: "server.codeium.com",
         available: true,
-        ready: true,
+        ready: aReady,
+        keyType: aKey
+          ? aKey.startsWith("sk-ws-")
+            ? "sk-ws"
+            : "unknown"
+          : null,
+        keyPreview: maskKey(aKey),
+        note: aReady
+          ? "就绪 · 可走 cloud_engine"
+          : "缺 sk-ws-* 型 key (配 type=sk-ws 账号入 ~/.dao/accounts.json)",
       },
       pathB: {
         engine: "devin-cloud",
@@ -978,12 +1037,19 @@ function handleHealth(req, res) {
         available: dcAvail,
         ready: dcCompat,
         compatible: dcCompat,
+        keyType: bKey
+          ? bKey.startsWith("devin-session-token$")
+            ? "devin-session-token$"
+            : "unknown"
+          : null,
+        keyPreview: maskKey(bKey),
         note: dcAvail
           ? dcCompat
             ? "就绪 · 可走 wss"
             : "需 devin-session-token$ 型 apiKey (配 type=devin 账号)"
           : "缺 devin_cloud_engine.js (印 88 · 同目录植入)",
       },
+      keysSource: _KEYS.source, // 双 key 何出
     },
     sp: spState
       ? {
@@ -1386,7 +1452,13 @@ server.listen(PORT, BIND, () => {
   console.log(`  Account  : ${ACCOUNT}`);
   console.log(`  Listen   : ${BIND}:${PORT}`);
   console.log(
-    `  API Key  : ${RESOLVED_API_KEY.slice(0, 14)}...${RESOLVED_API_KEY.slice(-6)}`,
+    `  API Key  : ${maskKey(RESOLVED_API_KEY)} (主 · 源=${_KEYS.source})`,
+  );
+  console.log(
+    `  A key    : ${CODEIUM_API_KEY ? maskKey(CODEIUM_API_KEY) + " (sk-ws)" : "✗ 缺 (A 路需 sk-ws-*)"}`,
+  );
+  console.log(
+    `  B key    : ${DEVIN_API_KEY ? maskKey(DEVIN_API_KEY) + " (devin-session-token$)" : "✗ 缺 (B 路需 devin-session-token$)"}`,
   );
   console.log(`  Fleet    : ${FLEET_CONTROLLER || "(独立运行)"}`);
   if (AUTH_REQUIRED) {
@@ -1410,8 +1482,7 @@ server.listen(PORT, BIND, () => {
   // 印 88 · B 路 dual-path banner
   const _DC_init = getDevinCloudEngine();
   const _dcAvail = !!_DC_init;
-  const _dcCompat =
-    _dcAvail && RESOLVED_API_KEY.startsWith(_DC_init.TOKEN_PREFIX);
+  const _dcCompat = _dcAvail && !!DEVIN_API_KEY;
   const _dcTag = _dcAvail
     ? _dcCompat
       ? "✓ 就绪"
