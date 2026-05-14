@@ -111,7 +111,7 @@
 ```
 
 **入**: `node packages/dao-pool/cli.js init --pat $GH_PAT --from ~/.wam/wam-state.json` → 出 Gist URL.
-**详**: [`packages/dao-pool/README.md`](packages/dao-pool/README.md) · [`05-文档_docs/SEAL_yin95.md`](../../05-文档_docs/SEAL_yin95.md).
+**详**: [`packages/dao-pool/README.md`](packages/dao-pool/README.md) · [`05-文档_docs/SEAL_yin95.md`](05-文档_docs/SEAL_yin95.md).
 
 ---
 

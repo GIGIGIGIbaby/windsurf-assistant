@@ -141,7 +141,7 @@ gh workflow run dao-fleet-cloud.yml -f gist_id=<GIST_ID>
 # 公网用户 Pane F 输 PAT → 自动见所有活 daemon → 一笔设左栏
 ```
 
-详见 [`packages/dao-pool/README.md`](packages/dao-pool/README.md) + [SEAL_yin95.md](../../05-文档_docs/SEAL_yin95.md).
+详见 [`packages/dao-pool/README.md`](packages/dao-pool/README.md) + [`05-文档_docs/SEAL_yin95.md`](05-文档_docs/SEAL_yin95.md).
 
 ---
 
