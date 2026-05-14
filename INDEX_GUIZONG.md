@@ -211,10 +211,11 @@ node 印92_太上_pilot/pilot.js        # :11446 · playwright 操 app.devin.ai
 ├── README.md                     # 印 67-92 主文 (37.7K · 一气化五清详记)
 ├── INDEX_GUIZONG.md              # ★ 此文 · 一文锚三身
 ├── web/                          # GitHub Pages 静态 (零依赖)
-│   ├── index.html                # gate/onboarding/mine 三态
-│   ├── dao_app.js                # 三栏: 左 API+SP / 中 WAM / 右 chat
+│   ├── index.html                # gate/onboarding/mine 三态 + v101 CSS
+│   ├── dao_app.js                # 印 101 用+管: renderMineV101 (顶栏+用区3tab+抽屉4节)
+│   ├── dao_bootstrap.js          # ★ 印 100 浏览器自举 · oneShot 9 步 (22K)
 │   ├── dao_github_sync.js        # Gist 同步
-│   └── legacy.html               # 旧 5-tab
+│   └── legacy.html               # 旧 5-tab (印 66 末态 · 备)
 ├── packages/
 │   ├── dao-core/    (10 · 261K)  # 反代核心 · fleet_vm_unit + cloud/devin engine + sp + auth
 │   ├── dao-injector/(13 · 79K)   # 印 90 浏览器 wss hook (MV3 + Tampermonkey)
@@ -222,10 +223,6 @@ node 印92_太上_pilot/pilot.js        # :11446 · playwright 操 app.devin.ai
 │   ├── dao-proxy-min/(17 · 284K) # 印 89+ 提示词反代 (Windsurf VSIX)
 │   ├── dao-vm/      (8  · 83K)   # 印 92 一笔起 24h Ubuntu VM (1 ACU)
 │   └── wam/         (27 · 491K)  # WAM 切号 (Windsurf VSIX · v2.7.0)
-├── web/
-│   ├── dao_bootstrap.js (22K)   # ★ 印 100 浏览器自举模块 · oneShot 9 步
-│   ├── dao_app.js / dao_github_sync.js / index.html / legacy.html
-│   └── ...
 ├── scripts/
 │   ├── devin-bootstrap.sh        # 一行起 unit + tunnel
 │   └── devin-bootstrap-fleet.sh  # 印 96 fleet workflow
