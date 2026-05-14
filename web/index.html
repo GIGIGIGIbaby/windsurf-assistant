@@ -955,6 +955,369 @@
         border-radius: 6px;
         background: #0a0a0a;
       }
+
+      /* ═══════════════════════════════════════════════════════════════════
+   印 101 · 万法归宗 · 大道至简 · 用 + 管 二字
+   帛书·四十八: 为道者日损 · 损之又损 · 以至为无为
+   一页两区: 用 (主面 80%) + 管 (抽屉 默收 · 点开浮)
+═══════════════════════════════════════════════════════════════════ */
+      .mine-v101 {
+        flex: 1;
+        display: none; /* renderMineV101 时 set flex */
+        flex-direction: column;
+        min-height: 0;
+        padding: 0;
+        gap: 0;
+      }
+
+      /* ─── 顶栏: 一行三态 + 浮按 ─── */
+      .v101-topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        flex-shrink: 0;
+        font-size: 12px;
+      }
+      .v101-topbar-l {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 0;
+      }
+      .v101-topbar-r {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .v101-dot {
+        font-size: 14px;
+        line-height: 1;
+      }
+      .v101-dot.ok {
+        color: var(--ok);
+      }
+      .v101-dot.off {
+        color: var(--dim);
+      }
+      .v101-meta {
+        color: var(--fg2);
+        font-size: 12px;
+      }
+      .v101-sep {
+        color: var(--dim2);
+        margin: 0 2px;
+      }
+      .v101-chip {
+        background: var(--bg2);
+        border: 1px solid var(--line2);
+        color: var(--fg2);
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: 0.15s;
+      }
+      .v101-chip:hover {
+        border-color: var(--gold);
+        color: var(--gold);
+      }
+      .v101-chip.model-a {
+        border-color: rgba(108, 142, 191, 0.4);
+        color: var(--accent2);
+      }
+      .v101-chip.model-b {
+        border-color: rgba(167, 139, 250, 0.4);
+        color: var(--purple);
+      }
+      .v101-btn {
+        background: var(--bg2);
+        border: 1px solid var(--line2);
+        color: var(--fg2);
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: 0.15s;
+      }
+      .v101-btn:hover {
+        background: var(--panel2);
+        border-color: var(--gold);
+        color: var(--gold);
+      }
+      .v101-btn.small {
+        padding: 4px 8px;
+        font-size: 10px;
+      }
+      .v101-btn.ghost {
+        background: transparent;
+      }
+      .v101-btn.active {
+        background: var(--gold);
+        color: #0a0a0f;
+        border-color: var(--gold);
+      }
+
+      /* ─── 用区 · 主面 (chat / iframe / 批跑) ─── */
+      .v101-use {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding: 8px 14px;
+        overflow: hidden;
+      }
+      .v101-use-tabs {
+        display: flex;
+        gap: 4px;
+        padding: 0 0 8px 0;
+        border-bottom: 1px solid var(--line);
+        flex-shrink: 0;
+      }
+      .v101-tab {
+        background: transparent;
+        border: 1px solid var(--line2);
+        color: var(--fg2);
+        padding: 6px 14px;
+        border-radius: 4px 4px 0 0;
+        font-size: 12px;
+        cursor: pointer;
+        transition: 0.15s;
+        border-bottom: none;
+      }
+      .v101-tab:hover {
+        background: var(--panel);
+        color: var(--gold);
+      }
+      .v101-tab.active {
+        background: var(--gold);
+        color: #0a0a0f;
+        border-color: var(--gold);
+        font-weight: 600;
+      }
+      .v101-use-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding-top: 8px;
+        overflow: hidden;
+      }
+
+      /* chat 内 */
+      .v101-chat-head {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 6px;
+        flex-shrink: 0;
+      }
+
+      /* iframe 内 */
+      .v101-iframe-head {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 6px;
+        flex-shrink: 0;
+      }
+      .v101-iframe {
+        flex: 1;
+        width: 100%;
+        min-height: 300px;
+        border: 1px solid var(--line2);
+        border-radius: 4px;
+        background: #0a0a0a;
+      }
+      .v101-iframe-foot {
+        margin-top: 4px;
+        flex-shrink: 0;
+        font-size: 10px;
+      }
+
+      /* 批跑 内 */
+      .v101-batch-head {
+        margin-bottom: 8px;
+        flex-shrink: 0;
+      }
+      .v101-batch-prompts {
+        margin-bottom: 8px;
+      }
+      .v101-batch-prompts .label {
+        font-size: 11px;
+        color: var(--dim);
+        margin-bottom: 4px;
+      }
+      .v101-batch-stats {
+        font-size: 12px;
+        color: var(--gold);
+        margin: 8px 0 4px 0;
+        padding: 6px 10px;
+        background: var(--bg2);
+        border-radius: 4px;
+      }
+      .v101-batch-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        margin-top: 4px;
+      }
+      .v101-batch-table th,
+      .v101-batch-table td {
+        border: 1px solid var(--line);
+        padding: 4px 6px;
+        text-align: left;
+        vertical-align: top;
+      }
+      .v101-batch-table th {
+        background: var(--panel);
+        color: var(--dim);
+        font-weight: normal;
+      }
+      .v101-batch-table tr.ok td {
+        color: var(--fg2);
+      }
+      .v101-batch-table tr.err td {
+        color: var(--err);
+      }
+
+      /* ─── 抽屉 · 管区 (切号 / SP / 端点 / 测试) ─── */
+      .v101-drawer {
+        background: var(--panel);
+        border-top: 1px solid var(--line);
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.25s ease;
+        flex-shrink: 0;
+      }
+      .v101-drawer.open {
+        max-height: 55vh;
+        overflow-y: auto;
+      }
+      .v101-drawer-tabs {
+        display: flex;
+        gap: 4px;
+        padding: 8px 14px 0 14px;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 8px;
+      }
+      .v101-drawer-content {
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .v101-drawer-section {
+        background: var(--bg2);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 10px 12px;
+      }
+      .v101-drawer-section-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--gold);
+        font-weight: 600;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--line);
+      }
+      .v101-drawer-section-title .meta {
+        color: var(--dim);
+        font-weight: normal;
+        font-size: 10px;
+      }
+
+      /* 抽屉内号库表 */
+      .v101-acct-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        margin-top: 6px;
+      }
+      .v101-acct-table th,
+      .v101-acct-table td {
+        border: 1px solid var(--line);
+        padding: 4px 6px;
+        text-align: left;
+        vertical-align: middle;
+      }
+      .v101-acct-table th {
+        background: var(--panel);
+        color: var(--dim);
+        font-weight: normal;
+      }
+      .v101-acct-table tr.active td {
+        background: rgba(212, 168, 80, 0.08);
+        color: var(--gold);
+      }
+
+      /* SP 库行 */
+      .v101-sp-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        margin-bottom: 4px;
+        background: var(--panel);
+      }
+      .v101-sp-name {
+        font-size: 12px;
+        color: var(--fg);
+        font-weight: 600;
+        min-width: 100px;
+      }
+      .v101-sp-preview {
+        flex: 1;
+        font-size: 11px;
+        color: var(--dim);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 测试节 输出 */
+      .v101-test-out {
+        margin-top: 8px;
+        padding: 8px 10px;
+        background: #0a0a0a;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        font-family: ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--fg2);
+        white-space: pre-wrap;
+        min-height: 40px;
+      }
+
+      /* 响应式 */
+      @media (max-width: 760px) {
+        .v101-topbar {
+          flex-wrap: wrap;
+          gap: 6px;
+          font-size: 11px;
+        }
+        .v101-topbar-l,
+        .v101-topbar-r {
+          width: 100%;
+        }
+        .v101-tab {
+          padding: 5px 10px;
+          font-size: 11px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -1165,18 +1528,21 @@
      右 · Cascade 风对话
 ═══════════════════════════════════════════════════════════════════ -->
     <section id="state-mine">
-      <div class="mine-cols">
+      <!-- 印 101 · 万法归宗 · 大道至简 · 用 + 管 (默) -->
+      <!--   帛书·四十八: 为道者日损 · 损之又损 · 以至于无为     -->
+      <!--   dao_app.js renderMineV101() 填充                     -->
+      <div id="mine-v101" class="mine-v101"></div>
+
+      <!-- 印 67-100 · 旧三栏 (反向兼容 · ?v=100 启用) -->
+      <div class="mine-cols" style="display: none">
         <aside class="mine-col" id="mine-left">
           <div class="mine-col-title">左 · API 接口 + 反代 SP</div>
-          <!-- dao_app.js renderLeft() 填充 -->
         </aside>
         <section class="mine-col" id="mine-mid">
           <div class="mine-col-title">中 · WAM 切号 · 账号库</div>
-          <!-- dao_app.js renderMid() 填充 -->
         </section>
         <aside class="mine-col" id="mine-right">
           <div class="mine-col-title">右 · 对话 · Cascade-like</div>
-          <!-- dao_app.js renderRight() 填充 -->
         </aside>
       </div>
     </section>

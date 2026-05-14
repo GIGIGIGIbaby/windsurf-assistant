@@ -394,9 +394,18 @@
     for (const k in def.sp)
       if (memo.data.sp[k] == null) memo.data.sp[k] = def.sp[k];
 
-    renderLeft();
-    renderMid();
-    renderRight();
+    // 印 101 · 万法归宗 · 大道至简 · 用 + 管 二字
+    //   帛书·四十八「为道者日损 · 损之又损 · 以至于无为」
+    //   ?v=100 走旧三栏 fallback (反向兼容)
+    const params = new URLSearchParams(location.search);
+    if (params.get("v") === "100") {
+      // 旧三栏 (印 67-100)
+      renderLeft();
+      renderMid();
+      renderRight();
+    } else {
+      renderMineV101();
+    }
   }
 
   // ─── 左栏 · API 接口管理 + 反代提示词管理 ────────────────────────────
@@ -2239,6 +2248,1173 @@
       $("btn-chat-stop").style.display = "none";
       chatAbort = null;
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 印 101 · 万法归宗 · 大道至简 · 用 + 管 二字
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  //   主公诏 (2026-05-14):
+  //     「反者道之动 · 代替用户之一切 · 测试使用验证一切 · 推进到极」
+  //     「专注于用户最终管理使用页面 · 万法归宗 · 大道至简 · 彻底整合」
+  //     「反代 windsurf+devin · 提示词综合管理 · 反代 api 管理 ·
+  //      wam 切号管理 · agent 交互页面测试使用」
+  //     「为学者日益 · 为道者日损 · 从根本底层需求出发 · 大道至简」
+  //
+  //   解此诏:
+  //     旧 (印 67-100):  6 left pane + 1 mid + 1 right = 8 pane 杂烩, 印记叠
+  //     新 (印 101):    主面「用」(chat/iframe/批跑) + 抽屉「管」(切号/SP/端点/测试)
+  //
+  //   道义守:
+  //     · 损: 8 pane → 主面 3 tab + 抽屉 4 节
+  //     · 一: 五大功能并行不悖, 共一页一面一抽屉
+  //     · 反: 旧 80% 屏给「管」 → 新 80% 屏给「用」
+  //     · 自然: 用户进来默见 chat 框 (最高频) · 管在 ⚙ 抽屉 (低频)
+  //
+  //   帛书:
+  //     四十八: 「为道者日损 · 损之又损 · 以至于无为 · 无为而无不为」
+  //     三十二: 「侯王若能守之 · 万物将自宾 · 民莫之令而自均焉」
+  //     六十四: 「图难于其易 · 为大于其细 · 圣人终不为大 · 故能成其大」
+
+  // 用区 tab 状态 (全局)
+  let __useTab = "chat"; // 'chat' | 'iframe' | 'batch'
+  // 抽屉打开节 (null = 关)
+  let __drawerOpen = null; // 'acct' | 'sp' | 'endpt' | 'test' | null
+
+  function renderMineV101() {
+    const root = $("mine-v101");
+    if (!root) return;
+    root.innerHTML = "";
+    root.style.display = "flex";
+    // 隐 老三栏容器 (若存在)
+    const oldCols = document.querySelector(".mine-cols");
+    if (oldCols) oldCols.style.display = "none";
+
+    root.appendChild(renderTopBar());
+    root.appendChild(renderUseArea());
+    root.appendChild(renderDrawer());
+  }
+
+  // ─── 顶栏 · 一行三态 + 浮按 ────────────────────────────────────────────
+  // 帛书廿二: 「圣人执一 · 以为天下牧」—— 一目知三态
+  function renderTopBar() {
+    const D = memo.data;
+    const bar = el("div", { class: "v101-topbar", id: "v101-topbar" }, []);
+
+    // ① 反代活否
+    const reverseOk = !!(D.vmUrl && /^https?:\/\//.test(D.vmUrl));
+    const reverseDot = el(
+      "span",
+      {
+        class: "v101-dot " + (reverseOk ? "ok" : "off"),
+        title: reverseOk ? "反代 vmUrl 已设" : "反代未设 · 去 ⚙ → 端点",
+      },
+      [reverseOk ? "●" : "○"],
+    );
+    const reverseTxt = el("span", { class: "v101-meta" }, [
+      reverseOk ? "反代活" : "反代未设",
+    ]);
+
+    // ② 当前号
+    const accts = D.accounts || [];
+    const activeAcct = accts.find((a) => a.email === D.activeEmail);
+    const acctLabel = activeAcct
+      ? activeAcct.email.length > 22
+        ? activeAcct.email.slice(0, 20) + "…"
+        : activeAcct.email
+      : accts.length
+        ? "未选号 (" + accts.length + " 候)"
+        : "无号";
+    const acctChip = el(
+      "button",
+      {
+        class: "v101-chip",
+        title: "号库: " + accts.length + " 条 · 点开 ⚙ → 切号",
+        onclick: () => openDrawer("acct"),
+      },
+      ["号: " + acctLabel],
+    );
+
+    // ③ 当前模型
+    const curModel = D.lastModel || "claude-sonnet-4-20250514";
+    const isB = /devin-cloud/i.test(curModel);
+    const modelShort = curModel
+      .replace(/^claude-/, "")
+      .replace(/^devin-cloud-/, "dc-");
+    const modelChip = el(
+      "span",
+      {
+        class: "v101-chip " + (isB ? "model-b" : "model-a"),
+        title: "当前模型 · 用区 chat 头可改",
+      },
+      [
+        (isB ? "B " : "A ") +
+          (modelShort.length > 18 ? modelShort.slice(0, 16) + "…" : modelShort),
+      ],
+    );
+
+    // 浮按区
+    const copyBaseBtn = el(
+      "button",
+      {
+        class: "v101-btn small",
+        title: "复 Base URL 到剪贴板 (OpenAI 兼客直用)",
+        onclick: () => {
+          if (!D.vmUrl) {
+            toast("反代 vmUrl 未设 · 去 ⚙ → 端点", "warn");
+            openDrawer("endpt");
+            return;
+          }
+          navigator.clipboard.writeText(D.vmUrl + "/v1");
+          toast("Base URL → " + D.vmUrl + "/v1 已复制", "ok");
+        },
+      },
+      ["复 Base URL"],
+    );
+    const copyKeyBtn = el(
+      "button",
+      {
+        class: "v101-btn small ghost",
+        title: "复 Auth Key 到剪贴板",
+        onclick: () => {
+          if (!D.vmAuthKey) {
+            toast("auth key 未设 · 去 ⚙ → 端点", "warn");
+            openDrawer("endpt");
+            return;
+          }
+          navigator.clipboard.writeText(D.vmAuthKey);
+          toast("Auth Key 已复制", "ok");
+        },
+      },
+      ["复 Key"],
+    );
+    const drawerBtn = el(
+      "button",
+      {
+        class: "v101-btn small ghost",
+        title: "管 (切号 / SP / 端点 / 测试)",
+        onclick: () => toggleDrawer("acct"),
+      },
+      ["⚙ 管"],
+    );
+
+    bar.appendChild(
+      el("div", { class: "v101-topbar-l" }, [
+        reverseDot,
+        reverseTxt,
+        el("span", { class: "v101-sep" }, ["·"]),
+        acctChip,
+        el("span", { class: "v101-sep" }, ["·"]),
+        modelChip,
+      ]),
+    );
+    bar.appendChild(
+      el("div", { class: "v101-topbar-r" }, [
+        copyBaseBtn,
+        copyKeyBtn,
+        drawerBtn,
+      ]),
+    );
+    return bar;
+  }
+
+  // ─── 用区 · 三 tab (chat / iframe / 批跑) ──────────────────────────────
+  // 帛书四十八: 「损之又损 · 以至于无为」—— 用户进来默见 chat (最高频)
+  function renderUseArea() {
+    const D = memo.data;
+    const area = el("div", { class: "v101-use", id: "v101-use" }, []);
+
+    // tab bar
+    const tabs = el("div", { class: "v101-use-tabs" }, [
+      makeUseTab("chat", "对话", "Cascade 风 · 走反代 vmUrl"),
+      makeUseTab("iframe", "嵌真站", "iframe app.devin.ai (印 91)"),
+      makeUseTab("batch", "批跑测", "题集 · A/B 路对比 · 通过率"),
+    ]);
+    area.appendChild(tabs);
+
+    // tab 内容
+    const content = el(
+      "div",
+      { class: "v101-use-content", id: "v101-use-content" },
+      [],
+    );
+    area.appendChild(content);
+    renderUseTabContent(content);
+    return area;
+  }
+
+  function makeUseTab(id, label, title) {
+    const active = __useTab === id;
+    return el(
+      "button",
+      {
+        class: "v101-tab" + (active ? " active" : ""),
+        title: title,
+        onclick: () => {
+          __useTab = id;
+          const c = $("v101-use-content");
+          if (c) renderUseTabContent(c);
+          // 重渲 tab bar (active 切)
+          const tabsBar = document.querySelector(".v101-use-tabs");
+          if (tabsBar) {
+            tabsBar.innerHTML = "";
+            tabsBar.appendChild(
+              makeUseTab("chat", "对话", "Cascade 风 · 走反代 vmUrl"),
+            );
+            tabsBar.appendChild(
+              makeUseTab("iframe", "嵌真站", "iframe app.devin.ai (印 91)"),
+            );
+            tabsBar.appendChild(
+              makeUseTab("batch", "批跑测", "题集 · A/B 路对比 · 通过率"),
+            );
+          }
+        },
+      },
+      [label],
+    );
+  }
+
+  function renderUseTabContent(container) {
+    container.innerHTML = "";
+    if (__useTab === "chat") renderUseTab_chat(container);
+    else if (__useTab === "iframe") renderUseTab_iframe(container);
+    else if (__useTab === "batch") renderUseTab_batch(container);
+  }
+
+  // 用区 · chat tab (移自旧 renderRight · 简化)
+  function renderUseTab_chat(container) {
+    const D = memo.data;
+    const modelsByPath = [
+      {
+        label: "── A 路 · codeium (/v1/*) ──",
+        items: [
+          "claude-sonnet-4-20250514",
+          "claude-haiku-4-20250514",
+          "gpt-4o",
+          "gpt-4o-mini",
+          "o1",
+          "o1-mini",
+          "gemini-2.0-flash-exp",
+          "deepseek-v3",
+          "qwen-coder-32b-instruct",
+        ],
+      },
+      {
+        label: "── B 路 · devin-cloud (/dc/v1/* · wss) ──",
+        items: ["devin-cloud-claude", "devin-cloud-gpt", "devin-cloud-agent"],
+      },
+    ];
+    const models = modelsByPath.flatMap((g) => g.items);
+    const head = el("div", { class: "v101-chat-head" }, [
+      el(
+        "select",
+        {
+          id: "in-chat-model",
+          class: "inp small",
+          onchange: (e) => {
+            D.lastModel = e.target.value;
+            markDirty();
+            // 重渲顶栏以更新 model chip
+            const top = $("v101-topbar");
+            if (top && top.parentNode) {
+              const newTop = renderTopBar();
+              top.parentNode.replaceChild(newTop, top);
+            }
+          },
+        },
+        modelsByPath.map((g) =>
+          el(
+            "optgroup",
+            { label: g.label },
+            g.items.map((m) => el("option", { value: m }, [m])),
+          ),
+        ),
+      ),
+      el(
+        "button",
+        {
+          class: "btn tiny ghost",
+          onclick: () => {
+            D.chatHistory = [];
+            markDirty();
+            const c = $("v101-use-content");
+            if (c) renderUseTabContent(c);
+          },
+        },
+        ["✕ 清"],
+      ),
+    ]);
+    container.appendChild(head);
+    const _sel = $("in-chat-model");
+    if (_sel && D.lastModel) _sel.value = D.lastModel;
+
+    // 历史 + 输入区
+    const hist = el("div", { id: "chat-history", class: "chat-history" });
+    if (!D.chatHistory || D.chatHistory.length === 0) {
+      hist.appendChild(
+        el("div", { class: "chat-empty" }, [
+          el("div", { class: "dao" }, ["道"]),
+          el("div", { class: "dao-line" }, ["道可道 · 非恒道"]),
+          el("div", { class: "hint" }, ["⏎ 发 · shift+⏎ 换行"]),
+        ]),
+      );
+    } else {
+      D.chatHistory.forEach((m, idx) => hist.appendChild(renderMsg(m, idx)));
+    }
+    container.appendChild(hist);
+
+    const inp = el("textarea", {
+      id: "in-chat-input",
+      class: "chat-input",
+      rows: "3",
+      placeholder: "Ask 道 · 言之",
+    });
+    const sendBtn = el(
+      "button",
+      {
+        id: "btn-chat-send",
+        class: "btn chat-send",
+        onclick: () => sendChatV101(),
+      },
+      ["↑"],
+    );
+    const stopBtn = el(
+      "button",
+      {
+        id: "btn-chat-stop",
+        class: "btn chat-send danger",
+        style: { display: "none" },
+        onclick: () => {
+          if (chatAbort) chatAbort.abort();
+        },
+      },
+      ["⏹"],
+    );
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendChatV101();
+      }
+    });
+    container.appendChild(
+      el("div", { class: "chat-input-area" }, [inp, sendBtn, stopBtn]),
+    );
+  }
+
+  // v101 chat 发 (沿用 sendChat 但重渲 v101 内容)
+  async function sendChatV101() {
+    await sendChat();
+    // sendChat 内部调 renderRight() · v101 下需重渲 use tab chat
+    const c = $("v101-use-content");
+    if (c && __useTab === "chat") renderUseTabContent(c);
+  }
+
+  // 用区 · iframe tab (移自旧 renderRight 之 iframe 段)
+  function renderUseTab_iframe(container) {
+    const D = memo.data;
+    // 切站: app.devin.ai / chat.windsurf.ai (默 devin)
+    const site = D.iframeSite || "devin";
+    const url =
+      site === "windsurf"
+        ? "https://chat.windsurf.ai/"
+        : "https://app.devin.ai/";
+    const head = el("div", { class: "v101-iframe-head" }, [
+      el("span", { class: "hint" }, [
+        "真站反代 · 浏览器内 wss hook (印 90 dao-injector)",
+      ]),
+      el("span", { class: "grow" }, []),
+      el(
+        "button",
+        {
+          class: "v101-btn small" + (site === "devin" ? " active" : " ghost"),
+          onclick: () => {
+            D.iframeSite = "devin";
+            markDirty();
+            const c = $("v101-use-content");
+            if (c) renderUseTabContent(c);
+          },
+        },
+        ["app.devin.ai"],
+      ),
+      el(
+        "button",
+        {
+          class:
+            "v101-btn small" + (site === "windsurf" ? " active" : " ghost"),
+          onclick: () => {
+            D.iframeSite = "windsurf";
+            markDirty();
+            const c = $("v101-use-content");
+            if (c) renderUseTabContent(c);
+          },
+        },
+        ["chat.windsurf.ai"],
+      ),
+    ]);
+    container.appendChild(head);
+
+    const ifr = el("iframe", {
+      src: url,
+      class: "v101-iframe",
+      sandbox:
+        "allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation-by-user-activation",
+      allow: "clipboard-read; clipboard-write",
+    });
+    container.appendChild(ifr);
+    container.appendChild(
+      el("div", { class: "hint v101-iframe-foot" }, [
+        "★ 装 dao-injector (左下 ⚙ → SP) 后 · iframe 内每笔自动注帛书 SP",
+      ]),
+    );
+  }
+
+  // 用区 · 批跑 tab (新功能 · agent 测试)
+  // 帛书六十四「图难于其易」—— 测试从最易开始: 固定题集 · 单笔遍跑 · 表对比
+  function renderUseTab_batch(container) {
+    const D = memo.data;
+    if (!D.batch) {
+      D.batch = {
+        prompts: [
+          "用一句话解释什么是道",
+          "写一个 Python 函数计算斐波那契数列前 10 项",
+          "What is the time complexity of quicksort?",
+        ],
+        results: [],
+      };
+    }
+    container.appendChild(
+      el("div", { class: "v101-batch-head" }, [
+        el("span", { class: "hint" }, [
+          "批跑测 · 一组 prompt 顺序跑 · A/B 路对比 · 通过率统计 · 道义守: 走当前 vmUrl 不破 SLA",
+        ]),
+      ]),
+    );
+
+    // prompts 编辑区
+    const promptsArea = el("textarea", {
+      id: "v101-batch-prompts",
+      class: "inp",
+      rows: "5",
+      placeholder: "一行一题 (UTF-8)",
+    });
+    promptsArea.value = (D.batch.prompts || []).join("\n");
+    promptsArea.addEventListener("input", (e) => {
+      D.batch.prompts = e.target.value.split("\n").filter((l) => l.trim());
+      markDirty();
+    });
+    container.appendChild(
+      el("div", { class: "v101-batch-prompts" }, [
+        el("div", { class: "label" }, ["题集 (一行一题):"]),
+        promptsArea,
+      ]),
+    );
+
+    // 跑控
+    const runBtn = el(
+      "button",
+      {
+        class: "btn",
+        onclick: () => runBatch(),
+      },
+      ["▶ 批跑"],
+    );
+    const clearBtn = el(
+      "button",
+      {
+        class: "btn ghost",
+        onclick: () => {
+          D.batch.results = [];
+          markDirty();
+          const c = $("v101-use-content");
+          if (c) renderUseTabContent(c);
+        },
+      },
+      ["✕ 清结果"],
+    );
+    container.appendChild(
+      el("div", { class: "row gap", style: { marginTop: "8px" } }, [
+        runBtn,
+        clearBtn,
+      ]),
+    );
+
+    // 结果表
+    const results = D.batch.results || [];
+    const total = results.length;
+    const okCount = results.filter((r) => r.ok).length;
+    const stats = el("div", { class: "v101-batch-stats" }, [
+      total === 0
+        ? "(未跑 · 点 ▶ 批跑)"
+        : "通过率: " +
+          okCount +
+          "/" +
+          total +
+          " · " +
+          Math.round((okCount / total) * 100) +
+          "%",
+    ]);
+    container.appendChild(stats);
+
+    const tbl = el("table", { class: "v101-batch-table" }, []);
+    const thead = el("thead", null, [
+      el("tr", null, [
+        el("th", null, ["#"]),
+        el("th", null, ["prompt"]),
+        el("th", null, ["model"]),
+        el("th", null, ["状态"]),
+        el("th", null, ["响应 / 错"]),
+      ]),
+    ]);
+    tbl.appendChild(thead);
+    const tbody = el("tbody", null, []);
+    results.forEach((r, i) => {
+      tbody.appendChild(
+        el("tr", { class: r.ok ? "ok" : "err" }, [
+          el("td", null, [String(i + 1)]),
+          el("td", null, [(r.prompt || "").slice(0, 40)]),
+          el("td", null, [(r.model || "").slice(0, 20)]),
+          el("td", null, [r.ok ? "✓" : "✗"]),
+          el("td", null, [((r.ok ? r.content : r.error) || "").slice(0, 100)]),
+        ]),
+      );
+    });
+    tbl.appendChild(tbody);
+    container.appendChild(tbl);
+  }
+
+  async function runBatch() {
+    const D = memo.data;
+    if (!D.vmUrl) {
+      toast("反代 vmUrl 未设 · 去 ⚙ → 端点", "warn");
+      openDrawer("endpt");
+      return;
+    }
+    const prompts = (D.batch && D.batch.prompts) || [];
+    if (!prompts.length) {
+      toast("题集为空", "warn");
+      return;
+    }
+    D.batch.results = [];
+    const model = D.lastModel || "claude-sonnet-4-20250514";
+    for (let i = 0; i < prompts.length; i++) {
+      const p = prompts[i];
+      try {
+        const r = await fetch(D.vmUrl + "/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(D.vmAuthKey ? { Authorization: "Bearer " + D.vmAuthKey } : {}),
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: "user", content: p }],
+            stream: false,
+            max_tokens: 256,
+          }),
+          signal: AbortSignal.timeout(60000),
+        });
+        const j = await r.json();
+        const content =
+          j.choices &&
+          j.choices[0] &&
+          j.choices[0].message &&
+          j.choices[0].message.content;
+        D.batch.results.push({
+          prompt: p,
+          model: model,
+          ok: r.ok && !!content,
+          content: content || "",
+          error: r.ok ? "" : "HTTP " + r.status,
+        });
+      } catch (e) {
+        D.batch.results.push({
+          prompt: p,
+          model: model,
+          ok: false,
+          content: "",
+          error: e.message || "网络错",
+        });
+      }
+      // 实时重渲 (用户可看进度)
+      markDirty();
+      const c = $("v101-use-content");
+      if (c && __useTab === "batch") renderUseTabContent(c);
+    }
+    toast(
+      "批跑完 · " +
+        D.batch.results.filter((r) => r.ok).length +
+        "/" +
+        prompts.length,
+      "ok",
+    );
+  }
+
+  // ─── 抽屉 · 四节 (切号 / SP / 端点 / 测试) ─────────────────────────────
+  function renderDrawer() {
+    const drawer = el("div", { class: "v101-drawer", id: "v101-drawer" }, []);
+    // tab bar
+    const tabs = el("div", { class: "v101-drawer-tabs" }, [
+      makeDrawerTab("acct", "切号", "本机 + 云一表 · 一笔切"),
+      makeDrawerTab("sp", "提示词", "SP 库 + 三模 + 历史"),
+      makeDrawerTab("endpt", "端点", "vmUrl + auth-key + daemon 池"),
+      makeDrawerTab("test", "测试", "/health · /v1/models · 烟测"),
+      el("span", { class: "grow" }, []),
+      el(
+        "button",
+        {
+          class: "v101-btn small ghost",
+          title: "关抽屉",
+          onclick: () => closeDrawer(),
+        },
+        ["✕"],
+      ),
+    ]);
+    drawer.appendChild(tabs);
+    const content = el(
+      "div",
+      { class: "v101-drawer-content", id: "v101-drawer-content" },
+      [],
+    );
+    drawer.appendChild(content);
+    // 默 collapsed
+    if (__drawerOpen) {
+      drawer.classList.add("open");
+      renderDrawerContent(content, __drawerOpen);
+    }
+    return drawer;
+  }
+
+  function makeDrawerTab(id, label, title) {
+    const active = __drawerOpen === id;
+    return el(
+      "button",
+      {
+        class: "v101-tab" + (active ? " active" : ""),
+        title: title,
+        onclick: () => toggleDrawer(id),
+      },
+      [label],
+    );
+  }
+
+  function openDrawer(id) {
+    __drawerOpen = id;
+    const drawer = $("v101-drawer");
+    const content = $("v101-drawer-content");
+    if (drawer) drawer.classList.add("open");
+    if (content) renderDrawerContent(content, id);
+    // 重渲抽屉 tab bar 以更新 active
+    refreshDrawerTabs();
+  }
+
+  function closeDrawer() {
+    __drawerOpen = null;
+    const drawer = $("v101-drawer");
+    if (drawer) drawer.classList.remove("open");
+    refreshDrawerTabs();
+  }
+
+  function toggleDrawer(id) {
+    if (__drawerOpen === id) closeDrawer();
+    else openDrawer(id);
+  }
+
+  function refreshDrawerTabs() {
+    const tabs = document.querySelector(".v101-drawer-tabs");
+    if (!tabs) return;
+    tabs.innerHTML = "";
+    tabs.appendChild(makeDrawerTab("acct", "切号", "本机 + 云一表 · 一笔切"));
+    tabs.appendChild(makeDrawerTab("sp", "提示词", "SP 库 + 三模 + 历史"));
+    tabs.appendChild(
+      makeDrawerTab("endpt", "端点", "vmUrl + auth-key + daemon 池"),
+    );
+    tabs.appendChild(
+      makeDrawerTab("test", "测试", "/health · /v1/models · 烟测"),
+    );
+    tabs.appendChild(el("span", { class: "grow" }, []));
+    tabs.appendChild(
+      el(
+        "button",
+        {
+          class: "v101-btn small ghost",
+          title: "关抽屉",
+          onclick: () => closeDrawer(),
+        },
+        ["✕"],
+      ),
+    );
+  }
+
+  function renderDrawerContent(container, id) {
+    container.innerHTML = "";
+    if (id === "acct") renderDrawer_acct(container);
+    else if (id === "sp") renderDrawer_sp(container);
+    else if (id === "endpt") renderDrawer_endpt(container);
+    else if (id === "test") renderDrawer_test(container);
+  }
+
+  // 抽屉 · 切号节 (本机 + 云端 daemon 池 统一)
+  function renderDrawer_acct(container) {
+    const D = memo.data;
+    const accts = D.accounts || [];
+
+    // ① 加号
+    container.appendChild(
+      el("div", { class: "v101-drawer-section" }, [
+        el("div", { class: "v101-drawer-section-title" }, [
+          "+ 加 Windsurf 账号",
+        ]),
+        el("div", { class: "row gap" }, [
+          el("input", {
+            type: "text",
+            id: "in-acct-email",
+            class: "inp",
+            placeholder: "email (备注)",
+            style: { flex: "1" },
+          }),
+        ]),
+        el("div", { class: "row gap", style: { marginTop: "4px" } }, [
+          el("input", {
+            type: "password",
+            id: "in-acct-key",
+            class: "inp",
+            placeholder: "API key (windsurf ws-* / codeium-*)",
+            style: { flex: "1" },
+          }),
+          el(
+            "button",
+            {
+              class: "btn",
+              onclick: () => {
+                addAccount();
+                openDrawer("acct");
+              },
+            },
+            ["+ 加"],
+          ),
+        ]),
+      ]),
+    );
+
+    // ② 号库
+    const listSec = el("div", { class: "v101-drawer-section" }, [
+      el("div", { class: "v101-drawer-section-title" }, [
+        "号库 ",
+        el("span", { class: "meta" }, [accts.length + " 条"]),
+        el("span", { class: "grow" }, []),
+        el("button", { class: "btn tiny ghost", onclick: () => probeAll() }, [
+          "↻ 全探",
+        ]),
+      ]),
+    ]);
+    if (accts.length === 0) {
+      listSec.appendChild(el("div", { class: "hint" }, ["(无号 · 上方加)"]));
+    } else {
+      const tbl = el("table", { class: "v101-acct-table" }, []);
+      tbl.appendChild(
+        el("thead", null, [
+          el("tr", null, [
+            el("th", null, ["active"]),
+            el("th", null, ["email"]),
+            el("th", null, ["key prefix"]),
+            el("th", null, ["状态"]),
+            el("th", null, [""]),
+          ]),
+        ]),
+      );
+      const tbody = el("tbody", null, []);
+      accts.forEach((a, i) => {
+        const isActive = a.email === D.activeEmail;
+        tbody.appendChild(
+          el("tr", { class: isActive ? "active" : "" }, [
+            el("td", null, [
+              el(
+                "input",
+                {
+                  type: "radio",
+                  name: "v101-active-acct",
+                  checked: isActive,
+                  onchange: () => {
+                    D.activeEmail = a.email;
+                    markDirty();
+                    openDrawer("acct");
+                  },
+                },
+                [],
+              ),
+            ]),
+            el("td", null, [a.email || "?"]),
+            el("td", null, [(a.key || "").slice(0, 12) + "…"]),
+            el("td", null, [
+              a.lastProbe ? (a.lastProbe.ok ? "✓ " : "✗ ") : "○",
+              a.lastProbe ? a.lastProbe.note || "" : "",
+            ]),
+            el("td", null, [
+              el(
+                "button",
+                {
+                  class: "btn tiny ghost",
+                  onclick: () => probeAccount(i).then(() => openDrawer("acct")),
+                },
+                ["↻"],
+              ),
+              el(
+                "button",
+                {
+                  class: "btn tiny danger",
+                  onclick: () => {
+                    if (!confirm("删 " + a.email + " ?")) return;
+                    accts.splice(i, 1);
+                    if (D.activeEmail === a.email) D.activeEmail = "";
+                    markDirty();
+                    openDrawer("acct");
+                  },
+                },
+                ["×"],
+              ),
+            ]),
+          ]),
+        );
+      });
+      tbl.appendChild(tbody);
+      listSec.appendChild(tbl);
+    }
+    container.appendChild(listSec);
+
+    // ③ 云端 daemon 池 (印 95/100 · 入此节统一)
+    container.appendChild(
+      el("div", { class: "v101-drawer-section" }, [
+        el("div", { class: "v101-drawer-section-title" }, [
+          "☁ 云端 daemon 池 (印 95/100)",
+          el("span", { class: "grow" }, []),
+          el(
+            "button",
+            { class: "btn tiny ghost", onclick: () => probeCloudFleet() },
+            ["↻ 拉"],
+          ),
+          el(
+            "button",
+            {
+              class: "btn tiny",
+              onclick: () => triggerCloudFleet(),
+              title: "触一个新 workflow run · 起新 daemon",
+            },
+            ["▶ 触新"],
+          ),
+        ]),
+        el("div", { id: "v101-cloud-daemons", class: "hint" }, [
+          "(↻ 拉之 · 看活 daemon)",
+        ]),
+      ]),
+    );
+  }
+
+  // 抽屉 · SP 节 (提示词综合管理 · 印 101 新)
+  function renderDrawer_sp(container) {
+    const D = memo.data;
+    if (!D.sp) D.sp = { mode: "dao", custom: "" };
+    if (!D.spLibrary) D.spLibrary = [];
+
+    // 三模切
+    const modeBtnGrp = el(
+      "div",
+      { class: "sp-mode-grp" },
+      ["passthrough", "dao", "custom"].map((m) =>
+        el(
+          "button",
+          {
+            class: "sp-mode-btn" + (D.sp.mode === m ? " active" : ""),
+            onclick: () => {
+              D.sp.mode = m;
+              markDirty();
+              syncSpModeToVm(m).catch(() => {});
+              openDrawer("sp");
+            },
+          },
+          [m === "passthrough" ? "原" : m === "dao" ? "道 (默)" : "自定义"],
+        ),
+      ),
+    );
+    container.appendChild(
+      el("div", { class: "v101-drawer-section" }, [
+        el("div", { class: "v101-drawer-section-title" }, [
+          "SP 三模 (当前: " + D.sp.mode + ")",
+        ]),
+        modeBtnGrp,
+        el("div", { class: "hint" }, [
+          D.sp.mode === "passthrough"
+            ? "原: 不注 SP · 让客户端自带"
+            : D.sp.mode === "dao"
+              ? "道: 注入 dao-proxy-min 内置 SP (帛书道义)"
+              : "自定义: 注入下方 textarea 之 SP",
+        ]),
+      ]),
+    );
+
+    // custom 编辑
+    if (D.sp.mode === "custom") {
+      container.appendChild(
+        el("div", { class: "v101-drawer-section" }, [
+          el("div", { class: "v101-drawer-section-title" }, ["自定义 SP"]),
+          el("textarea", {
+            class: "inp",
+            id: "v101-sp-custom",
+            rows: "8",
+            placeholder: "你的 system prompt...",
+            value: D.sp.custom || "",
+            oninput: (e) => {
+              D.sp.custom = e.target.value;
+              markDirty();
+            },
+          }),
+          el("div", { class: "row gap", style: { marginTop: "4px" } }, [
+            el(
+              "button",
+              {
+                class: "btn small",
+                onclick: () =>
+                  syncSpCustomToVm(D.sp.custom).then(() =>
+                    toast("已同步到 VM", "ok"),
+                  ),
+              },
+              ["同步到 VM"],
+            ),
+            el(
+              "button",
+              {
+                class: "btn small ghost",
+                onclick: () => {
+                  const name = prompt("存为模板 · 取名:");
+                  if (!name) return;
+                  D.spLibrary.push({
+                    name: name,
+                    content: D.sp.custom,
+                    savedAt: new Date().toISOString(),
+                  });
+                  markDirty();
+                  openDrawer("sp");
+                },
+              },
+              ["+ 存为模板"],
+            ),
+          ]),
+        ]),
+      );
+    }
+
+    // SP 库 (用户自存模板 · 印 101 新)
+    const libSec = el("div", { class: "v101-drawer-section" }, [
+      el("div", { class: "v101-drawer-section-title" }, [
+        "SP 库 ",
+        el("span", { class: "meta" }, [(D.spLibrary || []).length + " 模板"]),
+      ]),
+    ]);
+    if (!D.spLibrary || D.spLibrary.length === 0) {
+      libSec.appendChild(
+        el("div", { class: "hint" }, [
+          "(库空 · 切到 自定义 模式 · 编辑后点 + 存为模板)",
+        ]),
+      );
+    } else {
+      D.spLibrary.forEach((sp, i) => {
+        libSec.appendChild(
+          el("div", { class: "v101-sp-row" }, [
+            el("div", { class: "v101-sp-name" }, [sp.name]),
+            el("div", { class: "v101-sp-preview" }, [
+              (sp.content || "").slice(0, 80) + "…",
+            ]),
+            el("div", { class: "row gap" }, [
+              el(
+                "button",
+                {
+                  class: "btn tiny",
+                  onclick: () => {
+                    D.sp.mode = "custom";
+                    D.sp.custom = sp.content;
+                    markDirty();
+                    syncSpCustomToVm(sp.content).catch(() => {});
+                    openDrawer("sp");
+                    toast("已套用 " + sp.name, "ok");
+                  },
+                },
+                ["套用"],
+              ),
+              el(
+                "button",
+                {
+                  class: "btn tiny danger",
+                  onclick: () => {
+                    if (!confirm("删模板 " + sp.name + " ?")) return;
+                    D.spLibrary.splice(i, 1);
+                    markDirty();
+                    openDrawer("sp");
+                  },
+                },
+                ["×"],
+              ),
+            ]),
+          ]),
+        );
+      });
+    }
+    container.appendChild(libSec);
+  }
+
+  // 抽屉 · 端点节 (vmUrl + auth + daemon 池)
+  function renderDrawer_endpt(container) {
+    const D = memo.data;
+    container.appendChild(
+      el("div", { class: "v101-drawer-section" }, [
+        el("div", { class: "v101-drawer-section-title" }, ["反代 VM 端点"]),
+        el("label", null, ["VM URL (cloudflared tunnel)"]),
+        el("input", {
+          type: "text",
+          id: "in-vm-url",
+          class: "inp",
+          placeholder: "https://xxxx.trycloudflare.com",
+          value: D.vmUrl || "",
+          oninput: (e) => {
+            D.vmUrl = e.target.value.trim();
+            markDirty();
+          },
+        }),
+        el("label", null, ["Auth Key (sk-ws-proxy-*)"]),
+        el("div", { class: "row gap" }, [
+          el("input", {
+            type: "password",
+            id: "in-vm-authkey",
+            class: "inp",
+            placeholder: "sk-ws-proxy-...",
+            value: D.vmAuthKey || "",
+            style: { flex: "1" },
+            oninput: (e) => {
+              D.vmAuthKey = e.target.value.trim();
+              markDirty();
+            },
+          }),
+          el(
+            "button",
+            {
+              class: "btn tiny",
+              onclick: () => {
+                const k =
+                  "sk-ws-proxy-" +
+                  Array.from(crypto.getRandomValues(new Uint8Array(24)))
+                    .map((b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36])
+                    .join("");
+                D.vmAuthKey = k;
+                markDirty();
+                openDrawer("endpt");
+              },
+            },
+            ["生"],
+          ),
+        ]),
+        el("div", { class: "row gap", style: { marginTop: "8px" } }, [
+          el("button", { class: "btn", onclick: () => testVm() }, ["测连"]),
+          el(
+            "button",
+            {
+              class: "btn ghost",
+              onclick: () => {
+                if (!D.vmUrl) {
+                  toast("先设 VM URL", "warn");
+                  return;
+                }
+                navigator.clipboard.writeText(D.vmUrl + "/v1");
+                toast("Base URL 已复制", "ok");
+              },
+            },
+            ["复 Base URL"],
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  // 抽屉 · 测试节
+  function renderDrawer_test(container) {
+    const D = memo.data;
+    container.appendChild(
+      el("div", { class: "v101-drawer-section" }, [
+        el("div", { class: "v101-drawer-section-title" }, ["反代端点烟测"]),
+        el("div", { class: "hint" }, [
+          "走当前 vmUrl 探: /health · /v1/models · 一笔 chat 烟测",
+        ]),
+        el("div", { class: "row gap", style: { marginTop: "8px" } }, [
+          el(
+            "button",
+            {
+              class: "btn",
+              onclick: async () => {
+                if (!D.vmUrl) {
+                  toast("vmUrl 未设", "warn");
+                  return;
+                }
+                const out = $("v101-test-out");
+                if (out) out.textContent = "测中...";
+                const results = [];
+                // /health
+                try {
+                  const r = await fetch(D.vmUrl + "/health", {
+                    signal: AbortSignal.timeout(5000),
+                  });
+                  results.push(
+                    "/health: " + r.status + " " + (r.ok ? "✓" : "✗"),
+                  );
+                } catch (e) {
+                  results.push("/health: ✗ " + e.message);
+                }
+                // /v1/models
+                try {
+                  const r = await fetch(D.vmUrl + "/v1/models", {
+                    headers: D.vmAuthKey
+                      ? { Authorization: "Bearer " + D.vmAuthKey }
+                      : {},
+                    signal: AbortSignal.timeout(5000),
+                  });
+                  const j = await r.json().catch(() => ({}));
+                  const count = (j.data && j.data.length) || 0;
+                  results.push(
+                    "/v1/models: " +
+                      r.status +
+                      " " +
+                      (r.ok ? "✓ " + count + " 模" : "✗"),
+                  );
+                } catch (e) {
+                  results.push("/v1/models: ✗ " + e.message);
+                }
+                if (out) out.textContent = results.join("\n");
+              },
+            },
+            ["▶ 测"],
+          ),
+        ]),
+        el("pre", { id: "v101-test-out", class: "v101-test-out" }, ["(未测)"]),
+      ]),
+    );
+    container.appendChild(
+      el("div", { class: "v101-drawer-section" }, [
+        el("div", { class: "v101-drawer-section-title" }, [
+          "agent 批跑 (用区 → 批跑测 tab)",
+        ]),
+        el("div", { class: "hint" }, [
+          "完整批跑 · 题集 · A/B 路对比 · 通过率: 切到顶 [批跑测] tab",
+        ]),
+        el(
+          "button",
+          {
+            class: "btn small",
+            onclick: () => {
+              __useTab = "batch";
+              closeDrawer();
+              renderMineV101();
+            },
+          },
+          ["→ 去批跑测 tab"],
+        ),
+      ]),
+    );
   }
 
   // ═══ 顶栏 (常驻) · 退出 / 同步状态 ════════════════════════════════════
