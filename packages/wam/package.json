@@ -2,7 +2,7 @@
 	"name": "rt-flow",
 	"displayName": "Runtime Flow",
 	"description": "Runtime flow management · adaptive scheduling",
-	"version": "2.7.5",
+	"version": "2.7.0",
 	"publisher": "devaid",
 	"repository": {
 		"type": "git",
@@ -85,12 +85,7 @@
 			},
 			{
 				"command": "wam.injectToken",
-				"title": "Inject Token (v2.7.1: auth1/session/JWT/email-pair · loginViaToken 全栈)",
-				"category": "RT Flow"
-			},
-			{
-				"command": "wam.addToken",
-				"title": "Add Token (v2.7.1 万法归一·任意 token/凭据·入完整管理流)",
+				"title": "Inject Token",
 				"category": "RT Flow"
 			},
 			{

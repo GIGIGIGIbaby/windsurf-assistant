@@ -59,8 +59,8 @@ console.log("\n[§1] 静态契约 (extension.js + package.json 实现存在性)\
 check(
   "VERSION ≥ 2.6.13 (活体源版本 · 含 v2.6.14 接代)",
   /const VERSION\s*=\s*"2\.6\.(1[3-9]|[2-9]\d)"/.test(src) ||
-    /const VERSION\s*=\s*"2\.[7-9]\.\d+(?:\.\d+)?"/.test(src) ||
-    /const VERSION\s*=\s*"[3-9]\.\d+\.\d+(?:\.\d+)?"/.test(src),
+    /const VERSION\s*=\s*"2\.[7-9]\.\d+"/.test(src) ||
+    /const VERSION\s*=\s*"[3-9]\.\d+\.\d+"/.test(src),
   "活体源版本字面值",
 );
 check(
@@ -183,8 +183,8 @@ check(
 check(
   "package.json version ≥ 2.6.13 (含 v2.6.14 接代)",
   /^2\.6\.(1[3-9]|[2-9]\d)$/.test(pkg.version) ||
-    /^2\.[7-9]\.\d+(?:\.\d+)?$/.test(pkg.version) ||
-    /^[3-9]\.\d+\.\d+(?:\.\d+)?$/.test(pkg.version),
+    /^2\.[7-9]\.\d+$/.test(pkg.version) ||
+    /^[3-9]\.\d+\.\d+$/.test(pkg.version),
   "actual=" + pkg.version,
 );
 const props = pkg.contributes.configuration.properties;

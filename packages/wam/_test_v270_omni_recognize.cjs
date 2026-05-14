@@ -126,20 +126,17 @@ function extractFn(name) {
 const fnIsValidEmail = extractFn("_isValidEmail");
 const fnStripWxHints = extractFn("_stripWxHints");
 const fnIsNoiseLine = extractFn("_isNoiseLine");
-const fnDetectTokenKind = extractFn("_detectTokenKind"); // v2.7.1
 const fnParseAccountText = extractFn("parseAccountText");
 
 check("§2.0a 抽出 _isValidEmail 源", !!fnIsValidEmail);
 check("§2.0b 抽出 _stripWxHints 源", !!fnStripWxHints);
 check("§2.0c 抽出 _isNoiseLine 源", !!fnIsNoiseLine);
-check("§2.0d v2.7.1 抽出 _detectTokenKind 源", !!fnDetectTokenKind);
-check("§2.0e 抽出 parseAccountText 源", !!fnParseAccountText);
+check("§2.0d 抽出 parseAccountText 源", !!fnParseAccountText);
 
 if (
   !fnIsValidEmail ||
   !fnStripWxHints ||
   !fnIsNoiseLine ||
-  !fnDetectTokenKind ||
   !fnParseAccountText
 ) {
   console.log("\n× 函数抽离失败 · 终止行为测");
@@ -147,12 +144,10 @@ if (
   process.exit(1);
 }
 
-// v2.7.5 · parseAccountText 末段用 crypto.createHash · vm ctx 须注入
-const ctx = vm.createContext({ crypto: require("node:crypto") });
+const ctx = vm.createContext({});
 vm.runInContext(fnIsValidEmail, ctx);
 vm.runInContext(fnStripWxHints, ctx);
 vm.runInContext(fnIsNoiseLine, ctx);
-vm.runInContext(fnDetectTokenKind, ctx);
 vm.runInContext(fnParseAccountText, ctx);
 
 const isValidEmail = vm.runInContext("_isValidEmail", ctx);
@@ -391,41 +386,22 @@ check(
 );
 
 // ─── §10 token 直登仍通 ─────────────────────────────────────────────
-// v2.7.5 主公诏「单独 token 无法添加登录」之治: 孤儿 token → 占位 email 入 accounts
-// 旧契约 (v2.7.0-v2.7.4): tokens 数组留孤儿待显式反查 · 此契约已被 v2.7.5 主公诏正式更新
-// 占位 email 形如 "<kind>.<sha8>@token.wam" · 由 _isPlaceholderEmail 严判
 console.log("\n[§10] token 直登 · 不退化");
 
 const tokenStr =
   "devin-session-token$abcdefghijklmnopqrstuvwxyz1234567890" + "X".repeat(40);
 const r10 = parseAccountText(tokenStr);
 check(
-  "§10.1 devin-session-token$ 识为 token (v2.7.5: 孤儿 → 占位 email 入 accounts)",
-  r10.accounts.length === 1 &&
-    r10.tokens.length === 0 &&
-    /^session\.[a-f0-9]{8}@token\.wam$/i.test(r10.accounts[0].email) &&
-    r10.accounts[0].password === tokenStr,
-  "accounts.length=" +
-    r10.accounts.length +
-    " tokens.length=" +
-    r10.tokens.length +
-    (r10.accounts[0] ? " email=" + r10.accounts[0].email : ""),
+  "§10.1 devin-session-token$ 识为 token",
+  r10.tokens.length === 1 && r10.accounts.length === 0,
 );
 
 const jwt =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
 const r11 = parseAccountText(jwt);
 check(
-  "§10.2 JWT 识为 token (v2.7.5: 孤儿 → 占位 email 入 accounts)",
-  r11.accounts.length === 1 &&
-    r11.tokens.length === 0 &&
-    /^jwt\.[a-f0-9]{8}@token\.wam$/i.test(r11.accounts[0].email) &&
-    r11.accounts[0].password === jwt,
-  "accounts.length=" +
-    r11.accounts.length +
-    " tokens.length=" +
-    r11.tokens.length +
-    (r11.accounts[0] ? " email=" + r11.accounts[0].email : ""),
+  "§10.2 JWT 识为 token",
+  r11.tokens.length === 1 && r11.accounts.length === 0,
 );
 
 // ─── §11 综合极端: 一文混万法 ───────────────────────────────────────
@@ -461,20 +437,15 @@ devin-session-token$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 `;
 
 const r12 = parseAccountText(omni);
-// v2.7.5 主公诏: 6 真账 + 1 孤儿 token 占位 = 7 个入 accounts · tokens 清空
 check(
-  "§11.1 综合识 7 账号 (6 真 + 1 占位 · v2.7.5 主公诏·孤儿 token 入 accounts)",
-  r12.accounts.length === 7,
+  "§11.1 综合识 6 账号",
+  r12.accounts.length === 6,
   "actual=" +
     r12.accounts.length +
     " emails=" +
     r12.accounts.map((a) => a.email).join(","),
 );
-check(
-  "§11.2 综合识 0 孤儿 token (v2.7.5: 孤儿尽转 accounts · tokens 清空)",
-  r12.tokens.length === 0,
-  "actual=" + r12.tokens.length,
-);
+check("§11.2 综合识 1 token", r12.tokens.length === 1);
 
 const expectAll = [
   ["foo@bar.com", "pass1"],

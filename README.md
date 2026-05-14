@@ -3,10 +3,86 @@
 > 道生一 · 一生二 · 二生三 · 三生万物
 > 反者道之动 · 弱者道之用 · 天下之物生于有 · 有生于无
 
-A fully decentralized Windsurf assistant &mdash; **一气化七清 · 道并行而不悖** &mdash; **一账号双路** (印 88) + **柔反 alignment** (印 89) + **浏览器内 wss hook 直注** (印 90) + **三栏 engine badge + iframe app.devin.ai** (印 91) + **得鱼忘笙 · 1 ACU 换 24h VM** (印 92) + **三身一道锚定** (印 93) + **真本源闭环 · 主公 PC 真可关机** (印 95) + **太极笙万物 · 一 PAT 即一切 · 闭环自举** (印 100).
+A fully decentralized Windsurf assistant &mdash; **一气化七清 · 道并行而不悖** &mdash; **一账号双路** (印 88) + **柔反 alignment** (印 89) + **浏览器内 wss hook 直注** (印 90) + **三栏 engine badge + iframe app.devin.ai** (印 91) + **得鱼忘笙 · 1 ACU 换 24h VM** (印 92) + **三身一道锚定** (印 93) + **真本源闭环 · 主公 PC 真可关机** (印 95) + **太极笙万物 · 一 PAT 即一切 · 闭环自举** (印 100) + **万法归宗 · 大道至简 · 用 + 管** (印 101).
 
 [![Cloud Daemon](https://github.com/zhouyoukang/windsurf-assistant/actions/workflows/dao-fleet-cloud.yml/badge.svg)](https://github.com/zhouyoukang/windsurf-assistant/actions/workflows/dao-fleet-cloud.yml)
 [![Keepalive](https://github.com/zhouyoukang/windsurf-assistant/actions/workflows/dao-fleet-keepalive.yml/badge.svg)](https://github.com/zhouyoukang/windsurf-assistant/actions/workflows/dao-fleet-keepalive.yml)
+
+---
+
+## 印 101 · 万法归宗 · 大道至简 · 用 + 管 · 反者道之动 (2026-05-14 17:30)
+
+> 帛书·四十八: 「**为道者日损 · 损之又损 · 以至于无为 · 无为而无不为**」
+> 帛书·六十四: 「**图难于其易 · 为大于其细 · 圣人终不为大 · 故能成其大**」
+> 帛书·四十: 「**反者道之动也 · 弱者道之用也**」
+
+承印 100 之"主公自身亦可不在" · 立印 101 之**用户最终见之页归宗** &mdash; **旧 8 pane 杂烩 → 主面「用」 (chat/iframe/批跑 3 tab) + 抽屉「管」 (切号/SP/端点/测试 4 节)** &mdash; **大道至简 · 为道日损**.
+
+| 件 | 道 | 量 |
+|---|---|---|
+| **web/dao_app.js** &middot; ★ 升 | 印 101 v101 视图层: renderMineV101 (总入口) + renderTopBar (三态+浮按) + renderUseArea (3 tab: chat/iframe/batch) + renderDrawer (4 节: acct/sp/endpt/test) + sendChatV101 + runBatch · enterMine 默 v101 · ?v=100 fallback | +1166 行 |
+| **web/index.html** &middot; ★ 升 | #mine-v101 容器 (印 101 默) + 旧 .mine-cols 默隐 + CSS v101-* (顶栏/用区/抽屉) 51 条规则 + 抽屉折叠动画 + A/B 路模型染色 + 响应式 | +364 行 |
+| **tests/_seal101_smoke.cjs** &middot; ★ 新 | 86 用例全离网 · 验 v101 函/容器/CSS/五功能/用管二字守/道义 | 377 行 |
+| **tests/run_all.cjs** &middot; ★ 升 | 注册 _seal101_smoke · 14 件全套 | +1 行 |
+
+**印 101 之解** (一图尽全):
+
+```text
+┌────────────────────────────────────────────────────┐
+│ 旧 (印 67-100)                                      │
+│   6 left pane + 1 mid + 1 right = 8 pane 杂烩       │
+│   80% 屏给「管」 · 用户淹没在设置中                    │
+└────────────────────┬───────────────────────────────┘
+                     │ 反者道之动 · 为道日损
+                     ▼
+┌────────────────────────────────────────────────────┐
+│ 新 (印 101)                                          │
+│                                                      │
+│  ┌─ 顶栏 ─────────────────────────────────────────┐ │
+│  │ ● 反代活  user@ws.ai  claude-3.5  [复URL][⚙]  │ │
+│  └────────────────────────────────────────────────┘ │
+│                                                      │
+│  ┌─ 用 (主面 80%) ────────────────────────────────┐ │
+│  │ [Chat] [iframe] [批跑]                          │ │
+│  │ ┌────────────────────────────────────────────┐  │ │
+│  │ │ SSE chat · 即问即答 · A/B 双路              │  │ │
+│  │ │ 或 嵌 chat.windsurf.ai / app.devin.ai     │  │ │
+│  │ │ 或 批跑题集 · 通过率统计                    │  │ │
+│  │ └────────────────────────────────────────────┘  │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                      │
+│  ┌─ 管 (⚙ 抽屉 · 默收) ──────────────────────────┐ │
+│  │ [切号] [SP] [端点] [测试]                       │ │
+│  │ 账号库 / SP三模+库 / vmUrl+key / 烟测           │ │
+│  └─────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────┘
+```
+
+**五大功能落地**:
+
+| 求 | 印 101 落 |
+|---|---|
+| ① 反代 ws+devin | 用区 iframe tab 双切 chat.windsurf.ai / app.devin.ai |
+| ② 提示词管理 | 抽屉 SP 节 (三模 + SP 库 + 套用模板) |
+| ③ 反代 API 管理 | 顶栏复 Base URL/Key + 抽屉端点节 (vmUrl + auth + 测连) |
+| ④ WAM 切号 | 顶栏号 chip + 抽屉切号节 (本机 + 云端 daemon 池一表) |
+| ⑤ agent 交互测试 | 用区批跑 tab (题集 + 通过率) + 抽屉测试节 (烟测) |
+
+**守门** (`node tests/run_all.cjs` · 14 件 · ~24s · 0 regression):
+
+```text
+✓ _web_static_audit        ✓ _seal64_smoke
+✓ _dao_core_syntax          ✓ _seal66_smoke
+✓ _three_pure_smoke         ✓ _seal88_smoke
+✓ _seal67_smoke             ✓ _seal90_smoke
+✓ _seal69_smoke             ✓ _seal92_smoke
+✓ _auth_smoke               ✓ _seal95_smoke
+✓ _seal100_smoke · 85/85    ✓ _seal101_smoke · 86/86 ★ 新
+```
+
+**反向兼容**: `?v=100` 走旧三栏 · `legacy.html` 保 5-tab 备份 · 所有业务函 (sendChat/addAccount/probeAccount/syncSpModeToVm/testVm 等) 全复用.
+
+详: commit `a7e15e59` · [`INDEX_GUIZONG.md`](./INDEX_GUIZONG.md).
 
 ---
 
@@ -141,7 +217,7 @@ gh workflow run dao-fleet-cloud.yml -f gist_id=<GIST_ID>
 # 公网用户 Pane F 输 PAT → 自动见所有活 daemon → 一笔设左栏
 ```
 
-详见 [`packages/dao-pool/README.md`](packages/dao-pool/README.md) + [`05-文档_docs/SEAL_yin95.md`](05-文档_docs/SEAL_yin95.md).
+详见 [`packages/dao-pool/README.md`](packages/dao-pool/README.md) + [SEAL_yin95.md](../../05-文档_docs/SEAL_yin95.md).
 
 ---
 
@@ -808,4 +884,4 @@ MIT (`packages/wam/`) &middot; Apache 2.0 (`packages/dao-proxy-min/`).
 
 *反者道之动 &middot; 弱者道之用 &middot; 天下之物生于有 &middot; 有生于无*
 
-*印 65 &middot; 一气化三清 &middot; 道并行而不悖*
+*印 101 &middot; 万法归宗 &middot; 大道至简 &middot; 用管归宗 &middot; 反者道之动*

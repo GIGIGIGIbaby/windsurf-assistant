@@ -383,17 +383,10 @@ console.log("\n[H] 体积守卫 (大制不割 · 监控代码膨胀)");
   // v2.6.13 阴阳结合 ⚖ ≈ 199 KB
   // v2.6.14 三守俱全 (perMessageMinIntervalMs + walEdgeCooldownMs + walWarmupMs + 三守 changelog)
   //   + 5 KB 详细 changelog + 净代码 ~30 行 ≈ 205 KB
-  // v2.7.0 万法识号·守道反者 + 5 KB changelog ≈ 216 KB
-  // v2.7.1 万法归一·token 直登 (auth1/session/jwt/refresh 4 阶链 + loginViaToken +
-  //   resolveSessionTokenFromCreds + tokenPairs + 持久化 4 字段 + 三链择优 loginAccount/verifyOne
-  //   + UI handler addBatch tokenPairs · 净增 ~500 行 ≈ 25 KB · 持续追加详尽 changelog)
-  // v2.7.3 治🔒回退根 · save 守一 · +1 KB
-  // v2.7.4 道恒无名·万物自宾 · 治 multi-window race · LOCK_FILE 独立持久化 · +5 KB ≈ 254 KB
-  // v2.7.5 单独 token 万法适配·无为无感 · token-only 添加 + verify 自识真 email · 预期 +10 KB
-  //   上限 280 KB (允 v2.7.5 余地 · 防大失控 · 仍远低 v17.42.20 原 437 KB · 道极版仍属精简)
+  //   上限 220 KB (允未来小规模增 · 防大失控 · 仍远低 v17.42.20 原 437 KB)
   expect(
-    "extension.js 体积 < 280 KB",
-    sz < 280 * 1024,
+    "extension.js 体积 < 220 KB",
+    sz < 220 * 1024,
     sz + " bytes (~" + Math.round(sz / 1024) + " KB)",
   );
 }

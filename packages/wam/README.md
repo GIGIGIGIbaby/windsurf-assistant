@@ -1,4 +1,9 @@
-# 010-WAM本源_Origin · v2.7.5 · 道恒无名·万物自宾 · 治「单独 token 无法添加登录」
+# 010-WAM本源_Origin · v2.7.0 · 万法识号·守道反者 · 唯变所适·适应万法
+
+> **一气化三清 · Three Pure · 道并行而不悖**
+> [I · 反代 API · `dao-core`](../dao-core/README.md) &middot; **[II · 切号 WAM · 本](README.md)** &middot; [III · 提示词反代 · `dao-proxy-min`](../dao-proxy-min/README.md)
+>
+> WAM 服 Windsurf IDE 多账号自动轮转；dao-core 服任意 OpenAI 客户端；dao-proxy-min 服 Cascade 提示词替换。三者正交，可独行可并行，**道并行而不悖**。
 
 > 太上，下知有之 · 道法自然 · 用户无为 · 插件无不为
 >
@@ -120,9 +125,6 @@ ideVersion="1.99.0" → 后端返完整结构 → planEnd="2026-05-09" ✓
 | **v2.6.13** | 05-08 | **阴阳结合 · ⚖额度变动 (daily%/promptCredits/flowCredits) · W%主 ⚖辅 不冲突** | **阴阳合** |
 | **v2.6.14** | 05-08 | **三守俱全 · 守一 perMessageMinIntervalMs 60s 全栏 + 守二 walEdgeCooldownMs 2s + 守三 walWarmupMs 5s** | **大制无割** |
 | **v2.7.0** | 05-09 | **万法识号·守道反者 · parseAccountText 治四病: 卡号N: / 含@密码 / tryPair严判 / 反序配对 · _stripWxHints 剥微信尾提示** | **唯变所适** |
-| **v2.7.1** | 05-13 | parseAccountText 治 `email----auth1_xxx` 误入 password (但 schema 加 auth1/sessionToken/refreshToken 三字段·日益) | 中间态 |
-| **v2.7.2** | 05-14 | **主公三诏·token 看做账号密码 · _normalizeAccCreds 公器登录入口分流 · schema 复 v2.7.0 单 {email,password} (闻道者日损)** | **顺其自然** |
-| **v2.7.3** | 05-14 | **治🔒回退根 · save 写盘后同步刷新 _savedAccountMeta 内存快照 · reloadAccounts 不复回退** | **柔之胜刚** |
 
 ### v2.6.9 实证根治 (道法自然 · 反者道之动)
 
@@ -305,7 +307,7 @@ wam.rotateOnEveryMessage      true   # 总开关
 # × wam.walDetectSettleMs / walDetectAccumMin / walDetectGrowMin
 ```
 
-## 四 · 测试矩阵 (v2.7.5 · 18 套 · 17 套 0 败 (666/0) · v267 4 历史滞后)
+## 四 · 测试矩阵 (13 套 · 12 全过 (456/0) · 1 v2.6.10 baseline 滞后)
 
 ```bash
 node _test_set_health.cjs              # 24 过
@@ -427,49 +429,6 @@ WAL · edge·skip[warmup:2000ms<5000ms] +4120B (size=X)  ← 守三
 ```
 
 **道一以贯之 (64 章)**: 为之者败之·执之者失之·圣人无为故无败·单行全栏 > 多处细栏 · 守一 > 守多 · 道极减法之真。
-
-### v2.7.5 道恒无名·万物自宾 · 治「单独 token 无法添加登录」(2026-05-14)
-
-> *道恒无名 · 朴唯小 · 而天下弗敢臣 · 侯王若能守之 · 万物将自宾 · 民莫之令而自均焉*
-
-**缘起 · 主公图1 实证**: 5 行 `auth1_xxx` (无 email 同行配对) 粘入 + 添加账号 → 入 tokens 数组成孤儿 · accounts 不增 → 用户视觉 "未添加" → 无法直登.
-
-**根因**: v2.7.1.1 「孤儿 token 入 tokens 数组待显式反查 email」之契约 · 对单 token 流派 (用户仅有 token · 无 email) 留无解之地.
-
-**治法 · 道恒无名 · 名不可名 · 万物自宾**:
-
-| 法 | 实施 | 治 |
-|---|---|---|
-| §A | `parseAccountText` 末段 · 孤儿 token → 占位 email 入 accounts | 占位形 `<kind>.<sha8>@token.wam` (合法 email) · password 槽 = 原 token |
-| §B | 立 `_isPlaceholderEmail(s)` 工具识别占位号 | UI/verify/rename 路径快判 (一函) · 公器同列于 `_normalizeAccCreds` 之后 |
-| §C | webview domainBadge 加 "tk" | 占位号视觉可识 (`.dm.tk { bg:#5a3a14; color:#f0c674 }`) |
-| §D | 5 kind 全适配: `auth1`/`session`/`jwt`/`apikey`/`refresh`/`raw` | 下游 `_normalizeAccCreds(acc)` 之 `_detectTokenKind(acc.password)` 自动分流 |
-
-**回归测 · `_test_v275_single_token_omni.cjs · 57/0` ✓** + 老测套 8 处行为断言对齐 v2.7.5 (v270/§10·11 + v271/§6·11 + v2711/§5.9).
-
-**全测套 17/18 套 0 败 · 总 666/0** (v267 28/4 v2.6.9-2.6.10 历史滞后·不计).
-
-### v2.7.4 🔒 独立持久化·multi-window race-safe (2026-05-14)
-
-`inUseUntil` 独立持久化 `lock-state.json` · 与 wam-state.json 解耦 · 多窗口和而不冲. 8 章「上善若水·居善地」.
-
-### v2.7.3 治🔒回退根·守一·大道至简 (2026-05-14)
-
-save 守一 · `inUseUntil` 入 `_serialize` 出口 · 一次写入·不破契约. 39 章「昔之得一者:天得一以清」.
-
-### v2.7.2 / v2.7.1 万法归一·token 直登·主公三诏 (2026-05-14)
-
-> *反者道之动 · 弱者道之用 · 天下之物生于有 · 有生于无*
-
-**主公三诏 (闻道者日损)**: "将 token 看做账号密码 · 直接复用一切 · 顺其自然"
-
-| 病 | 治 |
-|---|---|
-| 反序 token+email · token 缓存等下一 email 后未配对 | tryPair 升级 · email+token 优先返 `{email, token, kind}` |
-| 单行 token + pendingEmail · token 入 password 槽路径未通 | items 加 'pair-token' 类型 · 配对循环加 token + pendingEmail |
-| JSON {email, auth1_token} / {auth1: xxx} / refresh_token 等多形未识 | 反序 token+email · 单行 token+pendingEmail · 均入 accounts.password 槽 (token 与密码同居) |
-
-下游 `_normalizeAccCreds(acc)` 之 `_detectTokenKind(acc.password)` 自动分流 → loginViaToken. **回归测 `_test_v271_omni_token.cjs · 65/0` + `_test_v2711_main.cjs · 46/0`**.
 
 ### v2.7.0 万法识号·守道反者 · 唯变所适·适应万法之格式 (2026-05-09)
 

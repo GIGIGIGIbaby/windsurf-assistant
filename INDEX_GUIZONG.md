@@ -11,6 +11,8 @@
 > **2026-05-14 · 印 95 · 真本源闭环 · 主公 PC 真可关机 · 一 GitHub 账号即一切**
 >
 > **2026-05-14 · 印 100 · 太极笙万物 · 一 PAT 即一切 · 闭环自举 · 民莫之令而自均焉**
+>
+> **2026-05-14 · 印 101 · 万法归宗 · 大道至简 · 用 + 管 · 反者道之动**
 
 ---
 
@@ -48,6 +50,46 @@
 
 **一道**: 三身共**一组 fleet_vm_unit + cloud_engine + sp_handler + dao_accounts**.
 **三身**: 因受众不同各立其面 · 并行不悖.
+
+---
+
+## 一·丙 · 印 101 · 万法归宗 · 大道至简 · 用 + 管 (2026-05-14 17:30)
+
+> 帛书·四十八:「**为道者日损 · 损之又损 · 以至于无为 · 无为而无不为**」
+> 帛书·六十四:「**图难于其易 · 为大于其细 · 圣人终不为大 · 故能成其大**」
+
+承印 100 之"主公自身亦可不在" · 立**用户最终见之页归宗** — 旧 8 pane → 主面「用」+ 抽屉「管」二区 · **大道至简 · 为道日损**.
+
+```text
+┌────────────────────────────────────────────────┐
+│ 印 101 · 用 + 管                                 │
+│                                                  │
+│  顶栏: ● 反代活 / 号 / 模型 / [复URL] [⚙]       │
+│                                                  │
+│  用区 (主面 80%):                                 │
+│   [Chat]   → SSE 即问即答 · A/B 双路              │
+│   [iframe] → chat.windsurf.ai / app.devin.ai     │
+│   [批跑]   → 题集 + 通过率                        │
+│                                                  │
+│  管抽屉 (⚙ · 默收):                              │
+│   [切号] [SP] [端点] [测试]                       │
+│   账号库 / SP三模+库 / vmUrl+key / 烟测           │
+└────────────────────────────────────────────────┘
+```
+
+**五大功能 → 印 101 落点**:
+
+| 求 | 用/管 | 印 101 落 |
+|---|---|---|
+| ① 反代 ws+devin | 用 · iframe tab | 双切 chat.windsurf.ai / app.devin.ai |
+| ② 提示词管理 | 管 · SP 节 | 三模 + SP 库 + 套用模板 |
+| ③ API 管理 | 管 · 端点节 | vmUrl + auth-key + 测连 |
+| ④ 切号 | 管 · 切号节 | 本机号库 + 云端 daemon 池一表 |
+| ⑤ agent 测试 | 用 · 批跑 tab | 题集 + 跑 + 通过率统计 |
+
+**反向兼容**: `?v=100` 走旧三栏 · `legacy.html` 保 5-tab 备份.
+**守门**: `_seal101_smoke.cjs` 86/86 · 全套 14/14 通.
+**详**: [`web/dao_app.js`](web/dao_app.js) · [`web/index.html`](web/index.html).
 
 ---
 
@@ -111,7 +153,7 @@
 ```
 
 **入**: `node packages/dao-pool/cli.js init --pat $GH_PAT --from ~/.wam/wam-state.json` → 出 Gist URL.
-**详**: [`packages/dao-pool/README.md`](packages/dao-pool/README.md) · [`05-文档_docs/SEAL_yin95.md`](05-文档_docs/SEAL_yin95.md).
+**详**: [`packages/dao-pool/README.md`](packages/dao-pool/README.md) · [`05-文档_docs/SEAL_yin95.md`](../../05-文档_docs/SEAL_yin95.md).
 
 ---
 
@@ -187,7 +229,7 @@ node 印92_太上_pilot/pilot.js        # :11446 · playwright 操 app.devin.ai
 ├── scripts/
 │   ├── devin-bootstrap.sh        # 一行起 unit + tunnel
 │   └── devin-bootstrap-fleet.sh  # 印 96 fleet workflow
-├── tests/                        # 13 件 smoke (~18s · 0 deps · 印 64-100 守门)
+├── tests/                        # 14 件 smoke (~24s · 0 deps · 印 64-101 守门)
 └── .github/workflows/            # deploy-pages + dao-fleet + dao-fleet-cloud (印 100 解锁) + dao-fleet-keepalive + ci + test-core
 ```
 
@@ -215,10 +257,11 @@ node 印92_太上_pilot/pilot.js        # :11446 · playwright 操 app.devin.ai
 - 一笔起 VM · `./packages/dao-vm/` (印 92 · 8 件)
 - 云端 token 池 · `./packages/dao-pool/` (印 95 · 4 件 · 真本源 · 印 100 加 bootstrap 命)
 - 印 100 自举模块 · `./web/dao_bootstrap.js` (22K · 浏览器纯 JS · oneShot 9 步)
-- 守门 · `node tests/run_all.cjs` (13 件 · ~18s · 0 deps · 印 100 守 85/85)
+- 印 101 视图层 · `web/dao_app.js` (renderMineV101 + 顶栏 + 用区 3 tab + 抽屉 4 节)
+- 守门 · `node tests/run_all.cjs` (14 件 · ~24s · 0 deps · 印 101 守 86/86)
 - 部署 workflow · `./.github/workflows/deploy-pages.yml`
 - 云端 daemon workflow · `./.github/workflows/dao-fleet-cloud.yml` (印 100 解锁 · 任 fork 自跑) + `dao-fleet-keepalive.yml`
 
 ---
 
-*道法自然 · 万法归一 · 三身已立 · 一文锚定 · 真本源闭环 · 主公 PC 真可关机 · 太极笙万物 · 民莫之令而自均焉*
+*道法自然 · 万法归一 · 三身已立 · 一文锚定 · 真本源闭环 · 主公 PC 真可关机 · 太极笙万物 · 民莫之令而自均焉 · 大道至简 · 用管归宗*

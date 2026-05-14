@@ -71,12 +71,10 @@ function Get-WamSourceVersion {
     param([string]$ExtensionJs = (Join-Path $script:DaoLibDir 'extension.js'))
     if (-not (Test-Path $ExtensionJs)) { return $null }
     # v2.6.9: head 扩至 400 行 · 防 changelog 注释累积推 VERSION 出窗 (v2.6.9 注释 ~46 行 · VERSION 在 220)
-    # v2.7.1.1: 再扩至 600 行 · v2.7.x 头注解累至 ~420 行 · 防"知止可以不殆"
-    $head = Get-Content $ExtensionJs -TotalCount 600 -ErrorAction SilentlyContinue
+    $head = Get-Content $ExtensionJs -TotalCount 400 -ErrorAction SilentlyContinue
     $verLine = ($head | Select-String 'const VERSION\s*=\s*"' | Select-Object -First 1)
     if (-not $verLine) { return $null }
-    # v2.7.1.1 · 兼容四段 patch 版本号 (如 2.7.1.1) · 子段可选
-    return ($verLine.Line -replace '.*"([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)".*', '$1')
+    return ($verLine.Line -replace '.*"([0-9]+\.[0-9]+\.[0-9]+)".*', '$1')
 }
 
 function Get-WamSourcePackageVersion {
