@@ -24,7 +24,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const TESTS = [
-  "_web_static_audit",
+  // (cleanup-2026-05-16 · _web_static_audit 随 legacy.html 同损 · 现 web 由 _seal67/69_smoke 守)
   "_dao_core_syntax",
   "_three_pure_smoke", // 印 65 · 一气化三清守门 (README / web / scripts 道义)
   "_seal67_smoke", // 印 67 · 道独立体公网入口三态 (gate/onboarding/mine) + Gist 同步层

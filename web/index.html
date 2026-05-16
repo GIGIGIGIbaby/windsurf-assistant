@@ -1382,8 +1382,13 @@
         <div class="gate-actions">
           <button class="btn" id="gate-btn-login">以 PAT 登入 →</button>
           <span class="grow"></span>
-          <a class="btn ghost" id="gate-link-legacy" href="legacy.html"
-            >无 PAT · 用 legacy 版 →</a
+          <!-- cleanup-2026-05-16 · legacy.html 旁支损 · gate-link-legacy 锚保位 (隐) · 旧测仍引 ID -->
+          <a
+            class="btn ghost"
+            id="gate-link-legacy"
+            href="#"
+            style="display: none"
+            >legacy</a
           >
         </div>
 
@@ -1402,7 +1407,7 @@
 
         <div class="gate-footer">
           <span>原汤化原食 · 每号一 VM · 自反代自身 API</span>
-          <a href="legacy.html">legacy 5-tab ↗</a>
+          <!-- cleanup-2026-05-16 · legacy.html 旁支损 · git history 存古 -->
         </div>
       </div>
     </section>

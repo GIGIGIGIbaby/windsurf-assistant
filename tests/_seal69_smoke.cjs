@@ -192,7 +192,7 @@ ok(r2.ok, "dao_github_sync.js node --check OK" + (r2.ok ? "" : " · " + r2.err))
 ok(/id="state-gate"/.test(html), "印 67 守: state-gate 锚在");
 ok(/id="state-onboarding"/.test(html), "印 67 守: state-onboarding 锚在");
 ok(/id="state-mine"/.test(html), "印 67 守: state-mine 锚在");
-ok(/legacy\.html/.test(html), "印 67 守: legacy.html 链在 (旁支退路)");
+// (cleanup-2026-05-16 · legacy.html 旁支损 · 链锚同损)
 
 // ── 总结 ───────────────────────────────────────────────────────────
 const total = pass + fail;

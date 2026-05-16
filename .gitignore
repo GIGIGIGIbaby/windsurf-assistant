@@ -88,8 +88,14 @@ packages/dao-core/_*.out
 packages/dao-core/_*.err
 tests/_*.out
 tests/_*.err
+tests/_*.out.txt
+tests/_*.err.txt
 **/_*_unit.out
 **/_*_unit.err
+
+# cleanup-2026-05-16 · 损之件不再立 · 防再误入
+05-文档_docs/
+**/SEAL_yin*.md
 
 # 例外 · packages/wam/账号库.example.md (脱敏 example · 主公私产真账号由 .gitignore 屏蔽)
 !packages/wam/账号库.example.md

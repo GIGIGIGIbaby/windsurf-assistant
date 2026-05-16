@@ -134,7 +134,7 @@ function main() {
   // 原印 65 之 #card-three-pure / link-pure-1/2/3 / switchTab 等 DOM
   // 名已废弃 (改 enterMine/renderGate · 切号已嵌 mine-mid 中栏);
   // 三清道义锚 (一气化三清/切号/提示词 等) 仍在 web · 由本测把守.
-  // 旧形 web/legacy.html 由 _web_static_audit.cjs 把守.
+  // (cleanup-2026-05-16 · 旧形 web/legacy.html + _web_static_audit.cjs 同损)
   console.log("[B] web/* 三清道义锚 · 印 67 新三态形态");
   const web = read("web/index.html");
   const app = exists("web/dao_app.js") ? read("web/dao_app.js") : "";

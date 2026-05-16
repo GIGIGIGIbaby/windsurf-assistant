@@ -19,8 +19,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: E2E · packages/wam
-        run: node packages/wam/_test_v2711_main.cjs
+      - name: E2E · packages/wam (印 65 三清守门 · 印 101 大道至简 · cleanup-2026-05-16)
+        run: |
+          cd packages/wam
+          node _test_in_use.cjs
+          node _test_quota.cjs
+          node _test_set_health.cjs
+          node _test_e2e_msg_rotate.cjs
 
       - name: Build VSIX
         run: node scripts/build-vsix.js wam

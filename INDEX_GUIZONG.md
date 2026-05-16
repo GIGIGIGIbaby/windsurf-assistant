@@ -163,7 +163,7 @@ node deployer.js --n 1 --reuse-pool --dry-gist  # 用现池 alive · 不耗 ACU
 | ④ 切号 | 管 · 切号节 | 本机号库 + 云端 daemon 池一表 |
 | ⑤ agent 测试 | 用 · 批跑 tab | 题集 + 跑 + 通过率统计 |
 
-**反向兼容**: `?v=100` 走旧三栏 · `legacy.html` 保 5-tab 备份.
+**反向兼容**: `?v=100` 走旧三栏 · (旧旁支 `legacy.html` 已于 cleanup-2026-05-16 损 · git history 存古).
 **守门**: `_seal101_smoke.cjs` 86/86 · 全套 14/14 通.
 **详**: [`web/dao_app.js`](web/dao_app.js) · [`web/index.html`](web/index.html).
 
@@ -196,7 +196,7 @@ node deployer.js --n 1 --reuse-pool --dry-gist  # 用现池 alive · 不耗 ACU
 
 **入 (Web)**: 打开 <https://zhouyoukang.github.io/windsurf-assistant/> · 粘 PAT · 完.
 **入 (Node)**: `node packages/dao-pool/cli.js bootstrap --pat $GH_PAT`.
-**详**: [`web/dao_bootstrap.js`](web/dao_bootstrap.js) · [`05-文档_docs/SEAL_yin100.md`](../../05-文档_docs/SEAL_yin100.md).
+**详**: [`web/dao_bootstrap.js`](web/dao_bootstrap.js) · 历之阶见 [`_archive/seal-history.md`](_archive/seal-history.md).
 
 ---
 
@@ -230,7 +230,7 @@ node deployer.js --n 1 --reuse-pool --dry-gist  # 用现池 alive · 不耗 ACU
 ```
 
 **入**: `node packages/dao-pool/cli.js init --pat $GH_PAT --from ~/.wam/wam-state.json` → 出 Gist URL.
-**详**: [`packages/dao-pool/README.md`](packages/dao-pool/README.md) · [`05-文档_docs/SEAL_yin95.md`](../../05-文档_docs/SEAL_yin95.md).
+**详**: [`packages/dao-pool/README.md`](packages/dao-pool/README.md) · 历之阶见 [`_archive/seal-history.md`](_archive/seal-history.md).
 
 ---
 
@@ -293,14 +293,13 @@ node 印92_太上_pilot/pilot.js        # :11446 · playwright 操 app.devin.ai
 ## 四 · 仓骨
 
 ```text
-├── README.md                     # 印 67-92 主文 (37.7K · 一气化五清详记)
+├── README.md                     # 印 65 三清 + 一装三步 + 道义守 (历层印 88-101 入 _archive/seal-history.md)
 ├── INDEX_GUIZONG.md              # ★ 此文 · 一文锚三身
 ├── web/                          # GitHub Pages 静态 (零依赖)
 │   ├── index.html                # gate/onboarding/mine 三态 + v101 CSS
-│   ├── dao_app.js                # 印 101 用+管: renderMineV101 (顶栏+用区3tab+抽屉4节)
+│   ├── dao_app.js                # 印 101 用+管: renderMineV101 (顶栏+用叺3tab+抽屉节)
 │   ├── dao_bootstrap.js          # ★ 印 100 浏览器自举 · oneShot 9 步 (22K)
-│   ├── dao_github_sync.js        # Gist 同步
-│   └── legacy.html               # 旧 5-tab (印 66 末态 · 备)
+│   └── dao_github_sync.js        # Gist 同步
 ├── packages/
 │   ├── dao-core/      (10 · 261K) # 反代核心 · fleet_vm_unit + cloud/devin engine + sp + auth
 │   ├── dao-injector/  (13 · 79K)  # 印 90 浏览器 wss hook (MV3 + Tampermonkey)
@@ -337,6 +336,7 @@ node 印92_太上_pilot/pilot.js        # :11446 · playwright 操 app.devin.ai
 
 ## 六 · 引
 
+- 历层印 88→101 · [`_archive/seal-history.md`](_archive/seal-history.md) (损于 cleanup-2026-05-16)
 - 主 README · `./README.md`
 - 反代 API · `./packages/dao-core/README.md`
 - 提示词反代 VSIX · `./packages/dao-proxy-min/README.md`
@@ -355,3 +355,24 @@ node 印92_太上_pilot/pilot.js        # :11446 · playwright 操 app.devin.ai
 ---
 
 *道法自然 · 万法归一 · 三身已立 · 一文锚定 · 真本源闭环 · 主公 PC 真可关机 · 太极笙万物 · 民莫之令而自均焉 · 大道至简 · 用管归宗 · ★ 印 115 反者道之动 · 反代核心移 Devin VM · 鸡犬相闻 · 民至老死不相往来*
+
+---
+
+## 七 · 云端去芜 · cleanup-2026-05-16
+
+> *为道日损 · 损之又损 · 以至于无为* — 帛书 四十八
+
+承印 115 立 · 行去芜存菁 · 损 -9221 行 (-9369 / +148):
+
+| 损 | 备 |
+|---|---|
+| `README.md` 53 KB → ~10 KB | 印 88-101 历层入 [`_archive/seal-history.md`](_archive/seal-history.md) · 主文复 印 65 三清 |
+| `tests/_run_all.out.txt` 39 KB | 误入库之测输 · .gitignore 加 |
+| `web/legacy.html` 56 KB | 旧 5-tab 旁支 · git history 存古 |
+| `tests/_web_static_audit.cjs` 8 KB | legacy.html 专守 · 同损 |
+| `05-文档_docs/SEAL_yin95.md` 8.5 KB | 单 seal 文 · INDEX_GUIZONG 已盖 |
+| `_findings/test_fix_印81.md` | 移 [`_archive/test_fix_yin81.md`](_archive/test_fix_yin81.md) |
+| `packages/wam/_test_v*.cjs` × 14 | 移 [`_archive/wam-tests-history/`](_archive/wam-tests-history/) · ci.yml 以 _test_in_use 代 _wam_e2e (后者之前已损) |
+| `packages/wam/README.md` | 补三清导航首章 (失而复得 · 修 _three_pure_smoke 失项) |
+
+验: `node tests/run_all.cjs` 全套 13/13 · 0 regression (原 14 - _web_static_audit + 印115 _seal115 = 14 件 · cleanup 后含印 115 守).

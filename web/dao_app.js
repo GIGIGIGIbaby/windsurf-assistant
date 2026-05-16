@@ -203,8 +203,9 @@
         }
       });
     }
+    // (cleanup-2026-05-16 · legacy.html 旁支损 · gate-link-legacy 锚同损)
     if (lnk) {
-      lnk.href = "legacy.html";
+      lnk.style.display = "none";
     }
   }
 

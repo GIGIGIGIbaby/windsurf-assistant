@@ -39,7 +39,7 @@
 //       · SP 三模: passthrough / dao / custom
 //       · Node syntax check pass
 //
-//   [D] web/legacy.html 保旧不弃
+//   [D] (cleanup-2026-05-16 · legacy.html + _web_static_audit 同损 · 此节已弃)
 //       · 文件存
 //       · 含旧 5-tab (Setup/Chat/API/Deploy/Docs)
 //
@@ -103,10 +103,7 @@ ok(/id="state-mine"/.test(idx), "MINE state-mine 段在");
 // GATE 关键锚
 ok(/id="gate-pat"/.test(idx), "GATE 输入 gate-pat 在");
 ok(/id="gate-btn-login"/.test(idx), "GATE 钮 gate-btn-login 在");
-ok(
-  /id="gate-link-legacy"/.test(idx),
-  "GATE 旁支 gate-link-legacy → legacy.html 在",
-);
+// (cleanup-2026-05-16 · legacy.html 旁支已损 · gate-link-legacy 锚同损)
 ok(idx.includes("帛书《老子》") || idx.includes("帛书"), "GATE 含帛书引");
 ok(
   /为学者日益.*闻道者日损/.test(idx) || /为道者日损/.test(idx),
@@ -302,15 +299,7 @@ ok(/印 67/.test(app), "印 67 印记在");
 const r2 = nodeSyntax("web/dao_app.js");
 ok(r2.ok, "node --check syntax OK" + (r2.ok ? "" : " · " + r2.err));
 
-// ── [D] web/legacy.html 保旧不弃 ───────────────────────────────────
-console.log("\n[D] web/legacy.html 保旧不弃");
-ok(exists("web/legacy.html"), "web/legacy.html 存 (旧 5-tab 备份)");
-const legacy = read("web/legacy.html");
-ok(/data-tab="setup"/.test(legacy), "legacy 含 Setup tab");
-ok(/data-tab="chat"/.test(legacy), "legacy 含 Chat tab");
-ok(/data-tab="api"/.test(legacy), "legacy 含 API tab");
-ok(/data-tab="deploy"/.test(legacy), "legacy 含 Deploy tab");
-ok(/data-tab="docs"/.test(legacy), "legacy 含 Docs tab");
+// ── [D] (cleanup-2026-05-16 · legacy.html 旁支损 · 此节已弃) ───────
 
 // ── [E] 三清不悖 (印 65/66 仍立) ────────────────────────────────────
 console.log("\n[E] 三清不悖 (印 65/66 仍立)");
