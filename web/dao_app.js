@@ -3328,6 +3328,11 @@
             ["复 Base URL"],
           ),
         ]),
+        // 印 115 · 反者道之动 · 触 Devin VM 反代 fleet workflow (鸡犬相闻)
+        el("div", { class: "row gap", style: { marginTop: "8px" } }, [
+          el("button", { class: "btn ghost small", onclick: () => triggerDevinFleet_yin115(2) }, ["★ 起 N=2 Devin VM (印 115)"]),
+          el("button", { class: "btn ghost small", onclick: () => { if (typeof autoFindCloudPoolGist === "function") autoFindCloudPoolGist(); } }, ["刷池"]),
+        ]),
       ]),
     );
   }
@@ -3450,4 +3455,27 @@
       toast("启动失败: " + e.message, "err");
     });
   });
+
+  // ═══ 印 115 · 反者道之动 · GH Actions workflow 触发 (帛书 80 鸡犬相闻) ═══
+  async function triggerDevinFleet_yin115(n) {
+    n = n || 2;
+    const pat = (typeof daoSync !== "undefined" && daoSync.getPat) ? daoSync.getPat() : localStorage.getItem("dao_pat");
+    if (!pat) { toast("无 PAT · 请先登入", "warn"); return; }
+    const owner = (typeof daoSync !== "undefined" && daoSync.user && daoSync.user.login) || "";
+    if (!owner) { toast("未识 owner · 重登", "warn"); return; }
+    const repo = "windsurf-assistant";
+    try {
+      const r = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/actions/workflows/dao-fleet-devin-cloud.yml/dispatches`,
+        { method: "POST", headers: { Authorization: `token ${pat}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify({ ref: "main", inputs: { n: String(n) } }) }
+      );
+      if (r.status === 204) {
+        toast(`★ 印 115 workflow 触发 · 起 ${n} Devin VM · ~120s`, "ok");
+        setTimeout(() => { if (typeof autoFindCloudPoolGist === "function") autoFindCloudPoolGist(); }, 90000);
+      } else {
+        const t = await r.text();
+        toast(`触发失: ${t.slice(0, 100)}`, "err");
+      }
+    } catch (e) { toast(`错: ${e.message}`, "err"); }
+  }
 })();
