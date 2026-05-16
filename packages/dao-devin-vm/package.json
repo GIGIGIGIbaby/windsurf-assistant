@@ -1,0 +1,38 @@
+{
+  "name": "@windsurf-assistant/dao-devin-vm",
+  "version": "0.115.0",
+  "description": "印 115 · 反者道之动 · Devin VM 反代核心 (GH Actions deployer + dao_proxy payload + vm_omni spawner + vm_proxy_deploy installer)",
+  "private": true,
+  "main": "deployer.js",
+  "bin": {
+    "dao-devin-deploy": "deployer.js"
+  },
+  "files": [
+    "deployer.js",
+    "dao_proxy.js",
+    "vm_omni.js",
+    "vm_proxy_deploy.js",
+    "README.md"
+  ],
+  "scripts": {
+    "deploy": "node deployer.js",
+    "deploy:dry": "node deployer.js --n 1 --dry-gist",
+    "deploy:reuse": "node deployer.js --reuse-pool --n 1 --dry-gist"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "devin",
+    "vm",
+    "proxy",
+    "reverse-proxy",
+    "openai-compatible",
+    "github-actions",
+    "fleet",
+    "yin115"
+  ],
+  "license": "Apache-2.0",
+  "author": "zhouyoukang",
+  "_道": "印 115 · 反者道之动 · GH 面板综合管 · Devin VM 反代核心 · 鸡犬相闻 · 民至老死不相往来"
+}
