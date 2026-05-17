@@ -16,8 +16,11 @@ name: dao-fleet-keepalive
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/30 * * * *'  # 每 30 min
+  # 印 ∞.6 · 软化触因 · 暂停 cron · 帛书三十「兵者不祥之器也 · 不得已而用之」
+  # 帛书四十「反者道之动也 · 弱者道之用也」── 退一步 · 让 GitHub 反 abuse 自察
+  # 解冻后建议: 仅手动 dispatch · 或恢复 '0 */6 * * *' (每 6h · 不每 30 min)
+  # schedule:
+  #   - cron: '*/30 * * * *'  # 每 30 min · 印 ∞.6 暂停
 
 permissions:
   contents: read

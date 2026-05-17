@@ -70,9 +70,12 @@ on:
         description: '印 100 · sk-ws-proxy-* (留空则用 repo secret DAO_AUTH_KEY)'
         required: false
         default: ''
-  schedule:
-    # 每 5 小时一次 · 自续 (UTC · 凡 0/5/10/15/20 时)
-    - cron: '0 */5 * * *'
+  # 印 ∞.6 · 软化触因 · 暂停 cron · 帛书三十「兵者不祥之器也 · 不得已而用之」
+  # 帛书四十「反者道之动也 · 弱者道之用也」── 退一步 · 让 GitHub 反 abuse 自察
+  # 解冻后建议恢复为 '0 */12 * * *' (每 12h · 主公 PC 关机仍真活但温和)
+  # schedule:
+  #   # 每 5 小时一次 · 自续 (UTC · 凡 0/5/10/15/20 时) · 印 ∞.6 暂停
+  #   - cron: '0 */5 * * *'
   push:
     branches: [main]   # cleanup-2026-05-16.ii · 仅 main · 防 feature/PR 分支 push 触发 daemon (省 ACU)
     paths:

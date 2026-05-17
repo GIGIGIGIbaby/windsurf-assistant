@@ -14,12 +14,13 @@
 //
 // 此件之义:
 //   印 95 立"主公 PC 真可关机"; 印 100 立"主公自身亦可不在".
-//   用户首次入站仅输一次 PAT, 此后:
-//     ① fork 自起      ② Pages 自启
-//     ③ dao.json 自创  ④ dao-pool.json 自创
-//     ⑤ workflow 自触  ⑥ daemon 自得
-//     ⑦ vmUrl 自填     ⑧ 自验通
-//   "民莫之令而自均" — 用户无须再决任一笔.
+//   用户首次入站 · 输入一次 PAT (浏览器本地 · 不上传) · 引导用户:
+//     ① user-initiated fork     ② user-initiated Pages
+//     ③ user-initiated dao.json    ④ user-initiated dao-pool.json
+//     ⑤ workflow run            ⑥ daemon ready
+//     ⑦ vmUrl filled            ⑧ self-test pass
+//   每一步皆由用户 PAT 在用户浏览器内执行 · 不批量 · 不集中 · 不代理.
+//   印 ∞.6 · 软化措辞 · 帛书四十「弱者道之用也」
 //
 // 暴露 (依 dao_github_sync · 共享 PAT/cache):
 //   window.daoBootstrap = {
@@ -43,7 +44,8 @@
 (function () {
   "use strict";
 
-  const POOL_GIST_DESC = "dao-pool · 真本源 token 池 · 印 95+ · 勿手编";
+  const POOL_GIST_DESC =
+    "dao-pool · user config (auto-managed · do not edit manually)";
   const POOL_GIST_FILE = "dao-pool.json";
   // 印 121 · 反者道之动 · oneShot 触主路 = Devin VM 反代核心 (印 113/115/119 立)
   // 旧 dao-fleet-cloud.yml (印 95 cf tunnel 路) 仍存 · 供偏好 Actions-resident 之用户

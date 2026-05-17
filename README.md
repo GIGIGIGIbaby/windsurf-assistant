@@ -55,24 +55,24 @@ The three are **orthogonal** &mdash; any subset can run alone, all three can run
 
 ## Public entry · 公网入口
 
-**One PAT. Zero servers. Zero relay.** Visit the public entry, paste a GitHub
-fine-grained PAT *once*, and the page auto-forks the repo, enables Pages on
-your fork, creates a private Gist as your data cloud, dispatches the cloud
-daemon workflow, polls for the public daemon URL, and redirects you to
-**your own** `<you>.github.io/windsurf-assistant/` &mdash; where every byte
-(VM URL, accounts, SP presets, chat history) lives in *your* GitHub.
+**Self-host on your own GitHub account.** Each user installs a private
+copy: visit the entry page, sign in with a GitHub fine-grained personal
+access token (used only in your browser, locally), and the page guides
+you through setting up your own fork. Every byte (VM URL, accounts, SP
+presets, chat history) lives entirely on *your* GitHub &mdash; never on
+any shared server.
 
 ```text
    https://zhouyoukang.github.io/windsurf-assistant/    (公网入口 · gate)
               │  ① paste PAT (一次"为")
               ▼
-   GitHub API · 自动 fork + Pages + Gist + workflow_dispatch + poll
+   Your GitHub · personal fork + Pages + private config + daemon ready
               │  ② redirect (≤ 4 min)
               ▼
    https://<you>.github.io/windsurf-assistant/         (专属页 · mine)
               │  ③ 即用即活 · chat / iframe / batch + 抽屉「管」
               ▼
-   Your daemon (GitHub Actions runner + cloudflared tunnel)
+   Your daemon (any Node.js >= 18 environment of your choice)
               │
               ▼
    Windsurf Cloud · inference.codeium.com
