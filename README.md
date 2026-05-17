@@ -122,7 +122,7 @@ curl -sL https://raw.githubusercontent.com/<your-user>/windsurf-assistant/main/s
 
 For users with multiple accounts the repo also ships [`scripts/devin-bootstrap-fleet.sh`](scripts/devin-bootstrap-fleet.sh) &mdash; *multi-account / single-VM* (one VM runs N `fleet_vm_unit.js` instances on N ports behind one `cloudflared` tunnel; coordinated by `fleet_controller.js`). Use this when one VM has spare capacity and you want to *取之尽锱铢* (squeeze every cycle) without paying for N VMs.
 
-Or use the GitHub Actions workflow `dao-fleet-cloud.yml` (`workflow_dispatch` &middot; cron 5h &middot; daemon URL written back to your data Gist).
+Or use the GitHub Actions workflow `dao-fleet-cloud.yml` (manual `workflow_dispatch` &middot; daemon URL is written back to your data Gist).
 
 **3. Plug into anything OpenAI-compatible.** Open the API panel of your hosted page; copy `Base URL` + `API Key` into LobeChat / OpenWebUI / NextChat / Cherry Studio / `openai` SDK / Continue.dev / Aider / Cursor.
 

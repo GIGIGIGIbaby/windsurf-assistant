@@ -65,9 +65,12 @@ on:
         description: '印 121 · 最大跑时长 (max 350 · 默 350 · 供 oneShot maxMinutes)'
         required: false
         default: '350'
-  schedule:
-    # 每 5 小时一次 · cron 接续 · daemon 真永活
-    - cron: '0 */5 * * *'
+  # 印 ∞.7 · 软化触因 · 暂停 cron · 帛书三十「兵者不祥之器也 · 不得已而用之」
+  # 帛书四十「反者道之动也 · 弱者道之用也」── 退一步 · 让 GitHub 反 abuse 自察
+  # 解冻后建议恢复为 '0 */12 * * *' (每 12h · 主公 PC 关机仍真活但温和)
+  # schedule:
+  #   # 每 5 小时一次 · cron 接续 · daemon 真永活 · 印 ∞.7 暂停
+  #   - cron: '0 */5 * * *'
   # 印 116 损: 删 push trigger
   # 根: push 触发无 inputs · secrets fallback 即 secrets 缺则必失
   # 治: 仅 workflow_dispatch (用户主动) + schedule (cron 自续)
