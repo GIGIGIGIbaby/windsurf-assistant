@@ -2,6 +2,96 @@
 
 > 反也者, 道之动也; 弱也者, 道之用也. —— 帛书《老子》德经
 
+## v9.9.0 — 印 124 · 第一细药 · 外接 api 归一 (2026-05-17)
+
+> **图难于其易也，为大于其细也。天下之难作于易，天下之大作于细。是以圣人终不为大，故能成其大.** —— 帛书《老子》六十三章
+>
+> **为之于其未有也, 治之于其未乱也.** —— 帛书《老子》六十四章
+>
+> **损之又损, 以至于无为, 无为而无不为.** —— 帛书《老子》四十八章
+
+### 一句话
+
+承印 123 (dao-proxy-max v1.0.8 · 22/38 模真聊真应) 之实, 归一于 min 之厚。**v9.8.0 守一不离主体字节级不动**, 加 `vendor/外接api/` 一文件夹 · **默关** · 主公一字开 · Cascade 选单立见 14 provider 之 N 模 (与 4 BYOK 一视同仁)。
+
+### 归一之实
+
+| 件 | 大小 | 来源 | 职 |
+|---|---|---|---|
+| `vendor/外接api/gateway/server.js` | 55.7KB | 字节级 cp from max v1.0.8 | 主入口 · CLI: `--port --config` |
+| `vendor/外接api/gateway/registry.js` | 10.1KB | 字节级 cp from max | Provider 注册中心 |
+| `vendor/外接api/gateway/translate.js` | 27.7KB | 字节级 cp from max | Anthropic ↔ OpenAI ↔ Gemini ↔ Ollama 协议互转 |
+| `vendor/外接api/gateway/capabilities.js` | 7.3KB | 字节级 cp from max | 各 model 之 tool/vision/system 能力辨 |
+| `vendor/外接api/gateway/providers/*.js` | 12.7KB | 字节级 cp from max | openai/anthropic/gemini/ollama/http (5 件) |
+| `vendor/外接api/lm_register.js` | ~14KB | 抽 max ext.js L666-1018 + 参数化 | vscode.lm 注 (三别名 fallback) |
+| `vendor/外接api/runtime.js` | ~10KB | 新写 | 启停 wrapper · 默关 · 主公一字开 |
+| `vendor/外接api/配置.example.json` | 2.3KB | 字节级 cp from 070-插件_Plugins/外接api/ | GitHub Models 极简起手 |
+| `vendor/外接api/README.md` | ~5KB | 新写 | 一文之示 |
+
+### 主体改动 (扩 · 不破)
+
+`extension.js`:
+
+- L2110-2123 · commands 加 1 行 `dao.外接api.toggle`
+- L2232-2239 · activate 末 watchdog 之后调 `tryStartExternalApi(ctx)` (try-catch · 失败不影响 min)
+- L2276-2279 · deactivate ④ 之后, ⑤ 之前调 `tryStopExternalApi()`
+- L2297-2396 · 文件末加 100 行 helper (`tryStartExternalApi` / `tryStopExternalApi` / `cmdExternalApiToggle` + 单例 `_externalApiRuntime`)
+
+`package.json`:
+
+- version: 9.8.0 → **9.9.0**
+- commands 加 1 项 `dao.外接api.toggle`
+- configuration.properties 加 1 项 `dao.外接api.enabled` (默 **false** · 不扰心)
+
+### 一身两轨 (反者道之动)
+
+```text
+反代核轨 (字节级守 · v9.8.0 commit)         外接 api 轨 (印 124 · 第一细药)
+  vendor/bundled-origin/source.js              vendor/外接api/gateway/server.js
+  + _silk_dao.txt + _silk_de.txt               + lm_register.js + runtime.js
+  :8889..8988 (per-user FNV)                   :11635..11734 (per-user FNV)
+  Cascade Connect-RPC SP 注入                  OpenAI/Anthropic chat 14 provider
+  二态切换 (invert/passthrough)                vscode.lm 注 N 模入 Cascade 选单
+                  ╰─────── per-user FNV-1a 端口不撞 · 互不依赖 ───────╯
+```
+
+### 主公一字 (一念三步活)
+
+1. `Ctrl+Shift+P` → 设置 · 搜 `dao.外接api.enabled` · 勾上
+2. `Ctrl+Shift+P` → `道Agent: 外接 api 开关` (或重启 Windsurf)
+3. Cascade 模型选择器搜 `dao-` · 即见 14 provider 之 N 模
+
+或一行：`Ctrl+Shift+P` → `道Agent: 外接 api 开关` (toggle 即自动改 enabled 并启)
+
+### 配置
+
+启时自动复 `vendor/外接api/配置.example.json` 至 `~/.codeium/dao-byok/配置.json` (用户域 · 跨 vsix 升级不丢)。主公手编填 apiKey + `enabled:true`。
+
+### 验
+
+```powershell
+# 静检 (与 v9.8.0 一致 · 主体不破)
+pwsh _审视/_smoke.ps1
+
+# v9.8.0 strip-test 仍通 (主体字节级不动)
+node _审视/_v980_strip_test.js   # 6/6 pass
+
+# v9.9.0 外接 api 自检 (打开 enabled · 启 · 查 /__dao/providers)
+Ctrl+Shift+P → dao.外接api.toggle
+curl http://127.0.0.1:<gateway-port>/health
+curl http://127.0.0.1:<gateway-port>/__dao/providers
+```
+
+### 哲
+
+**「图难其易·为大其细」**: 不直奔大归一 (B/C 之事), 起手作于最易最细 — 加 vendor/外接api/ 一文件夹, 默关, 主公一字开。
+
+**「终不为大·故能成其大」**: 不立「大」之名, 默关不扰心; 主公愿则启, Cascade 立见 N 模; 不愿则寝, min 反代核如初。
+
+**「为之于未有·治之于未乱」**: 反代核不动 · 二轨字节级正交 · 后续 B 之事 (byok 字节级劫 / Windsurf 反代 / Devin 反代 / webview 一面板) 待主公验后再图。
+
+---
+
 ## v9.8.0 — 守一不离 (2026-05-06)
 
 > **昔之得一者：天得一以清·地得一以宁·神得一以灵·侯王得一以为天下正.** —— 帛书《老子》三十九章

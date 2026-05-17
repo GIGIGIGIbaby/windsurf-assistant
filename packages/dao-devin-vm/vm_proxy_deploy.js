@@ -369,19 +369,46 @@ async function deployCmd() {
     },
   ];
 
-  // silk 路径 (找 帛书原文)
-  const silkCandidates = [
-    path.resolve(
-      BASE_DIR,
-      "../../05-文档_docs/image/道德经原文/帛书五千言.txt",
-    ),
-    path.resolve(BASE_DIR, "../../05-文档_docs/帛书五千言.txt"),
-    path.resolve(BASE_DIR, "../帛书五千言.txt"),
-  ];
-  for (const sp of silkCandidates) {
-    if (fs.existsSync(sp)) {
-      files.push({ remote: REMOTE_DIR + "/silk.txt", local: sp });
-      break;
+  // 印 122 · sp_observe_patch.js 软伴 (主公 yin122 之 require ./sp_observe_patch · 容退)
+  // 若 BASE_DIR 内有此件 (00_本源/sp_observe_patch.js) 则一并上传 · 否则 dao_proxy 之 try/catch 自吞
+  const spObserveLocal = path.join(BASE_DIR, "sp_observe_patch.js");
+  if (fs.existsSync(spObserveLocal)) {
+    files.push({
+      remote: REMOTE_DIR + "/sp_observe_patch.js",
+      local: spObserveLocal,
+    });
+  }
+
+  // 印 122 · 真本源 silk 双源传 (dao_proxy.js loadSilk 期 _silk_de.txt + _silk_dao.txt)
+  // 帛书·廿二「圣人执一·以为天下牧」+ 六十四「治之于其未乱也」
+  // 旧路 silk.txt 单件 → 新路 silk/_silk_de.txt + silk/_silk_dao.txt 双源
+  // 兼老: 若双源缺, fallback 旧路 silk.txt (留兼)
+  const silkDaoLocal = path.join(BASE_DIR, "silk", "_silk_dao.txt");
+  const silkDeLocal = path.join(BASE_DIR, "silk", "_silk_de.txt");
+  if (fs.existsSync(silkDaoLocal) && fs.existsSync(silkDeLocal)) {
+    files.push({
+      remote: REMOTE_DIR + "/silk/_silk_dao.txt",
+      local: silkDaoLocal,
+    });
+    files.push({
+      remote: REMOTE_DIR + "/silk/_silk_de.txt",
+      local: silkDeLocal,
+    });
+  } else {
+    // fallback 旧路 (印 106 之 兼老 · 单件 silk.txt)
+    const silkCandidates = [
+      path.resolve(
+        BASE_DIR,
+        "../../05-文档_docs/image/道德经原文/帛书五千言.txt",
+      ),
+      path.resolve(BASE_DIR, "../../05-文档_docs/帛书五千言.txt"),
+      path.resolve(BASE_DIR, "../帛书五千言.txt"),
+    ];
+    for (const sp of silkCandidates) {
+      if (fs.existsSync(sp)) {
+        files.push({ remote: REMOTE_DIR + "/silk.txt", local: sp });
+        break;
+      }
     }
   }
 

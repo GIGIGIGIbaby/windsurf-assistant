@@ -84,8 +84,8 @@ const zlib = require("zlib");
 const PORT = parseInt(process.env.ORIGIN_PORT || "8889", 10);
 // v9.6.1 · 反者道之动 · 远曰反 · 回归 v9.1.2 之全前端按钮 (七按钮: 道/官/实/原/编/复/卸 + dots/customBadge)
 // 以 v9.1.2 本源哲学为锚 · 守大常不动 · 五细节皆成: isAlreadyInverted · _rawTape+all_fields · INFER_STRIP 挂 modifyAnyInferenceSP · 部署不 kill · 前端按钮回归
-const ORIGIN_VERSION_BASE = "v9.8.0"; // webview title/banner/footer 均读此
-const ORIGIN_VERSION = ORIGIN_VERSION_BASE + "-shou-yi-bu-li"; // 三十九章 得一 · 守 @ 项与元之一体 · SIDE_CHANNEL_TAGS 删 'additional_metadata' · 复 @ 工具之根 · tape raw_text 显 AFTER · 名实终一
+const ORIGIN_VERSION_BASE = "v9.9.0"; // webview title/banner/footer 均读此
+const ORIGIN_VERSION = ORIGIN_VERSION_BASE + "-yi-shen-liang-gui"; // 印 124 · 第一细药 · 一身两轨 · 反代核 v9.8.0 守一不离 字节级不动 + vendor/外接api/ 第一细药 (六十三章「为大其细」) · 14 provider N 模归 · gateway :11635..11734 默关 一字开 · 道并行而不相悖
 let _actualPort = PORT; // listening / start.onListen 时更新为 server.address().port
 const UPSTREAM_MGMT = "server.self-serve.windsurf.com";
 const UPSTREAM_INFER = "inference.codeium.com";

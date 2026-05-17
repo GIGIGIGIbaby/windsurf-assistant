@@ -2115,6 +2115,11 @@ function activate(ctx) {
       vscode.commands.registerCommand("wam.verifyEndToEnd", cmdVerifyE2E),
       vscode.commands.registerCommand("wam.selftest", cmdSelftest),
       vscode.commands.registerCommand("dao.purge", cmdPurge),
+      // v9.9.0 · 印 124 · 第一细药 · 外接 api 开关 (默关 · 主公一字开)
+      vscode.commands.registerCommand(
+        "dao.外接api.toggle",
+        cmdExternalApiToggle,
+      ),
     );
 
     // 注册 webview
@@ -2225,6 +2230,13 @@ function activate(ctx) {
     }, 30000);
     ctx.subscriptions.push({ dispose: () => clearInterval(watchdogId) });
     L.info("activate", "watchdog 启 · 30s 自愈一周");
+
+    // ── v9.9.0 · 印 124 · 第一细药 · 外接 api 自启 (默关) ──
+    // 帛书六十三章: 图难于其易 · 为大于其细 · 终不为大 · 故能成其大
+    // dao.外接api.enabled=true 才启 · 失败不影响 min 反代主体
+    tryStartExternalApi(ctx).catch((e) => {
+      L.warn("外接api", `自启失 (non-fatal): ${e.message}`);
+    });
   } catch (e) {
     L.error("activate", `FATAL activation error: ${e.stack || e.message}`);
     vscode.window.showErrorMessage(`道Agent 激活失败: ${e.message}`);
@@ -2261,6 +2273,11 @@ async function deactivate() {
     } catch {}
   }
 
+  // v9.9.0 · 印 124 · ④.5 停外接 api (lm 注解 + kill gateway)
+  try {
+    await tryStopExternalApi();
+  } catch {}
+
   // ⑤ dispose webview
   if (_essenceProvider) {
     _essenceProvider.dispose();
@@ -2275,6 +2292,107 @@ async function deactivate() {
       ? "local: passthrough→清锚→杀LS→停代理 · 道法自然"
       : "remote: 仅停代理",
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// v9.9.0 · 印 124 · 第一细药 · 外接 api 启停 helper
+// ═══════════════════════════════════════════════════════════════════
+// 帛书《老子》:
+//   六十三章 · 图难其易 · 为大其细 · 终不为大 · 故能成其大
+//   六十四章 · 为之于其未有也, 治之于其未乱也
+//   四十八章 · 损之又损, 以至于无为, 无为而无不为
+//
+// 与 min 反代主体字节级正交:
+//   反代核 :8889..8988 (per-user FNV) · 守 Cascade SP 注入之心 (字节级不动)
+//   外接 api gateway :11635..11734 (per-user FNV) · 展 14 provider N 模选用之能
+//   二轨不撞 · 道并行而不相悖
+
+let _externalApiRuntime = null;
+
+async function tryStartExternalApi(ctx) {
+  // 默关 · 主公 dao.外接api.enabled=true 才启
+  const enabled = vscode.workspace
+    .getConfiguration("dao")
+    .get("外接api.enabled", false);
+  if (!enabled) {
+    L.info("外接api", "默关 (dao.外接api.enabled=false) · 跳启");
+    return null;
+  }
+  if (_externalApiRuntime && _externalApiRuntime.isRunning()) {
+    L.info("外接api", "已运行 · 跳启");
+    return _externalApiRuntime;
+  }
+  let ExternalApiRuntime;
+  try {
+    ({ ExternalApiRuntime } = require("./vendor/外接api/runtime.js"));
+  } catch (e) {
+    L.warn("外接api", `vendor/外接api/runtime.js 不加载: ${e.message}`);
+    return null;
+  }
+  _externalApiRuntime = new ExternalApiRuntime({
+    vscodeModule: vscode,
+    logger: L,
+    configKey: "dao.外接api",
+    vendorPrefix: "dao-",
+  });
+  const status = await _externalApiRuntime.start();
+  L.info(
+    "外接api",
+    `启 · gw=${status.gatewayUrl} · providers=${status.providers} · models=${status.models}`,
+  );
+  // 注入 dispose · 主进程退时 deactivate 已显式 stop · 此为兜底
+  if (ctx && ctx.subscriptions) {
+    ctx.subscriptions.push({
+      dispose: () => {
+        if (_externalApiRuntime) {
+          _externalApiRuntime.stop().catch(() => {});
+        }
+      },
+    });
+  }
+  return _externalApiRuntime;
+}
+
+async function tryStopExternalApi() {
+  if (!_externalApiRuntime) return;
+  try {
+    await _externalApiRuntime.stop();
+  } catch (e) {
+    L.warn("外接api", `stop err: ${e.message}`);
+  }
+  _externalApiRuntime = null;
+}
+
+async function cmdExternalApiToggle() {
+  try {
+    const cfg = vscode.workspace.getConfiguration("dao");
+    const cur = cfg.get("外接api.enabled", false);
+    const next = !cur;
+    await cfg.update(
+      "外接api.enabled",
+      next,
+      vscode.ConfigurationTarget.Global,
+    );
+    if (next) {
+      const rt = await tryStartExternalApi(null);
+      if (rt) {
+        const status = rt.getStatus();
+        vscode.window.showInformationMessage(
+          `道Agent · 外接 api 启 · ${status.providers} provider · ${status.models} 模 · gw=${status.gatewayUrl}`,
+        );
+      } else {
+        vscode.window.showWarningMessage(
+          `道Agent · 外接 api 启失 · 见 Output 道Agent 频道`,
+        );
+      }
+    } else {
+      await tryStopExternalApi();
+      vscode.window.showInformationMessage("道Agent · 外接 api 已停");
+    }
+  } catch (e) {
+    L.error("外接api", `toggle fail: ${e.stack || e.message}`);
+    vscode.window.showErrorMessage(`外接 api toggle 失: ${e.message}`);
+  }
 }
 
 module.exports = { activate, deactivate };
