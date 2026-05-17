@@ -437,9 +437,23 @@ async function main() {
 
   // 5. 验 /health · /v1/models · 并发
   log(`▶ Step 3: 验 /health · /v1/models · 并发`);
-  const authToken = fs.existsSync(AUTH_FILE)
-    ? fs.readFileSync(AUTH_FILE, "utf8").trim()
-    : null;
+  // 印 121 · 反者道之动 · auth token 三泉先后:
+  //   ① process.env.DAO_AUTH_TOKEN  (workflow inputs.auth_key 同源 · web oneShot 直传)
+  //   ② AUTH_FILE (.dao_auth_token) (workflow step 三 已写 · 或本地仿测自生)
+  //   ③ null                        (无守门 · 仅日志警示)
+  // 帛书·廿二「圣人执一·以为天下牧」· 三泉同源 · auth-key 不漂不分
+  const authToken =
+    (process.env.DAO_AUTH_TOKEN || "").trim() ||
+    (fs.existsSync(AUTH_FILE)
+      ? fs.readFileSync(AUTH_FILE, "utf8").trim()
+      : null);
+  if (process.env.DAO_AUTH_TOKEN) {
+    log(C.GR(`  ◦ auth token 源: env DAO_AUTH_TOKEN (印 121 oneShot 直传)`));
+  } else if (authToken) {
+    log(C.GR(`  ◦ auth token 源: ${AUTH_FILE} (印 121 workflow 写盘 / 本仿)`));
+  } else {
+    log(C.Y(`  ⚠ 无 auth token · daemon 未守门 · 公网调可任 (印 121 警)`));
+  }
   const verifyTasks = deployed.map((d) =>
     verifyDeployed(d.url, authToken).then((v) => ({ ...d, verify: v })),
   );
@@ -462,12 +476,17 @@ async function main() {
       type: "devin-vm-dao-proxy",
       host: v.url.split("@")[1].slice(0, 50),
       url: v.url + "/port/7780",
+      // 印 121 · 反者道之动 · 完整 auth_token 入私有 Gist (用户自有 · 不外漏)
+      // 帛书·七十「知我者希·则我贵矣·圣人被褐而怀玉」· 完整 token 玉 · 私 Gist 褐
+      // 旧 hint (prefix + ...) 保兼老 web UI · 新 web 用 auth_token 直 X-Dao-Auth
+      auth_token: authToken || null,
       auth_token_hint: authToken ? authToken.slice(0, 12) + "..." : null,
       seal: v.verify.seal,
+      yin: 121, // 印 121 · 协议标识 · 与 source 互证
       models_count: v.verify.models_count,
       pool_total: v.verify.pool_total,
       reported_at: new Date().toISOString(),
-      source: "印 113 · deployer · GH Actions",
+      source: "印 113 · deployer · GH Actions", // ★ 协议向后兼 · workflow 末段 filter 同此串
     }));
 
   if (DRY_GIST) {

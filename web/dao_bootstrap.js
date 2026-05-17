@@ -45,7 +45,11 @@
 
   const POOL_GIST_DESC = "dao-pool · 真本源 token 池 · 印 95+ · 勿手编";
   const POOL_GIST_FILE = "dao-pool.json";
-  const FLEET_WF_FILE = "dao-fleet-cloud.yml";
+  // 印 121 · 反者道之动 · oneShot 触主路 = Devin VM 反代核心 (印 113/115/119 立)
+  // 旧 dao-fleet-cloud.yml (印 95 cf tunnel 路) 仍存 · 供偏好 Actions-resident 之用户
+  // 主公六词诏第 ② 「核心反代均运行于 · 可用自身 devin cloud 虚拟机」 即此径
+  const FLEET_WF_FILE = "dao-fleet-devin-cloud.yml";
+  const FLEET_WF_FILE_LEGACY = "dao-fleet-cloud.yml"; // 供 selfHeal/opts.legacy 后用
   const KEEPALIVE_WF_FILE = "dao-fleet-keepalive.yml";
 
   // ─── util ──────────────────────────────────────────────────────────
@@ -237,17 +241,18 @@
     }
   }
 
-  // ─── 触 dao-fleet-cloud workflow on user's fork ───
+  // ─── 触 dao-fleet-devin-cloud workflow on user's fork (印 121 · 反者道之动) ───
   // 印 100: inputs 优先 · 用户 PAT 直 dispatch · 无须先设 secrets
+  // 印 121: 主路 = devin-cloud (Devin VM 反代核) · inputs 加 n (起 N 件 VM)
   async function dispatchCloudFleet(owner, repo, opts) {
     opts = opts || {};
     const inputs = {};
     if (opts.gistId) inputs.gist_id = opts.gistId;
     if (opts.pat) inputs.pat = opts.pat;
     if (opts.authKey) inputs.auth_key = opts.authKey;
-    if (opts.authRequired)
-      inputs.auth_required = opts.authRequired;
+    if (opts.authRequired) inputs.auth_required = opts.authRequired;
     if (opts.maxMinutes) inputs.max_minutes = String(opts.maxMinutes);
+    if (opts.n) inputs.n = String(opts.n); // 印 121 · devin-cloud 主路 · 默 4 (yml 兜底)
     const path =
       "/repos/" +
       owner +
@@ -299,7 +304,12 @@
         );
         if (!r.ok && r.status !== 204) {
           const txt = await r.text();
-          throw new Error("PUT actions/permissions HTTP " + r.status + " · " + txt.slice(0, 200));
+          throw new Error(
+            "PUT actions/permissions HTTP " +
+              r.status +
+              " · " +
+              txt.slice(0, 200),
+          );
         }
         return { enabled: false, justEnabled: true };
       }
@@ -358,8 +368,7 @@
           tick,
           elapsedSec: elapsed,
           maxSec,
-          daemonsCount:
-            (pool && pool.daemons && pool.daemons.length) || 0,
+          daemonsCount: (pool && pool.daemons && pool.daemons.length) || 0,
           activeUrl: pick ? pick.url : null,
         });
         if (pick) return { ok: true, daemon: pick, pool };
@@ -494,7 +503,11 @@
         "err",
         e.message + " (推断 URL · " + result.pagesUrl + ")",
       );
-      result.steps.pages = { ok: false, error: e.message, fallbackUrl: result.pagesUrl };
+      result.steps.pages = {
+        ok: false,
+        error: e.message,
+        fallbackUrl: result.pagesUrl,
+      };
     }
 
     // §4 dao.json gist (用户数据 · 已有 helper)
@@ -539,7 +552,7 @@
     onProgress("auth_key", "ok", "新生 sk-ws-proxy-* · 32 字 hex");
     result.steps.auth_key = { ok: true };
 
-    // §7 dispatch dao-fleet-cloud workflow on user's fork
+    // §7 dispatch dao-fleet-devin-cloud workflow on user's fork (印 121 主路)
     onProgress(
       "dispatch",
       "run",
@@ -557,11 +570,7 @@
           authRequired: "yes",
           maxMinutes: opts.maxMinutes || 300,
         });
-        onProgress(
-          "dispatch",
-          "ok",
-          "workflow 已触 · run 中 · Actions 页可观",
-        );
+        onProgress("dispatch", "ok", "workflow 已触 · run 中 · Actions 页可观");
         result.steps.dispatch = { ok: true };
       } catch (e) {
         const hint = e.hint ? " · " + e.hint : "";
@@ -593,11 +602,7 @@
       if (pollResult.ok) {
         result.daemonUrl = pollResult.daemon.url;
         result.daemonAgeMin = pollResult.daemon.ageMin;
-        onProgress(
-          "poll",
-          "ok",
-          "daemon 活 · " + pollResult.daemon.url,
-        );
+        onProgress("poll", "ok", "daemon 活 · " + pollResult.daemon.url);
         result.steps.poll = { ok: true, url: pollResult.daemon.url };
       } else {
         onProgress(
@@ -615,11 +620,7 @@
 
     // §9 验 vmUrl 真活 (probe /health)
     if (result.daemonUrl) {
-      onProgress(
-        "probe",
-        "run",
-        "GET " + result.daemonUrl + "/health",
-      );
+      onProgress("probe", "run", "GET " + result.daemonUrl + "/health");
       try {
         const h = await probeVmHealth(result.daemonUrl, authKey);
         result.healthOk = h.ok;

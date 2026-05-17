@@ -39,6 +39,7 @@ const TESTS = [
   "_seal100_smoke", // 印 100 · 太极笙万物 · 一 PAT 即一切 · 闭环自举 (民莫之令而自均)
   "_seal101_smoke", // 印 101 · 万法归宗 · 大道至简 · 用 + 管 二字 (反者道之动 · 为道日损)
   "_seal115_smoke", // 印 115 · 反者道之动 · GH 面板综合管 · Devin VM 反代核心 (鸡犬相闻)
+  "_seal121_smoke", // 印 121 · auth_chain 三口同源守门 (web ↔ workflow ↔ daemon · 圣人执一)
 ];
 
 let allOk = true;

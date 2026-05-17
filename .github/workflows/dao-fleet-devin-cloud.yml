@@ -49,6 +49,22 @@ on:
         description: '印 100 · gist PAT (留空用 secret)'
         required: false
         default: ''
+      auth_key:
+        description: '印 121 · sk-ws-proxy-* · web oneShot 生 · 与 daemon X-Dao-Auth 同源'
+        required: false
+        default: ''
+      auth_required:
+        description: '印 121 · 是否守门 (默 yes · 与 dao-fleet-cloud.yml 同口)'
+        required: false
+        default: 'yes'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+      max_minutes:
+        description: '印 121 · 最大跑时长 (max 350 · 默 350 · 供 oneShot maxMinutes)'
+        required: false
+        default: '350'
   schedule:
     # 每 5 小时一次 · cron 接续 · daemon 真永活
     - cron: '0 */5 * * *'
@@ -79,15 +95,16 @@ jobs:
         with:
           node-version: '22'
 
-      - name: 三 · 拉 Devin token 池 · gist
+      - name: 三 · 拉 Devin token 池 · gist + 锡 auth_key (印 121)
         id: pull
         env:
           DAO_POOL_GIST_ID: ${{ github.event.inputs.gist_id || secrets.DAO_POOL_GIST_ID }}
           DAO_POOL_PAT: ${{ github.event.inputs.pat || secrets.DAO_POOL_PAT }}
+          DAO_AUTH_KEY: ${{ github.event.inputs.auth_key || secrets.DAO_AUTH_KEY }}
         run: |
           set -e
           echo "════════════════════════════════════════"
-          echo "§ 印 113 · dao-fleet-devin-cloud · 起跑"
+          echo "§ 印 121 · dao-fleet-devin-cloud · 起跑"
           echo "  runner  : $(hostname)"
           echo "  trigger : ${{ github.event_name }}"
           echo "  run id  : ${{ github.run_id }}"
@@ -103,6 +120,18 @@ jobs:
             exit 1
           fi
           echo "  ✓ secrets 备"
+
+          # 印 121 · 锡 auth_key · 写 .dao_auth_token · 同源 web ↔ daemon
+          # 帛书·廿二「圣人执一·以为天下牧」+ 六十四「治之于其未乱也」
+          if [ -n "$DAO_AUTH_KEY" ]; then
+            mkdir -p packages/dao-devin-vm
+            printf '%s' "$DAO_AUTH_KEY" > packages/dao-devin-vm/.dao_auth_token
+            chmod 600 packages/dao-devin-vm/.dao_auth_token
+            echo "  ✓ auth_key 写盘 · prefix=${DAO_AUTH_KEY:0:12}... · 长=${#DAO_AUTH_KEY}"
+          else
+            echo "  ◦ 无 auth_key (未传 inputs.auth_key 且无 secrets.DAO_AUTH_KEY)"
+            echo "    vm_proxy_deploy 将自生 · web 端调 daemon 时 401"
+          fi
 
       - name: 四 · ★ deploy N Devin VM + dao_proxy v0.4.0
         id: deploy
@@ -120,16 +149,21 @@ jobs:
             --pat "$DAO_POOL_PAT" \
             --n "$N_VMS"
 
-      - name: 五 · keep alive · 350 min · 5 min poll · VM 死即起新
+      - name: 五 · keep alive · ★ inputs.max_minutes (默 350) · 5 min poll · VM 死即起新
         env:
           DAO_POOL_GIST_ID: ${{ github.event.inputs.gist_id || secrets.DAO_POOL_GIST_ID }}
           DAO_POOL_PAT: ${{ github.event.inputs.pat || secrets.DAO_POOL_PAT }}
           N_VMS: ${{ github.event.inputs.n || '4' }}
+          MAX_MIN_INPUT: ${{ github.event.inputs.max_minutes || '350' }}
         run: |
           set +e
           echo ""
-          echo "═══ § 5 · keep alive · 最 350 min ═══"
-          MAX_MIN=350
+          # 印 121 · max_minutes 守 0..350 · 防 oneShot 传非数 / 超 350 撕 ACU
+          MAX_MIN=$(echo "$MAX_MIN_INPUT" | grep -E '^[0-9]+$' | head -1)
+          if [ -z "$MAX_MIN" ] || [ "$MAX_MIN" -gt 350 ] || [ "$MAX_MIN" -lt 1 ]; then
+            MAX_MIN=350
+          fi
+          echo "═══ § 5 · keep alive · 最 ${MAX_MIN} min (input=$MAX_MIN_INPUT) ═══"
           START=$(date +%s)
           MAX_SEC=$((MAX_MIN * 60))
           TICK=0
