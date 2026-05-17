@@ -17,6 +17,18 @@ const http = require("http");
 const fs = require("fs");
 const { spawn } = require("child_process");
 
+// 印 131 · 反者道之动 · 中文路径 + Node v24 + Junction · 子进程承双旗
+//   帛书·廿二「圣人执一以为天下牧」: 一处 spawn 承旗 · 万次起 daemon 安
+//   __preserveFlags() 取父进程 execArgv + 补 --preserve-symlinks · --preserve-symlinks-main
+//   即便父未带 (单跑守门), 自补; 父已带 (run_all 起), 透传不重
+function __preserveFlags() {
+  const flags = (process.execArgv || []).slice();
+  for (const f of ["--preserve-symlinks", "--preserve-symlinks-main"]) {
+    if (!flags.includes(f)) flags.push(f);
+  }
+  return flags;
+}
+
 const ROOT = path.resolve(__dirname, "..");
 const DAO_PROXY = path.join(ROOT, "packages", "dao-devin-vm", "dao_proxy.js");
 const DAO_APP = path.join(ROOT, "web", "dao_app.js");
@@ -305,7 +317,7 @@ function spawnDaemon(mockPorts) {
       WS_SIGNIN_POSTAUTH_OVERRIDE: `http://${BIND}:${mockPorts.postauth}/postauth`,
       WS_SIGNIN_REGISTER_OVERRIDE: `http://${BIND}:${mockPorts.register}/register`,
     });
-    const child = spawn(process.execPath, [DAO_PROXY], {
+    const child = spawn(process.execPath, [...__preserveFlags(), DAO_PROXY], {
       env,
       cwd: path.dirname(DAO_PROXY),
       stdio: ["ignore", "pipe", "pipe"],

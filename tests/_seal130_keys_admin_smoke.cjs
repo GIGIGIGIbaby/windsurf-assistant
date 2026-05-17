@@ -20,6 +20,15 @@ const http = require("http");
 const fs = require("fs");
 const { spawn } = require("child_process");
 
+// 印 131 · 中文路径 · 子进程承双旗 (圣人执一)
+function __preserveFlags() {
+  const flags = (process.execArgv || []).slice();
+  for (const f of ["--preserve-symlinks", "--preserve-symlinks-main"]) {
+    if (!flags.includes(f)) flags.push(f);
+  }
+  return flags;
+}
+
 const ROOT = path.resolve(__dirname, "..");
 const DAO_PROXY = path.join(ROOT, "packages", "dao-devin-vm", "dao_proxy.js");
 const DAO_APP = path.join(ROOT, "web", "dao_app.js");
@@ -49,7 +58,10 @@ function staticGuard() {
   const appText = fs.readFileSync(DAO_APP, "utf8");
   // dao_proxy.js · §印 130 节
   const checks = [
-    ["dao_proxy 含 §印 130 节", proxyText.includes("§ 印 130 · 真本源接入闭环")],
+    [
+      "dao_proxy 含 §印 130 节",
+      proxyText.includes("§ 印 130 · 真本源接入闭环"),
+    ],
     [
       "dao_proxy 含 handleAdminKeysAdd",
       proxyText.includes("handleAdminKeysAdd"),
@@ -83,10 +95,7 @@ function staticGuard() {
       "dao_proxy 守隐 _maskKey 切前 12 字",
       /\.slice\(0,\s*12\)\s*\+\s*"…"/.test(proxyText),
     ],
-    [
-      "dao_proxy 含 duplicate 幂等返",
-      proxyText.includes("duplicate: true"),
-    ],
+    ["dao_proxy 含 duplicate 幂等返", proxyText.includes("duplicate: true")],
     [
       "dao_proxy 守 cursor 不溢 (帛书三十二)",
       /cursor\s*>=?\s*WS_POOL_STATE\.keys\.length/.test(proxyText),
@@ -108,19 +117,20 @@ function staticGuard() {
     ],
     [
       "dao_app 自接入送 apiKey + srvUrl + email",
-      /apiKey:\s*j\.apiKey[\s\S]{0,200}srvUrl:[\s\S]{0,100}email:/.test(appText),
+      /apiKey:\s*j\.apiKey[\s\S]{0,200}srvUrl:[\s\S]{0,100}email:/.test(
+        appText,
+      ),
     ],
     [
       "dao_app 接入失败不阻 (锦上添花 · 帛书四)",
       appText.includes("锦上添花") || appText.includes("失败不阻"),
     ],
-    [
-      "dao_app 显池 count 反馈",
-      /池\+1|count=/.test(appText),
-    ],
+    ["dao_app 显池 count 反馈", /池\+1|count=/.test(appText)],
     [
       "dao_app 调 vmAuthKey 守 (印 106)",
-      /\/admin\/keys\/add[\s\S]{0,500}vmAuthKey[\s\S]{0,200}Bearer/.test(appText),
+      /\/admin\/keys\/add[\s\S]{0,500}vmAuthKey[\s\S]{0,200}Bearer/.test(
+        appText,
+      ),
     ],
     // 帛书引 · 道义
     [
@@ -131,10 +141,7 @@ function staticGuard() {
       "印 130 引帛书 四十八 损之又损",
       proxyText.includes("「为道者日损 · 损之又损"),
     ],
-    [
-      "印 130 引庄子 物无非彼",
-      proxyText.includes("物无非彼"),
-    ],
+    ["印 130 引庄子 物无非彼", proxyText.includes("物无非彼")],
   ];
   for (const [name, c] of checks) (c ? ok : ng)(name, "缺");
 }
@@ -237,7 +244,7 @@ function spawnDaemon() {
       // 印 130 关键: WS_TOKENS_FILE 不存在 · 池启动空 · 测 admin/keys/add 真注入
       WS_TOKENS_FILE: path.join(__dirname, "_seal130_no_ws.txt"),
     });
-    const child = spawn(process.execPath, [DAO_PROXY], {
+    const child = spawn(process.execPath, [...__preserveFlags(), DAO_PROXY], {
       env,
       cwd: path.dirname(DAO_PROXY),
       stdio: ["ignore", "pipe", "pipe"],
@@ -303,10 +310,7 @@ async function dynamicGuard() {
       ) {
         ok("T2 · 守隐 · apiKey 仅前 12 字 (脱敏)");
       } else {
-        ng(
-          "T2 · 守隐",
-          `apiKey=${r.json && r.json.apiKey}`,
-        );
+        ng("T2 · 守隐", `apiKey=${r.json && r.json.apiKey}`);
       }
     }
 
@@ -320,10 +324,7 @@ async function dynamicGuard() {
       if (r.status === 200 && r.json && r.json.ok && r.json.count === 2) {
         ok("T3 · 加第二 ws-* · count=2");
       } else {
-        ng(
-          "T3 · 加第二",
-          `status=${r.status} count=${r.json && r.json.count}`,
-        );
+        ng("T3 · 加第二", `status=${r.status} count=${r.json && r.json.count}`);
       }
     }
 
@@ -399,11 +400,7 @@ async function dynamicGuard() {
     // T7 · 入参缺 · 400
     {
       const r = await probe("POST", "/admin/keys/add", H, {});
-      if (
-        r.status === 400 &&
-        r.json &&
-        r.json.error === "api_key_required"
-      ) {
+      if (r.status === 400 && r.json && r.json.error === "api_key_required") {
         ok("T7 · 缺 apiKey · 400 + api_key_required");
       } else {
         ng("T7 · 缺 apiKey 验", `status=${r.status}`);
@@ -464,9 +461,14 @@ async function dynamicGuard() {
 
     // T12 · 错 token · 403
     {
-      const r = await probe("POST", "/admin/keys/add", { Authorization: "Bearer wrong-token" }, {
-        apiKey: "ws-wrongauth-test",
-      });
+      const r = await probe(
+        "POST",
+        "/admin/keys/add",
+        { Authorization: "Bearer wrong-token" },
+        {
+          apiKey: "ws-wrongauth-test",
+        },
+      );
       if (r.status === 403) {
         ok("T12 · 错 token · 403");
       } else {

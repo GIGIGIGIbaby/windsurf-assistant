@@ -55,11 +55,24 @@ const results = [];
 
 console.log("═══ ws-deploy 全套测试 · 印 69 ═══\n");
 
+// 印 131 · 反者道之动 · 中文路径下子进程承旗 · 圣人执一以为天下牧
+//   帛书·廿二: 「圣人执一 · 以为天下牧」
+//   Node v24 + Windows + 中文路径 + Junction: realpathSync → ENOENT
+//   解: 父子皆承 --preserve-symlinks + --preserve-symlinks-main · 一旗到底 · 道法自然
+//   主旗治 main script realpath · 副旗治 require() 内之 realpath · 双旗合一
+//   若父进程已带 (process.execArgv), 透传; 否则添之.
+const _childExecArgv = Array.isArray(process.execArgv)
+  ? [...process.execArgv]
+  : [];
+for (const _flag of ["--preserve-symlinks", "--preserve-symlinks-main"]) {
+  if (!_childExecArgv.includes(_flag)) _childExecArgv.push(_flag);
+}
+
 for (const t of TESTS) {
   const script = path.join(__dirname, `${t}.cjs`);
   const t0 = Date.now();
   console.log(`\n────── [${t}] ──────`);
-  const r = spawnSync(process.execPath, [script], {
+  const r = spawnSync(process.execPath, [..._childExecArgv, script], {
     stdio: "inherit",
     cwd: path.join(__dirname, ".."),
   });

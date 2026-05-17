@@ -28,6 +28,15 @@ const fs = require("fs");
 const vm = require("vm");
 const cp = require("child_process");
 
+// 印 131 · 中文路径 · 子进程承双旗 (圣人执一)
+function __preserveFlags() {
+  const flags = (process.execArgv || []).slice();
+  for (const f of ["--preserve-symlinks", "--preserve-symlinks-main"]) {
+    if (!flags.includes(f)) flags.push(f);
+  }
+  return flags;
+}
+
 const ROOT = path.resolve(__dirname, "..");
 const DAO_OAUTH = path.join(ROOT, "web", "dao_oauth.js");
 const DAO_APP = path.join(ROOT, "web", "dao_app.js");
@@ -800,11 +809,15 @@ function spawnDaemonPool() {
       DAO_TOKENS_FILE: "",
       WS_TOKENS_FILE: path.join(__dirname, "_seal130_no_ws.txt"),
     });
-    const child = cp.spawn(process.execPath, [DAO_PROXY], {
-      env,
-      cwd: path.dirname(DAO_PROXY),
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const child = cp.spawn(
+      process.execPath,
+      [...__preserveFlags(), DAO_PROXY],
+      {
+        env,
+        cwd: path.dirname(DAO_PROXY),
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
     let stderr = "";
     child.stderr.on("data", (c) => (stderr += c.toString()));
     child.stdout.on("data", () => {});
