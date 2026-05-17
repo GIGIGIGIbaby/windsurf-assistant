@@ -395,17 +395,25 @@
     for (const k in def.sp)
       if (memo.data.sp[k] == null) memo.data.sp[k] = def.sp[k];
 
-    // 印 101 · 万法归宗 · 大道至简 · 用 + 管 二字
-    //   帛书·四十八「为道者日损 · 损之又损 · 以至于无为」
-    //   ?v=100 走旧三栏 fallback (反向兼容)
+    // 印 128 · 一气化三清 · IDE 三栏并行 (默) · 物无非彼 物无非是
+    //   帛书·二: 「物无非彼 物无非是」 (按庄子·齐物论)
+    //   帛书·四十八: 「为道者日损 · 损之又损 · 以至于无为」
+    //   ?v=128 (默) → 一气化三清 三栏并行常驻
+    //   ?v=101 → 万法归宗 use + drawer (印 101)
+    //   ?v=100 → 旧三栏 fallback (印 67-100)
     const params = new URLSearchParams(location.search);
-    if (params.get("v") === "100") {
+    const v = params.get("v") || "128";
+    if (v === "100") {
       // 旧三栏 (印 67-100)
       renderLeft();
       renderMid();
       renderRight();
-    } else {
+    } else if (v === "101") {
+      // 印 101 万法归宗 (use + drawer)
       renderMineV101();
+    } else {
+      // 印 128 一气化三清 (三栏并行常驻 · 默)
+      renderMineV128();
     }
   }
 
@@ -2300,13 +2308,125 @@
     if (!root) return;
     root.innerHTML = "";
     root.style.display = "flex";
-    // 隐 老三栏容器 (若存在)
+    // 隐 老三栏容器 + v128 (若存在)
     const oldCols = document.querySelector(".mine-cols");
     if (oldCols) oldCols.style.display = "none";
+    const v128 = $("mine-v128");
+    if (v128) v128.style.display = "none";
 
     root.appendChild(renderTopBar());
     root.appendChild(renderUseArea());
     root.appendChild(renderDrawer());
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 印 128 · 一气化三清 · IDE 三栏并行常驻 (默) · 物无非彼 物无非是
+  // ═══════════════════════════════════════════════════════════════════
+  // 帛书·二:   「物无非彼 · 物无非是 · 自彼则不见 · 自是则知之」(按庄子·齐物论)
+  // 帛书·廿二: 「圣人执一 · 以为天下牧」
+  // 帛书·四十八: 「为道者日损 · 损之又损 · 以至于无为 · 无为而无不为」
+  //
+  // 三栏并行而不悖:
+  //   左 (360px)  · 反代端点 + SP 七态 (Devin VM → Windsurf API + Devin Cloud · 提示词隔离注入)
+  //   中 (1fr)    · WAM 切号 + 账号库 (本机 + 云 daemon 池一表)
+  //   右 (460px)  · devin.ai iframe + chat 测反代 + batch + /v1 实测
+  //
+  // 复用 v101 之 renderDrawer_endpt / renderDrawer_sp / renderDrawer_acct / renderUseArea / renderDrawer_test
+  // 单一真相 (memo.data) 三栏共享 · 一处改万法响应
+  // ═══════════════════════════════════════════════════════════════════
+  function renderMineV128() {
+    const root = $("mine-v128");
+    if (!root) return;
+    root.innerHTML = "";
+    root.style.display = "flex";
+    // 隐 v101 + 老三栏容器 (若存在)
+    const v101 = $("mine-v101");
+    if (v101) v101.style.display = "none";
+    const oldCols = document.querySelector(".mine-cols");
+    if (oldCols) oldCols.style.display = "none";
+
+    // 顶栏 (复用 v101 之 topBar)
+    root.appendChild(renderTopBar());
+
+    // 三栏容器
+    const cols = el("div", { class: "v128-cols" }, []);
+
+    // ────────── 左栏 · 反代 + SP 七态 ──────────
+    const colLeft = el("aside", { class: "v128-col v128-left" }, [
+      el("div", { class: "v128-col-hd" }, [
+        el("span", { class: "v128-col-icon" }, ["\u26A1"]),
+        "\u5DE6 \u00B7 \u53CD\u4EE3 \u00B7 \u63D0\u793A\u8BCD",
+        el("span", { class: "v128-col-sub" }, [
+          "Devin VM \u2192 Windsurf API + Devin Cloud",
+        ]),
+      ]),
+    ]);
+    const leftBody = el(
+      "div",
+      { class: "v128-col-bd", id: "v128-left-bd" },
+      [],
+    );
+    // 端点 (vmUrl + authKey + 模型 + daemon 池)
+    renderDrawer_endpt(leftBody);
+    // SP 七态 + 提示词隔离注入
+    leftBody.appendChild(
+      el("div", { class: "v128-sect-hd", style: { marginTop: "14px" } }, [
+        "\u2500 \u63D0\u793A\u8BCD\u9694\u79BB\u6CE8\u5165 (SP \u4E03\u6001) \u2500",
+      ]),
+    );
+    renderDrawer_sp(leftBody);
+    colLeft.appendChild(leftBody);
+    cols.appendChild(colLeft);
+
+    // ────────── 中栏 · WAM 切号 + 账号库 ──────────
+    const colMid = el("section", { class: "v128-col v128-mid" }, [
+      el("div", { class: "v128-col-hd" }, [
+        el("span", { class: "v128-col-icon" }, ["\u263F"]),
+        "\u4E2D \u00B7 WAM \u5207\u53F7 \u00B7 \u8D26\u53F7\u5E93",
+        el("span", { class: "v128-col-sub" }, [
+          "Windsurf \u8D26\u53F7 \u00B7 \u4E00\u7B14\u5207 \u00B7 \u672C\u673A+\u4E91 daemon \u6C60",
+        ]),
+      ]),
+    ]);
+    const midBody = el("div", { class: "v128-col-bd", id: "v128-mid-bd" }, []);
+    renderDrawer_acct(midBody);
+    colMid.appendChild(midBody);
+    cols.appendChild(colMid);
+
+    // ────────── 右栏 · 实证 (devin.ai iframe + chat + batch + test) ──────────
+    const colRight = el("aside", { class: "v128-col v128-right" }, [
+      el("div", { class: "v128-col-hd" }, [
+        el("span", { class: "v128-col-icon" }, ["\u2299"]),
+        "\u53F3 \u00B7 \u5B9E\u8BC1 \u00B7 \u9053\u5E76\u884C",
+        el("span", { class: "v128-col-sub" }, [
+          "devin.ai \u5BF9\u7167 + chat \u6D4B\u53CD\u4EE3 + batch + /v1 \u5B9E\u6D4B",
+        ]),
+      ]),
+    ]);
+    const rightBody = el(
+      "div",
+      { class: "v128-col-bd", id: "v128-right-bd" },
+      [],
+    );
+    // 复用 v101 之 useArea (chat + iframe + batch 子tab 系)
+    rightBody.appendChild(renderUseArea());
+    // 加 /v1 实测节 (复用 renderDrawer_test)
+    const testSect = el(
+      "div",
+      { class: "v128-sect", style: { marginTop: "14px" } },
+      [],
+    );
+    testSect.appendChild(
+      el("div", { class: "v128-sect-hd" }, [
+        "\u2500 /v1 \u5B9E\u6D4B (\u771F\u53D1 health + models + chat) \u2500",
+      ]),
+    );
+    renderDrawer_test(testSect);
+    rightBody.appendChild(testSect);
+    colRight.appendChild(rightBody);
+    cols.appendChild(colRight);
+
+    root.appendChild(cols);
   }
 
   // ─── 顶栏 · 一行三态 + 浮按 ────────────────────────────────────────────

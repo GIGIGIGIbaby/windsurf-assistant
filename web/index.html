@@ -541,6 +541,114 @@
         margin: 0 0 8px 4px;
       }
 
+      /* ═══════════════════════════════════════════════════════════════════
+   印 128 · 一气化三清 · IDE 三栏并行常驻 (默)
+   帛书·二: 物无非彼 物无非是 (按庄子·齐物论)
+   左 · 反代 (Devin VM → Windsurf API + Devin Cloud) + 提示词隔离注入
+   中 · WAM 切号 + Windsurf 账号库
+   右 · devin.ai iframe + chat 测反代 + batch + /v1 实测
+   三者道并行而不相悖
+═══════════════════════════════════════════════════════════════════ */
+      .mine-v128 {
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+        display: none;
+      }
+      .v128-cols {
+        display: grid;
+        grid-template-columns: 360px 1fr 460px;
+        gap: 8px;
+        padding: 8px;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .v128-col {
+        background: var(--bg2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .v128-col-hd {
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+        font-weight: 600;
+        font-size: 12px;
+        color: var(--gold);
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex-shrink: 0;
+        background: linear-gradient(180deg, var(--panel) 0%, var(--bg2) 100%);
+      }
+      .v128-col-icon {
+        color: var(--gold);
+        font-size: 13px;
+      }
+      .v128-col-sub {
+        color: var(--dim);
+        font-size: 10px;
+        font-weight: 400;
+        letter-spacing: 0.3px;
+        margin-left: auto;
+      }
+      .v128-col-bd {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+        min-height: 0;
+      }
+      .v128-col-bd::-webkit-scrollbar {
+        width: 6px;
+      }
+      .v128-col-bd::-webkit-scrollbar-thumb {
+        background: var(--line2);
+        border-radius: 3px;
+      }
+      .v128-col-bd::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .v128-sect {
+        margin-bottom: 14px;
+      }
+      .v128-sect-hd {
+        font-size: 10px;
+        color: var(--dim);
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin: 0 0 6px 4px;
+        padding-bottom: 4px;
+        border-bottom: 1px dashed var(--line);
+      }
+      /* 响应式 · 窄屏 (<1280px) 中右合一栏 · 极窄 (<880px) 一栏纵叠 */
+      @media (max-width: 1280px) {
+        .v128-cols {
+          grid-template-columns: 320px 1fr;
+        }
+        .v128-right {
+          grid-column: 2 / 3;
+          grid-row: 2 / 3;
+        }
+        .v128-mid {
+          grid-row: 1 / 2;
+        }
+      }
+      @media (max-width: 880px) {
+        .v128-cols {
+          grid-template-columns: 1fr;
+        }
+        .v128-left,
+        .v128-mid,
+        .v128-right {
+          grid-column: auto;
+          grid-row: auto;
+        }
+      }
+
       /* ─── 左栏 SP mode 钮组 ─── */
       .sp-mode-grp {
         display: grid;
@@ -1533,7 +1641,13 @@
      右 · Cascade 风对话
 ═══════════════════════════════════════════════════════════════════ -->
     <section id="state-mine">
-      <!-- 印 101 · 万法归宗 · 大道至简 · 用 + 管 (默) -->
+      <!-- 印 128 · 一气化三清 · IDE 三栏并行常驻 (默) -->
+      <!--   帛书·二: 物无非彼 物无非是                 -->
+      <!--   左 反代+SP · 中 WAM切号 · 右 devin.ai+实证 -->
+      <!--   dao_app.js renderMineV128() 填充           -->
+      <div id="mine-v128" class="mine-v128"></div>
+
+      <!-- 印 101 · 万法归宗 · 大道至简 · 用 + 管 (?v=101 启用) -->
       <!--   帛书·四十八: 为道者日损 · 损之又损 · 以至于无为     -->
       <!--   dao_app.js renderMineV101() 填充                     -->
       <div id="mine-v101" class="mine-v101"></div>

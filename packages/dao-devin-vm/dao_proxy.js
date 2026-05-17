@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * 真本源_单器.js · 印 101 · 原汤化原食 · 反三立一 · 道法自然
+ * 末改 · 印 122 (sp_observe+SP 7 态) · 印 123 (web 二清对齐) · 印 124 (vendor/外接api 一身两轨) · 印 128 (一气化三清整体真本源治)
  * ════════════════════════════════════════════════════════════════════════
  *
  * 主公印 101 诏 (2026-05-14 · UTC+08):
@@ -112,10 +113,11 @@ try {
 // ════════════════════════════════════════════════════════════════════════
 // § 0 · 元 · 版 · WebSocket 检
 // ════════════════════════════════════════════════════════════════════════
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
+// 印 122 立 SEAL · 印 125 加 sp-dryrun (主公诏「居实不居华」) · 承前启后
 const SEAL =
-  "印 122 · 双池+SP七态+wss-observe+silk双源 · auth gate · 反者道之动";
-const SEAL_AT = "2026-05-17T10:00+08:00";
+  "印 122/125 · 双池+SP七态+wss-observe+silk双源 · auth gate · sp-dryrun · 反者道之动";
+const SEAL_AT = "2026-05-17T14:53+08:00";
 
 let WebSocketImpl;
 if (typeof WebSocket !== "undefined") {
@@ -2159,6 +2161,98 @@ function handleObserve(req, res, urlObj) {
   sendJson(res, 200, OBSERVE_RING.slice(0, Math.min(limit, OBSERVE_MAX)));
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// § 印 125 · SP 真注入 dry-run (反者道之动 · 由"号"返"实")
+//   主公诏 (2026-05-17 14:53):
+//     「锚定本源之底层需求 · 代替我之一切 · 推进到极 · 太极笙万物」
+//     「物无非彼 · 物无非是 · 自彼则不见 · 自是则知之」
+//
+//   印 124 测了 SP "号" (strategy 字段切换) · 未测 SP "实" (真 message 注入).
+//   反者道之动 — 由"号"返"实".
+//
+//   POST /v1/system/sp-dryrun
+//     Body: {
+//       messages: [{role,content},...],   // 必 · 客端原始 (含 system)
+//       strategy?: "bypass"|"dao"|...,     // 可 · 临时切 · 不动 SP_STATE
+//       model?: "devin-cloud"|...,         // 可 · 给 ctx.model
+//       account?: "user@..."               // 可 · 给 ctx.account
+//     }
+//   Resp 200: {
+//     ok, input: {messageCount, ctx, strategy, opts},
+//     output: {messages, meta, firstSystemPreview}
+//   }
+//
+//   守: 仅 process · 不发 wss · 不耗 ACU · 不动 SP_STATE 持久
+// ════════════════════════════════════════════════════════════════════════
+async function handleSpDryrun(req, res) {
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (e) {
+    return sendJson(res, 400, { error: e.message });
+  }
+  if (!body || !Array.isArray(body.messages)) {
+    return sendJson(res, 400, {
+      error: "messages array required",
+      hint: "POST { messages: [{role,content},...], strategy?, model?, account? }",
+    });
+  }
+  const allowed = [
+    "bypass",
+    "override",
+    "prepend",
+    "append",
+    "dao",
+    "custom",
+    "usernote",
+  ];
+  // 临时切 (不动 SP_STATE.strategy 持久)
+  const saved = SP_STATE.strategy;
+  let switched = false;
+  if (body.strategy) {
+    if (!allowed.includes(body.strategy)) {
+      return sendJson(res, 400, {
+        error: "invalid strategy",
+        allowed,
+      });
+    }
+    SP_STATE.strategy = body.strategy;
+    switched = true;
+  }
+  try {
+    const ctx = {
+      model: body.model || CFG.defaultModel,
+      account: body.account || "",
+    };
+    const r = processMessages(body.messages, ctx);
+    const sys = r.messages.find((m) => m.role === "system");
+    const firstSystemPreview = sys
+      ? {
+          len: typeof sys.content === "string" ? sys.content.length : 0,
+          preview:
+            typeof sys.content === "string" ? sys.content.slice(0, 240) : "",
+        }
+      : null;
+    sendJson(res, 200, {
+      ok: true,
+      input: {
+        messageCount: body.messages.length,
+        ctx,
+        strategy: SP_STATE.strategy,
+        opts: SP_STATE.opts,
+      },
+      output: {
+        messages: r.messages,
+        meta: r.meta,
+        firstSystemPreview,
+      },
+      dao: { silkLoaded: !!DAO_DE_JING, silkChars: DAO_DE_JING.length },
+    });
+  } finally {
+    if (switched) SP_STATE.strategy = saved;
+  }
+}
+
 function handleMetrics(req, res) {
   sendJson(res, 200, snapMetrics());
 }
@@ -2335,6 +2429,9 @@ const server = http.createServer(async (req, res) => {
     return handleSpPost(req, res);
   if (method === "GET" && p === "/v1/system/prompt/observe")
     return handleObserve(req, res, urlObj);
+  // 印 125 · SP 真注入 dry-run (反者道之动 · 由"号"返"实" · 仅 process · 不发 wss)
+  if (method === "POST" && p === "/v1/system/sp-dryrun")
+    return handleSpDryrun(req, res);
 
   // § 印 122 · wss-observe (server-side SP 全演化采集)
   if (__spObserve) {
@@ -2374,7 +2471,7 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, {
     error: "not found",
     path: p,
-    hint: "GET / · /health · /v1/models · POST /v1/chat/completions · /v1/messages · /v1beta/models/X:generateContent · GET /windsurf/status · /windsurf/status/all · /windsurf/quota · /windsurf/models · POST /windsurf/chat (501)",
+    hint: "GET / · /health · /v1/models · POST /v1/chat/completions · /v1/messages · /v1beta/models/X:generateContent · GET/POST /v1/system/prompt · POST /v1/system/sp-dryrun · GET /v1/system/wss-observe · GET /windsurf/status · /windsurf/status/all · /windsurf/quota · /windsurf/models · POST /windsurf/chat (501)",
   });
 });
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * deployer.js · 印 113 · 反者道之动 · Devin VM 反代部署器 (GH Actions 端)
+ * 末改 · 印 118 (流式 gist + retry + 进度) · 印 121 (auth_chain 三口同源) · 印 128 (印号统一)
  *
  *   「上善若水 · 水善利万物而不争」(八)
  *   「弱之胜强 · 柔之胜刚 · 天下莫不知 · 莫能行也」(四十三)

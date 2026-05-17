@@ -43,6 +43,8 @@ const TESTS = [
   "_seal122_smoke", // 印 122 · yin122 全审纳入律 (3 件 git tracked + 印号统一 + silk 双源 + §0.1 软接入)
   "_seal122_watchdog_smoke", // 印 122 · vm_pool_watchdog 守门 (自启换之 · tunnel rotation · 5min poll)
   "_yin124_root_runtime_smoke", // 印 124 · 反者道之动 · 根本底层真运 (真起 daemon · 真探 · 真切 SP · 真关 · 由静返动)
+  "_yin125_sp_inject_smoke", // 印 125 · 反者道之动 · SP 真注入实证 (POST /v1/system/sp-dryrun · 由号返实 · 居实不居华)
+  "_seal128_yiqi_sanqing_smoke", // 印 128 · 一气化三清整体真本源治 · 物无非彼物无非是 · 件齐 + 印号 + 三层对齐
 ];
 
 let allOk = true;

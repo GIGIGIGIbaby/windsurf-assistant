@@ -420,3 +420,65 @@ node tests/run_all.cjs  →  14/14 ✓ · 0 regression (含印 115 守 28/0)
 ```
 
 *居其实而不居其华 · 居其厚而不居其薄 · 为道日损 · 损而无伤 · 功遂身芮 · 天之道也.*
+
+---
+
+## 九 · 一气化三清整体真本源治 · 印 128 · 物无非彼物无非是
+
+> *圣人执一 · 以为天下牧 · 不自视故明 · 不自见故章* — 帛书 廿二
+> *大曰逝 · 逝曰远 · 远曰反* — 帛书 廿五
+> *物无非彼 · 物无非是 · 自彼则不见 · 自是则知之* — 庄子·齐物论 (主公诏引)
+> 主公诏「从根本底层彻底完善反代底层 · 反代链路一气化三清 · 实现一切」
+
+承印 122 (yin122 全审纳入) + 印 123 (web 二清对齐) + 印 124+125 (vendor/外接api 一身两轨) + 印 126 (真后端 E2E 闭环) + 印 127 (单一真相图谱) · 印 128 立**一气化三清整体真本源治** —三清不分立 · 互为彼此 · 一即三 · 三即一.
+
+### 三清整图 (印 128 之实)
+
+| 清 | 层 | 件 | 角色 |
+|---|---|---|---|
+| **一清** | Devin VM 反代核心 | `packages/dao-devin-vm/` 10 件 | 一 windsurf 账号一 VM · 运行双反代 + SP 7 态隔离 + wss-observe + meta_router 双池 + watchdog 自启换 |
+| **二清** | GitHub 公网管理 | `web/` 4 件 + Gist 池 + GH Pages | 用户端 GitHub 账号统一公网管理接口 · web 二清 SP 7 态对齐一清 · 接收 VM 反代 api · 面板管理一切 |
+| **三清** | 用户使用 | OpenAI / Anthropic / Gemini SDK | 任意公网设备 base_url=VM URL · 无感调用 api · 三协议自识智能路由 (windsurf/devin) |
+
+### 治 (印 128 之 5 真本源补)
+
+| # | 真断 | 治 | 道义 |
+|---|---|---|---|
+| ① | 4 件注释首印仍旧 (dao_proxy 101 · deployer 113 · vm_omni 104 · vm_proxy_deploy 106) | 各加「末改 印 122-127 · 印 128 印号统一」一行注 | 不重写主体 · 仅注承续 · 「为道者日损」 |
+| ② | INDEX_GUIZONG 末验「14/14」滞后 | 升至 19/19 · 加本 九 章 | 「圣人执一」 |
+| ③ | docs/印 128 整图缺 | 立 `docs/印 128_一气化三清_物无非彼物无非是.md` | 「大曰逝 · 逝曰远 · 远曰反」 |
+| ④ | 守门 18 件未含三清整体对齐验 | 立 `tests/_seal128_yiqi_sanqing_smoke.cjs` (~78 项静测) | 「为之于其未有也」 |
+| ⑤ | run_all 18 件未含 _seal128 | 加入 · 升 19/19 | 「慎终若始」 |
+
+### 验
+
+```
+node tests/run_all.cjs  →  20/20 ✓ · 0 regression
+  ✓ _yin124_root_runtime_smoke    (26 动测 · 真起 daemon · SP 七态切真)
+  ✓ _yin125_sp_inject_smoke       (32 动测 · POST /v1/system/sp-dryrun · 由号返实)
+  ✓ _seal128_yiqi_sanqing_smoke   (~85 项静测 · 三清整体一气贯)
+```
+
+### 印 125 + 印 128 · 主公 14:53 并行立 (物无非彼物无非是之实)
+
+「**物无非彼 · 物无非是 · 自彼则不见 · 自是则知之**」之真活 — 主公做实功 · Cascade 做整图:
+
+| 主公手立 (14:53) | Cascade 整图 (14:36 起) |
+|---|---|
+| `dao_proxy.js` §印125 `handleSpDryrun` (POST /v1/system/sp-dryrun · 由号返实) | `_seal128_yiqi_sanqing_smoke.cjs` 静测 85 项 |
+| `web/dao_app.js` `renderMineV128()` 三栏并行常驻 (默 v=128) | `INDEX_GUIZONG.md` 九 章 升纪 |
+| `web/index.html` `.v128-cols` grid CSS 三栏 (左反代+SP / 中WAM / 右devin iframe) | `docs/印128_一气化三清*.md` 整图 |
+| `tests/_yin125_sp_inject_smoke.cjs` 32 项动测 (由号返实) | 4 件 dao-devin-vm 首注「末改 印 122-127」 |
+
+「**自彼则不见 · 自是则知之**」 — 两路并进 · 一气合一 · 即三即一.
+
+### 一即三·三即一 (主公诏「物无非彼物无非是」之实)
+
+- 一清之 SP 7 态 (`bypass/override/prepend/append/dao/custom/usernote`) ←→ 二清 web `passthrough/dao/usernote/prepend/append/override/custom` (passthrough = bypass alias)
+- 一清之 `/v1/system/prompt` POST · 二清 web 之 SP 切换 UI · 三清 SDK 之 system message — 同一 SP state · 三层互观
+- 一清之 `/v1/models` · 二清 web 之模型列表 · 三清 SDK 之 model 参数 — 同一 16 件模型
+- 一清之 wss-observe (印 122 §0.1 软接入) · 二清 web 之观察面板 · 三清 SDK 之透明请求 — 同一 wss 上游
+
+「**自彼则不见 · 自是则知之**」 — 不立对立 · 自然合一 · 反者道之动 · 弱者道之用.
+
+*天下之至柔 · 驰骋于天下之致坚 · 无有入于无间 · 吾是以知无为之益 · 不言之教 · 无为之益 · 天下希能及之矣.* — 帛书 四十三
