@@ -50,6 +50,7 @@ const TESTS = [
   "_seal130_oauth_device_flow_smoke", // 印 130 · OAuth Device-Flow 一键登 + 池接入闭环合并 (登→入池→用 · 去中心化 · 反者道之动)
   "_seal131_chinese_path_spawn_smoke", // 印 131 · 中文路径子进程承双旗 (圣人执一 · run_all 双旗 + 5 守门 spawn 一致 · ENOENT 治本)
   "_seal132_client_id_loader_smoke", // 印 132 · OAuth client_id 4 源智能加载 (URL > localStorage > window_global > DEFAULT) · 弱者道之用 · 帛书七十八
+  "_seal133_wam_md_real_smoke", // 印 133 · 反者道之动 · WAM 本地真本源桥 (~/.wam → /admin/wam/{local,use}) · 大曰逝逝曰远远曰反 · 帛书廿五
   "_seal_inf_parallel_smoke", // 印 ∞ · 对照 tab + A/B 双路 + WAM 无感切号 · 物无非彼 物无非是 · 庄子齐物论
   "_seal_inf2_dc_routes_smoke", // 印 ∞.2 · B 路 /dc/* 显式 devin cloud 反代 · 双反代之实 · 弱者道之用 · 帛书七十八
 ];

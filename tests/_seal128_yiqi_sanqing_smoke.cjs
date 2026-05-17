@@ -356,6 +356,7 @@ const expectedSmokes = [
   "_seal130_oauth_device_flow_smoke",
   "_seal131_chinese_path_spawn_smoke",
   "_seal132_client_id_loader_smoke",
+  "_seal133_wam_md_real_smoke",
   "_seal_inf_parallel_smoke",
   "_seal_inf2_dc_routes_smoke",
 ];

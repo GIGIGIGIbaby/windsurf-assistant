@@ -1382,7 +1382,10 @@ async function handleAdminKeysRemove(req, res) {
 // ════════════════════════════════════════════════════════════════════════
 
 const _WAM133_HOME = require("os").homedir();
-const _WAM133_DIR = require("path").join(_WAM133_HOME, ".wam");
+// 默 ~/.wam · 允 env WAM_LOCAL_PATH 覆 (守门 fixture · 主公自定 · 帛书廿八「为天下式 · 恒德不贰」)
+const _WAM133_DIR =
+  (process.env.WAM_LOCAL_PATH && String(process.env.WAM_LOCAL_PATH).trim()) ||
+  require("path").join(_WAM133_HOME, ".wam");
 const _WAM133_ACCOUNTS_MD = require("path").join(_WAM133_DIR, "accounts.md");
 const _WAM133_STATE_JSON = require("path").join(_WAM133_DIR, "wam-state.json");
 
