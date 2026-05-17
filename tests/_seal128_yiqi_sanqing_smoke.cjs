@@ -324,7 +324,7 @@ const docs128 = fs
 if (docs128.length > 0) ok(`docs/印 128*.md 真存 (${docs128.length} 件)`);
 else ng("印 128 docs", "缺 一气化三清整图 · 待立");
 
-// 守门 30 件 (含本 _seal128 + 印 129/130×2/131/132/133 + 印 ∞/∞.2/∞.3-∞.4/∞.5 · 印号承续 · 慎终若始)
+// 守门 31 件 (含本 _seal128 + 印 129/130×2/131/132/133 + 印 ∞/∞.2/∞.3-∞.4/∞.5 + 印 137 · 印号承续 · 慎终若始)
 //   印 129  · 真本源切号 (autoSigninWindsurf · 代主公登 windsurf)
 //   印 130  · 真本源接入闭环 (admin/keys/* + OAuth Device-Flow)
 //   印 131  · 中文路径子孙皆承双旗 (圣人执一 · 治 V:\道 junction)
@@ -335,6 +335,7 @@ else ng("印 128 docs", "缺 一气化三清整图 · 待立");
 //   印 ∞.3-∞.4 · 道动测真实证 (apiKey 前缀识 + srvUrl 优先 · 大曰逝逝曰远远曰反)
 //   印 ∞.5  · 全链路闭环导中证毕 (一脚本起两子 · 我无为也而民自化)
 //   印 134  · 去芜存菁 (本印之承 · _seal128 expectedSmokes 补全)
+//   印 137  · 整合 Devin云原生 印 122 三件附庸 (playbook_helper + usernote_strategy.test + sp_observe inline · 17 子测 · 万物自宾 · 帛书三十二)
 const expectedSmokes = [
   "_dao_core_syntax",
   "_three_pure_smoke",
@@ -366,6 +367,7 @@ const expectedSmokes = [
   "_seal_inf2_dc_routes_smoke",
   "_seal_inf_yiqi_real_impl_smoke",
   "_seal_inf5_closeloop_smoke",
+  "_seal137_devin_yunsheng_integration_smoke",
 ];
 const runAllSrc = readSafe(path.join(TESTS, "run_all.cjs"));
 let allInRunAll = true;

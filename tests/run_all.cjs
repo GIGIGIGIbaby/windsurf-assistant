@@ -55,6 +55,7 @@ const TESTS = [
   "_seal_inf2_dc_routes_smoke", // 印 ∞.2 · B 路 /dc/* 显式 devin cloud 反代 · 双反代之实 · 弱者道之用 · 帛书七十八
   "_seal_inf_yiqi_real_impl_smoke", // 印 ∞ · 道动测真实证 (∞.3 apiKey 前缀 + ∞.4 srvUrl 优先 + 133 端点活) · 大曰逝逝曰远远曰反 · 帛书廿五
   "_seal_inf5_closeloop_smoke", // 印 ∞.5 · 全链路闭环导中证毕 · 一脚本起两子 + 自注 vmUrl + A/B 真返 16 模 · 我无为也而民自化 · 帛书五十七
+  "_seal137_devin_yunsheng_integration_smoke", // 印 137 · 整合 Devin云原生 印 122 三件附庸 (playbook_helper · usernote_strategy.test · sp_observe inline) · 17 子测 · 万物自宾 · 帛书三十二
 ];
 
 let allOk = true;
