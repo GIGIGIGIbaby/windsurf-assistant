@@ -418,7 +418,13 @@
         "③ Homepage URL: <your-pages-url>",
         "④ Callback URL: 同 Homepage (device-flow 不用)",
         "⑤ ☑ Enable Device Flow (关键)",
-        "⑥ 拿 Client ID → 填 dao_oauth.js DEFAULT_CLIENT_ID 或 window.__DAO_OAUTH_CLIENT_ID__",
+        // 印 132 · 三选一 · 弱者道之用 (帛书七十八 「天下莫柔弱于水 · 弱之胜强」)
+        //   A) 粘 admin 面板输入框 → 💾 存 → localStorage 持久 (零代码 · 推荐)
+        //   B) URL ?dao_oauth_client_id=Ov23li...                (临时 · 高优先)
+        //   C) 改 dao_oauth.js DEFAULT_CLIENT_ID 或 window.__DAO_OAUTH_CLIENT_ID__ (强 · 改码)
+        "⑥ 拿 Client ID → A) admin 面板输入框 💾 存 (零代码 · 推荐 · 印 132)",
+        "    或 B) URL ?dao_oauth_client_id=Ov23li... (临时 · 高优)",
+        "    或 C) 改 dao_oauth.js DEFAULT_CLIENT_ID / window.__DAO_OAUTH_CLIENT_ID__ (强 · 改码)",
       ],
     };
   }

@@ -324,11 +324,12 @@ const docs128 = fs
 if (docs128.length > 0) ok(`docs/印 128*.md 真存 (${docs128.length} 件)`);
 else ng("印 128 docs", "缺 一气化三清整图 · 待立");
 
-// 守门 26 件 (含本 _seal128 + 印 129 + 印 130×2 + 印 131 + 印 132 · 印号承续 · 慎终若始)
+// 守门 26 件 (含本 _seal128 + 印 129 + 印 130×2 + 印 131 + 印 132 + 印 ∞ · 印号承续 · 慎终若始)
 //   印 129 · 真本源切号 (autoSigninWindsurf · 代主公登 windsurf)
 //   印 130 · 真本源接入闭环 (admin/keys/* + OAuth Device-Flow)
 //   印 131 · 中文路径子孙皆承双旗 (圣人执一 · 治 V:\道 junction)
 //   印 132 · OAuth client_id 4 源智能加载链 (弱者道之用 · URL>LS>window>DEFAULT)
+//   印 ∞   · 对照 tab + 上下分屏 (主公并行立 · 庄子齐物论 · 物无非彼物无非是)
 const expectedSmokes = [
   "_dao_core_syntax",
   "_three_pure_smoke",

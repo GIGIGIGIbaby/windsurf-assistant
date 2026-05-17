@@ -7,8 +7,15 @@ REM
 REM 用:
 REM   cd 公网
 REM   tests\run_all.cmd
+REM
+REM 印 132.1 · 中文路径 spawn 治本 (帛书四十三 「天下之至柔 驰骋于至坚」):
+REM   chcp 65001 必须 BEFORE setlocal · 否则 cmd 已用 OEM (936) 解析 argv
+REM   NODE_NO_WARNINGS=1 抑制 buffer 弃用警告
+REM   PYTHONUTF8=1 子进 python (若有) 亦 UTF-8
 chcp 65001 >nul 2>&1
 setlocal
+set "NODE_NO_WARNINGS=1"
+set "PYTHONUTF8=1"
 if not defined NODE_OPTIONS (
   set "NODE_OPTIONS=--preserve-symlinks --preserve-symlinks-main"
 ) else (
