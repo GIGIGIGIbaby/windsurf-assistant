@@ -223,6 +223,131 @@
 
     // ─── 印 130 · OAuth Device-Flow (主推荐) ───────────────────────────
     bindOauthFlow();
+    // ─── 印 132 · client_id 智能配 (弱者道之用) ──────────────────
+    bindOauthConfig();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 印 132 · OAuth client_id 智能配 · 弱者道之用 · 一次为·万次用
+  // ═══════════════════════════════════════════════════════════════════
+  // 帛书·七十八「天下莫柔弱于水 · 而攻坚强者莫之能胜也 · 以其无以易之也」
+  //
+  // 主公诏 (2026-05-17): 「我无为 · 你无不为 · 唯变所适」
+  //
+  // 印 130 立 OAuth Device-Flow · 但 client_id 仅 2 源 (window 全局 + DEFAULT)
+  // 印 132 扩为 4 源链 · 任一处填即活 (弱者道之用):
+  //   ① URL ?dao_oauth_client_id=Ov23li...   (一次性 · 高优 · 分享调试)
+  //   ② localStorage 'dao_oauth_client_id'    (持久 · 零代码改)
+  //   ③ window.__DAO_OAUTH_CLIENT_ID__       (代码硬编 · index.html <head>)
+  //   ④ DEFAULT_CLIENT_ID                    (placeholder)
+  //
+  // 此 admin UI: 让主公在 gate 页输 client_id → 持久 localStorage → 万次用
+  //   · 不需改代码 (帛书四十八 损之又损)
+  //   · 不需提交 commit (帛书廿五 道法自然)
+  //   · 不需重启 (帛书四十 反者道之动 · 立刻 isConfigured()=true)
+  function bindOauthConfig() {
+    const det = $("gate-oauth-config-details");
+    const inp = $("gate-oauth-config-input");
+    const btnSave = $("gate-oauth-config-save");
+    const btnClear = $("gate-oauth-config-clear");
+    const srcEl = $("gate-oauth-config-source");
+    const stEl = $("gate-oauth-config-status");
+    if (!btnSave || !window.daoOAuth) return;
+
+    const SRC_ZH = {
+      url_param: "URL 参 · 一次",
+      localStorage: "已存 (持久)",
+      window_global: "代码硬编",
+      default_placeholder: "未配 · 用 placeholder",
+    };
+    function refresh() {
+      try {
+        const src = window.daoOAuth.whichSource();
+        if (srcEl) {
+          srcEl.textContent = SRC_ZH[src] || src;
+          srcEl.style.color =
+            src === "default_placeholder"
+              ? "#e07070"
+              : src === "url_param"
+                ? "#7ec8e0"
+                : "#7eb87e";
+        }
+        // pre-fill input 当 localStorage 有值 (脱敏: 仅前 8 字 + …)
+        const cur = window.daoOAuth.getClientId();
+        if (
+          inp &&
+          src === "localStorage" &&
+          cur &&
+          !/PLACEHLDR/i.test(cur) &&
+          !inp.value
+        ) {
+          inp.placeholder = cur.slice(0, 8) + "…(已存 · 输新值改)";
+        }
+      } catch (e) {
+        console.warn("[oauth-config refresh]", e);
+      }
+    }
+    refresh();
+
+    if (btnSave && !btnSave.__bound) {
+      btnSave.__bound = true;
+      btnSave.addEventListener("click", () => {
+        const v = ((inp && inp.value) || "").trim();
+        if (!v) {
+          if (stEl) {
+            stEl.textContent = "请粘 client_id";
+            stEl.style.color = "#e07070";
+          }
+          if (inp) inp.focus();
+          return;
+        }
+        try {
+          window.daoOAuth.setClientId(v);
+          if (stEl) {
+            stEl.textContent = "✓ 存 · 立活";
+            stEl.style.color = "#7eb87e";
+          }
+          if (inp) inp.value = "";
+          // 更新 source 显示 + isConfigured 立检
+          refresh();
+          toast("✓ client_id 已存 · 一次为·万次用 · 帛书四十八 损之又损", "ok");
+        } catch (e) {
+          if (stEl) {
+            stEl.textContent = "✗ " + e.message;
+            stEl.style.color = "#e07070";
+          }
+        }
+      });
+    }
+    if (btnClear && !btnClear.__bound) {
+      btnClear.__bound = true;
+      btnClear.addEventListener("click", () => {
+        try {
+          window.daoOAuth.clearClientId();
+          refresh();
+          if (stEl) {
+            stEl.textContent = "✓ 清 · 回退";
+            stEl.style.color = "var(--dim, #888)";
+          }
+          if (inp) {
+            inp.value = "";
+            inp.placeholder = "Ov23li... 或 Iv1... (主公 OAuth App Client ID)";
+          }
+          toast("✓ client_id 清 · 回退默 (URL > window > placeholder)", "info");
+        } catch (e) {
+          if (stEl) {
+            stEl.textContent = "✗ " + e.message;
+            stEl.style.color = "#e07070";
+          }
+        }
+      });
+    }
+    if (inp && !inp.__bound) {
+      inp.__bound = true;
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") btnSave && btnSave.click();
+      });
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -2599,7 +2724,11 @@
   //     六十四: 「图难于其易 · 为大于其细 · 圣人终不为大 · 故能成其大」
 
   // 用区 tab 状态 (全局)
-  let __useTab = "chat"; // 'chat' | 'iframe' | 'batch'
+  // 印 ∞ (2026-05-17) · 默 "parallel" · 上下分屏 iframe 真站 + mini chat 反代
+  //   帛书·二: 物无非彼 · 物无非是 · 自彼则不见 · 自是则知之 (按庄子·齐物论)
+  //   主公诏: 「右栏对照 devin.ai 网页 · 实时交互 · 测试反代 API · 无感使用」
+  //   parallel tab = chat 与 iframe 之合 · 物之两面同一道 · 一目尽显
+  let __useTab = "parallel"; // 'parallel' | 'chat' | 'iframe' | 'batch'
   // 抽屉打开节 (null = 关)
   let __drawerOpen = null; // 'acct' | 'sp' | 'endpt' | 'test' | null
 
@@ -2862,10 +2991,19 @@
     const D = memo.data;
     const area = el("div", { class: "v101-use", id: "v101-use" }, []);
 
-    // tab bar
+    // tab bar · 印 ∞ · "★ 对照" 第一位 · 默 tab · 物无非彼 物无非是
     const tabs = el("div", { class: "v101-use-tabs" }, [
-      makeUseTab("chat", "对话", "Cascade 风 · 走反代 vmUrl"),
-      makeUseTab("iframe", "嵌真站", "iframe app.devin.ai (印 91)"),
+      makeUseTab(
+        "parallel",
+        "★ 对照",
+        "印 ∞ · 上 iframe 真站 + 下 chat 反代 · 同问验之 · 物之两面同一道",
+      ),
+      makeUseTab("chat", "对话", "Cascade 风 · 走反代 vmUrl · 大屏 chat"),
+      makeUseTab(
+        "iframe",
+        "嵌真站",
+        "iframe app.devin.ai (印 91) · 大屏真站",
+      ),
       makeUseTab("batch", "批跑测", "题集 · A/B 路对比 · 通过率"),
     ]);
     area.appendChild(tabs);
@@ -2896,11 +3034,27 @@
           const tabsBar = document.querySelector(".v101-use-tabs");
           if (tabsBar) {
             tabsBar.innerHTML = "";
+            // 印 ∞ · "★ 对照" tab 第一位 · 默 tab
             tabsBar.appendChild(
-              makeUseTab("chat", "对话", "Cascade 风 · 走反代 vmUrl"),
+              makeUseTab(
+                "parallel",
+                "★ 对照",
+                "印 ∞ · 上 iframe 真站 + 下 chat 反代 · 同问验之",
+              ),
             );
             tabsBar.appendChild(
-              makeUseTab("iframe", "嵌真站", "iframe app.devin.ai (印 91)"),
+              makeUseTab(
+                "chat",
+                "对话",
+                "Cascade 风 · 走反代 vmUrl · 大屏 chat",
+              ),
+            );
+            tabsBar.appendChild(
+              makeUseTab(
+                "iframe",
+                "嵌真站",
+                "iframe app.devin.ai (印 91) · 大屏真站",
+              ),
             );
             tabsBar.appendChild(
               makeUseTab("batch", "批跑测", "题集 · A/B 路对比 · 通过率"),
@@ -2914,9 +3068,231 @@
 
   function renderUseTabContent(container) {
     container.innerHTML = "";
-    if (__useTab === "chat") renderUseTab_chat(container);
+    // 印 ∞ · parallel tab · 上 iframe + 下 chat · 默 tab · 物无非彼 物无非是
+    if (__useTab === "parallel") renderUseTab_parallel(container);
+    else if (__useTab === "chat") renderUseTab_chat(container);
     else if (__useTab === "iframe") renderUseTab_iframe(container);
     else if (__useTab === "batch") renderUseTab_batch(container);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 印 ∞ (2026-05-17) · 对照 tab · 上 iframe 真站 + 下 mini chat 反代
+  // ═══════════════════════════════════════════════════════════════════
+  //   帛书·二:   「物无非彼 · 物无非是 · 自彼则不见 · 自是则知之」(按庄子·齐物论)
+  //   帛书·廿二: 「圣人执一 · 以为天下牧」—— 一框两面同一道
+  //   帛书·四十二:「道生一 · 一生二 · 二生三 · 三生万物」—— 一即二
+  //
+  //   主公诏 (2026-05-17 18:07):
+  //     「右侧对照 devin.ai 网页 · 实时交互 · 测试反代出的 API 成果 · 无感使用」
+  //     「彻底实现物无非彼 物无非是 · 自彼则不见 · 自是则知之」
+  //
+  //   复用 chat tab 之全 DOM id (in-chat-input/chat-history/in-chat-model/
+  //     btn-chat-send/btn-chat-stop) · sendChat() 直命中 · 一处改万法响应
+  //   复用 iframe tab 之 D.iframeSite · 切站记忆
+  //   复用 chat tab 之 D.chatHistory · 历史无损切 tab
+  // ═══════════════════════════════════════════════════════════════════
+  function renderUseTab_parallel(container) {
+    const D = memo.data;
+    const site = D.iframeSite || "devin";
+    const url =
+      site === "windsurf"
+        ? "https://chat.windsurf.ai/"
+        : "https://app.devin.ai/";
+    const wrap = el(
+      "div",
+      { class: "v101-parallel", id: "v101-parallel" },
+      [],
+    );
+    // ─── 上 · iframe head (站切) ───
+    const ifrHead = el(
+      "div",
+      { class: "v101-iframe-head v101-parallel-ifr-head" },
+      [
+        el("span", { class: "hint" }, ["真站 · 对照参验"]),
+        el("span", { class: "grow" }, []),
+        el(
+          "button",
+          {
+            class:
+              "v101-btn small" + (site === "devin" ? " active" : " ghost"),
+            onclick: () => {
+              D.iframeSite = "devin";
+              markDirty();
+              const c = $("v101-use-content");
+              if (c) renderUseTabContent(c);
+            },
+          },
+          ["app.devin.ai"],
+        ),
+        el(
+          "button",
+          {
+            class:
+              "v101-btn small" +
+              (site === "windsurf" ? " active" : " ghost"),
+            onclick: () => {
+              D.iframeSite = "windsurf";
+              markDirty();
+              const c = $("v101-use-content");
+              if (c) renderUseTabContent(c);
+            },
+          },
+          ["chat.windsurf.ai"],
+        ),
+        el(
+          "button",
+          {
+            class: "v101-btn small ghost",
+            title: "新窗打开真站",
+            onclick: () => window.open(url, "_blank", "noopener"),
+          },
+          ["↗"],
+        ),
+      ],
+    );
+    wrap.appendChild(ifrHead);
+    // ─── 上 · iframe 真站 ───
+    const ifr = el("iframe", {
+      src: url,
+      class: "v101-parallel-iframe",
+      sandbox:
+        "allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation-by-user-activation",
+      allow: "clipboard-read; clipboard-write",
+    });
+    wrap.appendChild(ifr);
+    // ─── 中 · 道线 hint (物无非彼 物无非是) ───
+    wrap.appendChild(
+      el("div", { class: "v101-parallel-hint" }, [
+        "─── 同问发两边 · 见反代真等价于真站 · 物之两面同一道 ───",
+      ]),
+    );
+    // ─── 下 · mini chat (复用 chat tab 之 DOM id) ───
+    const modelsByPath = [
+      {
+        label: "── A 路 · codeium (/v1/*) ──",
+        items: [
+          "claude-sonnet-4-20250514",
+          "claude-haiku-4-20250514",
+          "gpt-4o",
+          "gpt-4o-mini",
+          "o1",
+          "o1-mini",
+          "gemini-2.0-flash-exp",
+          "deepseek-v3",
+          "qwen-coder-32b-instruct",
+        ],
+      },
+      {
+        label: "── B 路 · devin-cloud (/dc/v1/* · wss) ──",
+        items: ["devin-cloud-claude", "devin-cloud-gpt", "devin-cloud-agent"],
+      },
+    ];
+    const chatHead = el(
+      "div",
+      { class: "v101-chat-head v101-parallel-chat-head" },
+      [
+        el(
+          "select",
+          {
+            id: "in-chat-model",
+            class: "inp small",
+            onchange: (e) => {
+              D.lastModel = e.target.value;
+              markDirty();
+              const top = $("v101-topbar");
+              if (top && top.parentNode) {
+                const newTop = renderTopBar();
+                top.parentNode.replaceChild(newTop, top);
+              }
+            },
+          },
+          modelsByPath.map((g) =>
+            el(
+              "optgroup",
+              { label: g.label },
+              g.items.map((m) => el("option", { value: m }, [m])),
+            ),
+          ),
+        ),
+        el(
+          "button",
+          {
+            class: "btn tiny ghost",
+            onclick: () => {
+              D.chatHistory = [];
+              markDirty();
+              const c = $("v101-use-content");
+              if (c) renderUseTabContent(c);
+            },
+          },
+          ["✕ 清"],
+        ),
+      ],
+    );
+    wrap.appendChild(chatHead);
+    const _sel = $("in-chat-model");
+    if (_sel && D.lastModel) _sel.value = D.lastModel;
+    // chat 历史
+    const hist = el("div", {
+      id: "chat-history",
+      class: "chat-history v101-parallel-hist",
+    });
+    if (!D.chatHistory || D.chatHistory.length === 0) {
+      hist.appendChild(
+        el("div", { class: "chat-empty" }, [
+          el("div", { class: "dao" }, ["道"]),
+          el("div", { class: "dao-line" }, [
+            "对照真站 · 同问验之 · 反代等价真站",
+          ]),
+          el("div", { class: "hint" }, ["⏎ 发 · shift+⏎ 换行"]),
+        ]),
+      );
+    } else {
+      D.chatHistory.forEach((m, idx) => hist.appendChild(renderMsg(m, idx)));
+    }
+    wrap.appendChild(hist);
+    // chat 输入
+    const inp = el("textarea", {
+      id: "in-chat-input",
+      class: "chat-input",
+      rows: "2",
+      placeholder: "Ask 道 · 走反代 · 同时手粘到上方真站可参照验",
+    });
+    const sendBtn = el(
+      "button",
+      {
+        id: "btn-chat-send",
+        class: "btn chat-send",
+        onclick: () => sendChatV101(),
+      },
+      ["↑"],
+    );
+    const stopBtn = el(
+      "button",
+      {
+        id: "btn-chat-stop",
+        class: "btn chat-send danger",
+        style: { display: "none" },
+        onclick: () => {
+          if (chatAbort) chatAbort.abort();
+        },
+      },
+      ["⏹"],
+    );
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendChatV101();
+      }
+    });
+    wrap.appendChild(
+      el("div", { class: "chat-input-area v101-parallel-input" }, [
+        inp,
+        sendBtn,
+        stopBtn,
+      ]),
+    );
+    container.appendChild(wrap);
   }
 
   // 用区 · chat tab (移自旧 renderRight · 简化)
@@ -3534,6 +3910,8 @@
                   onchange: () => {
                     D.activeEmail = a.email;
                     markDirty();
+                    // 印 ∞ · WAM 无感切号 · 软推 VM (失静)
+                    syncActiveToVm(a.email, a.key).catch(() => {});
                     openDrawer("acct");
                   },
                 },
@@ -3772,8 +4150,45 @@
   }
 
   // 抽屉 · 端点节 (vmUrl + auth + daemon 池)
+  // 印 ∞ · 顶加 A/B 双路状态卡 · 主公诏「接收 devin cloud vm 反代出的 windsurf api 和 devin cloud」
   function renderDrawer_endpt(container) {
     const D = memo.data;
+
+    // ─── 印 ∞ · A/B 双路状态卡 (Devin VM 反代之两路) ───────────────
+    //   帛书·四十二: 道生一 · 一生二 · 二生三 · 三生万物 — A路+B路即"二"
+    //   A 路: /v1/* (Windsurf codeium · OpenAI 兼)
+    //   B 路: /dc/v1/* (Devin Cloud · wss 桥)
+    const routeCard = el("div", { class: "v128-route-card" }, [
+      el("div", { class: "v128-route-card-title" }, [
+        "★ 反代双路 (印 ∞)",
+        el("span", { class: "grow" }, []),
+        el(
+          "button",
+          {
+            class: "btn tiny ghost",
+            title: "测双路 · /v1/models + /dc/v1/models",
+            onclick: () => probeABRoutes(),
+          },
+          ["↻ 测"],
+        ),
+      ]),
+      el("div", { class: "v128-route-row", id: "v128-route-a" }, [
+        el("span", { class: "v128-route-tag a" }, ["A"]),
+        el("span", { class: "v128-route-path" }, ["/v1/* · Windsurf codeium"]),
+        el("span", { class: "v128-route-state idle", id: "v128-route-a-state" }, [
+          "○ 未测",
+        ]),
+      ]),
+      el("div", { class: "v128-route-row", id: "v128-route-b" }, [
+        el("span", { class: "v128-route-tag b" }, ["B"]),
+        el("span", { class: "v128-route-path" }, ["/dc/v1/* · Devin Cloud"]),
+        el("span", { class: "v128-route-state idle", id: "v128-route-b-state" }, [
+          "○ 未测",
+        ]),
+      ]),
+    ]);
+    container.appendChild(routeCard);
+
     container.appendChild(
       el("div", { class: "v101-drawer-section" }, [
         el("div", { class: "v101-drawer-section-title" }, ["反代 VM 端点"]),
@@ -3983,6 +4398,104 @@
       toast("启动失败: " + e.message, "err");
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 印 ∞ · A/B 双路探活 (帛书·二: 物无非彼 物无非是 · 两路两面同一道)
+  // ═══════════════════════════════════════════════════════════════════
+  //   A 路: GET vmUrl + /v1/models  (Windsurf codeium)
+  //   B 路: GET vmUrl + /dc/v1/models (Devin Cloud · 失败兜底返 dc/health)
+  //   状态: ○ 未测 · ↻ 测中 · ✓ N 模 · ✗ 失/HTTP
+  //   不挡 chat · 仅显: 主公诏「无感使用」· 弱者道之用
+  async function probeABRoutes() {
+    const D = memo.data;
+    if (!D.vmUrl) {
+      toast("先设 VM URL", "warn");
+      return;
+    }
+    const setState = (which, txt, cls) => {
+      const e = $("v128-route-" + which + "-state");
+      if (e) {
+        e.textContent = txt;
+        e.className = "v128-route-state " + cls;
+      }
+    };
+    setState("a", "↻ 测中", "idle");
+    setState("b", "↻ 测中", "idle");
+    const hdrs = D.vmAuthKey
+      ? { Authorization: "Bearer " + D.vmAuthKey }
+      : {};
+    // A 路 · /v1/models
+    try {
+      const r = await fetch(D.vmUrl + "/v1/models", {
+        headers: hdrs,
+        signal: AbortSignal.timeout(5000),
+      });
+      if (r.ok) {
+        const j = await r.json().catch(() => ({}));
+        const n = (j.data && j.data.length) || 0;
+        setState("a", "✓ " + n + " 模", "ok");
+      } else {
+        setState("a", "✗ HTTP " + r.status, "err");
+      }
+    } catch (e) {
+      setState("a", "✗ " + (e.name === "AbortError" ? "timeout" : "断"), "err");
+    }
+    // B 路 · /dc/v1/models · 兜底 /dc/health
+    try {
+      let r = await fetch(D.vmUrl + "/dc/v1/models", {
+        headers: hdrs,
+        signal: AbortSignal.timeout(5000),
+      });
+      if (r.ok) {
+        const j = await r.json().catch(() => ({}));
+        const n = (j.data && j.data.length) || 0;
+        setState("b", "✓ " + n + " 模", "ok");
+      } else if (r.status === 404 || r.status === 401) {
+        const rh = await fetch(D.vmUrl + "/dc/health", {
+          signal: AbortSignal.timeout(3000),
+        }).catch(() => null);
+        if (rh && rh.ok) setState("b", "✓ 活 (无 /v1/models)", "ok");
+        else setState("b", "✗ HTTP " + r.status, "err");
+      } else {
+        setState("b", "✗ HTTP " + r.status, "err");
+      }
+    } catch (e) {
+      setState("b", "✗ " + (e.name === "AbortError" ? "timeout" : "断"), "err");
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 印 ∞ · WAM 无感切号 (切 active radio 即推 VM · 软推 · 失静)
+  // ═══════════════════════════════════════════════════════════════════
+  //   主公诏: 「复用 wam 无感切号之一切 · 管理 windsurf 之账号」
+  //   推送目标: POST vmUrl + /admin/accounts/active {email, key}
+  //   兜底:     POST vmUrl + /admin/active {email, key}
+  //   失败不挡 · silent · 因 VM /admin/active 可能未启
+  async function syncActiveToVm(email, key) {
+    const D = memo.data;
+    if (!D.vmUrl) return;
+    const body = JSON.stringify({ email: email, key: key });
+    const hdrs = {
+      "Content-Type": "application/json",
+      ...(D.vmAuthKey ? { Authorization: "Bearer " + D.vmAuthKey } : {}),
+    };
+    const tryPost = async (path) => {
+      try {
+        const r = await fetch(D.vmUrl + path, {
+          method: "POST",
+          headers: hdrs,
+          body: body,
+          signal: AbortSignal.timeout(3000),
+        });
+        return r.ok;
+      } catch {
+        return false;
+      }
+    };
+    let ok = await tryPost("/admin/accounts/active");
+    if (!ok) ok = await tryPost("/admin/active");
+    if (ok) toast("✓ active 已推 VM · " + (email || ""), "ok");
+  }
 
   // ═══ 印 115 · 反者道之动 · GH Actions workflow 触发 (帛书 80 鸡犬相闻) ═══
   async function triggerDevinFleet_yin115(n) {

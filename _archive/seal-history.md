@@ -10,6 +10,88 @@
 
 ---
 
+## 印 ∞ · 道法自然 推进到底 · 对照 tab + A/B 双路 + WAM 无感 (2026-05-17 18:30)
+
+> 帛书·二:   「物无非彼 · 物无非是 · 自彼则不见 · 自是则知之」(按庄子·齐物论)
+> 帛书·廿二: 「圣人执一 · 以为天下牧」
+> 帛书·四十二: 「道生一 · 一生二 · 二生三 · 三生万物」
+> 帛书·四十八: 「为道者日损 · 损之又损 · 以至于无为 · 无为而无不为」
+
+承印 128 之"一气化三清·IDE 三栏并行"· 立印 ∞ 之**主公诏「右栏对照 devin.ai 网页·实时交互·测试反代 API·无感使用」之实** —— **新「★ 对照」tab 默见 · 上 iframe app.devin.ai 真站 + 下 mini chat 反代 · 同问发两边 · 见反代真等价于真站 · 物之两面同一道**.
+
+| 件 | 道 | 量 |
+|---|---|---|
+| **web/dao_app.js** &middot; ★ 升 | 印 ∞ v∞ 视图层: `renderUseTab_parallel` (上 iframe head + iframe + 中线 hint + 下 mini chat head + history + input · 复用 chat tab 之 DOM id `in-chat-input`/`chat-history`/`in-chat-model` · sendChat 一处不复写) + tab bar 加 `★ 对照` 第一位 + `__useTab` 默 `"parallel"` + `renderUseTabContent` 加 parallel 分支 + `probeABRoutes` (A 路 `/v1/models` + B 路 `/dc/v1/models` · 兜底 `/dc/health`) + `syncActiveToVm` (POST `/admin/accounts/active` · 兜底 `/admin/active` · 软推 · 失静) + `renderDrawer_endpt` 顶加 `.v128-route-card` A/B 双路状态卡 + 切 active radio 加 `syncActiveToVm` 软推 | +5104 字 |
+| **web/index.html** &middot; ★ 升 | CSS `.v101-parallel` (flex column 上下分屏) + `.v101-parallel-iframe` (flex 1 1 45%) + `.v101-parallel-hist` (flex 1 1 55%) + `.v101-parallel-hint` (道线分隔) + `.v128-route-card` (A/B 双路状态卡) + `.v128-route-tag.a/b` (双色 accent2/purple) + `.v128-route-state.ok/err/idle` (三态色) | +3042 字 |
+| **tests/_seal_inf_parallel_smoke.cjs** &middot; ★ 新 | 26 用例全离网 · 验 §1 默 parallel + 函数全在 + §2 tab bar + dispatch + §3 左栏 A/B 双路状态卡 + §4 probeABRoutes + syncActiveToVm + §5 中栏切号即推 + §6 index.html CSS + §7 道义守 (sendChat 唯一 · v101/v128 不破) | 7350 字 |
+| **tests/run_all.cjs** &middot; ★ 升 | 注册 `_seal_inf_parallel_smoke` · 27 件全套 | +1 行 |
+
+**印 ∞ 之解** (一图尽全):
+
+```text
+┌────────────────────────────────────────────────────┐
+│ 印 128 之三栏 (默 mode)                              │
+│   左 · 反代 + SP 七态                                 │
+│   中 · WAM 切号 + 账号库                              │
+│   右 · 用区 (chat / iframe / 批跑) — chat 默 tab       │
+│                                                      │
+│   缺: 用户求「对照 devin.ai」之实证 · 求「无感」之底      │
+└────────────────────┬───────────────────────────────┘
+                     │ 反者道之动 · 为道日损
+                     ▼
+┌────────────────────────────────────────────────────┐
+│ 印 ∞ 之三栏 (默 mode 印 128 续)                       │
+│                                                      │
+│   左 · 反代 + SP 七态                                 │
+│     ★ 顶加 A/B 双路状态卡 (A: /v1 · B: /dc/v1)         │
+│     一笔测两路 · ✓ N 模 / ✗ HTTP / ○ 未测              │
+│                                                      │
+│   中 · WAM 切号 + 账号库                              │
+│     ★ 切 active radio 即推 VM (软推 · 失静)            │
+│     POST /admin/accounts/active {email, key}        │
+│     "无感" 之实                                        │
+│                                                      │
+│   右 · 用区 (★ 对照 / chat / iframe / 批跑)            │
+│     ★ 对照 tab (默) ← 主公诏「右栏对照 devin.ai」      │
+│     ┌─ iframe app.devin.ai (45% 高) ─┐               │
+│     │  真站 · 对照参验                │               │
+│     ├─ ─ 同问发两边 · 验之 ─          │               │
+│     │  chat head (model + 清)        │               │
+│     │  chat history (55% 高)         │               │
+│     │  chat input (走反代)            │               │
+│     └────────────────────────────────┘               │
+│                                                      │
+│   三者道并行而不相悖 · 物之两面同一道                  │
+└────────────────────────────────────────────────────┘
+```
+
+**五大功能 (印 101 之求) · 印 ∞ 落地表**:
+
+| 求 | 印 ∞ 之新 |
+|---|---|
+| ① 反代 ws+devin | 左栏顶 A/B 双路状态卡 · 一笔测两路探活 |
+| ② 提示词管理 | 左栏 SP 七态 (印 128 已立 · 不动) |
+| ③ 反代 API 管理 | 左栏 vmUrl + authKey + 双路探活 |
+| ④ WAM 切号 | 中栏切 active radio 即推 VM (软推 · 无感) |
+| ⑤ agent 交互测试 | 右栏 ★ 对照 tab (上 iframe + 下 chat · 同问验之) |
+
+**道义守** (帛书廿二「圣人执一」):
+
+- `sendChat` 函数唯一定义 · parallel chat 复用 (一处改万法响应)
+- `D.chatHistory` / `D.iframeSite` 共享 · 切 tab 历史无损
+- `renderMineV128` / `renderUseTab_chat` / `renderUseTab_iframe` 真存不破
+- `syncActiveToVm` 软推失静 (兼容 VM 未启 /admin/active 之老路)
+
+**反向兼容**:
+
+- 旧 `?v=100` 走印 101 之顶栏+抽屉
+- 默 `?v=128` (印 128) 走三栏并行 · 右栏默 ★ 对照 tab
+- ★ 对照 tab 内可手动切 chat tab / iframe tab / 批跑 tab (大屏)
+
+详: tests/_seal_inf_parallel_smoke.cjs · 26/26 全通 (~0.2s).
+
+---
+
 ## 印 101 · 万法归宗 · 大道至简 · 用 + 管 · 反者道之动 (2026-05-14 17:30)
 
 > 帛书·四十八: 「**为道者日损 · 损之又损 · 以至于无为 · 无为而无不为**」

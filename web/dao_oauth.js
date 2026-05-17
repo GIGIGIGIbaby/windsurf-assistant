@@ -55,14 +55,108 @@
   //     ⑤ 勾选 ☑ "Enable Device Flow" (关键 · 不勾则 device-flow 不通)
   //     ⑥ 建之 · 拿到 Client ID (Ov23li... 或 Iv1...) · 填入下行
   //
-  // window.__DAO_OAUTH_CLIENT_ID__ override (印 130.1 · 印 138 治 fork 子 OAuth 路径):
-  //   用户 fork 后 fork 即继承主公值 · 但若主公未建 / 用户自建 OAuth App ·
-  //   可于 index.html <head> 加: <script>window.__DAO_OAUTH_CLIENT_ID__='Ov23li...'</script>
+  // ─── 印 132 · client_id 智能加载链 (弱者道之用) ──────────────────────
+  //   帛书·七十八「天下莫柔弱于水 · 弱之胜强 · 以其无以易之也」
+  //   不强求主公必改代码 · 4 源链 · 任一处填即活 · 终将归一 (圣人执一)
+  //
+  //   优先级 (高 → 低):
+  //     ① URL param ?dao_oauth_client_id=Ov23li...    (一次性 · 分享/调试)
+  //     ② localStorage 'dao_oauth_client_id'           (持久 · 一次为·万次用)
+  //     ③ window.__DAO_OAUTH_CLIENT_ID__ (代码硬编 · 印 130 之承 · index.html <head>)
+  //     ④ DEFAULT_CLIENT_ID (placeholder · 主公未建 OAuth App 时之兜底)
+  //
+  //   主公一次"为" · 三选一:
+  //     A) 改 dao_oauth.js DEFAULT_CLIENT_ID → 提交 commit (永久值 · 强 · 但要改码)
+  //     B) index.html <head> 加 window.__DAO_OAUTH_CLIENT_ID__ (改一行 html)
+  //     C) admin 面板输入 → setClientId(v) → localStorage 持久 (零代码改 · 弱者道之用)
   const DEFAULT_CLIENT_ID = "Ov23liYINDAO130PLACEHLDR"; // 主公 OAuth App 未建之 placeholder
+  const LS_KEY = "dao_oauth_client_id";
+  const URL_PARAM = "dao_oauth_client_id";
+
+  // 取 URL param (浏览器侧 · 守门时无 location · 自然降级)
+  function _readUrlParam() {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.location &&
+        window.location.search
+      ) {
+        const sp = new URLSearchParams(window.location.search);
+        const v = sp.get(URL_PARAM);
+        if (v && v.length >= 8) return v.trim();
+      }
+    } catch {}
+    return null;
+  }
+  function _readLocalStorage() {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const v = window.localStorage.getItem(LS_KEY);
+        if (v && v.length >= 8) return v.trim();
+      }
+    } catch {}
+    return null;
+  }
+  function _readWindowGlobal() {
+    try {
+      if (typeof window !== "undefined" && window.__DAO_OAUTH_CLIENT_ID__) {
+        const v = String(window.__DAO_OAUTH_CLIENT_ID__);
+        if (v && v.length >= 8) return v.trim();
+      }
+    } catch {}
+    return null;
+  }
+
+  // 综合 4 源 · 高优先先返 (弱者道之用 · 任一处即活)
+  function _resolveClientId() {
+    return (
+      _readUrlParam() ||
+      _readLocalStorage() ||
+      _readWindowGlobal() ||
+      DEFAULT_CLIENT_ID
+    );
+  }
+
   // let (非 const) · 守门 mock 时可经 __setUrlsForTest 注 (生产路径不动)
-  let CLIENT_ID =
-    (typeof window !== "undefined" && window.__DAO_OAUTH_CLIENT_ID__) ||
-    DEFAULT_CLIENT_ID;
+  let CLIENT_ID = _resolveClientId();
+
+  // 公开 API · admin 面板 UI 调
+  function getClientId() {
+    return CLIENT_ID;
+  }
+  function setClientId(v) {
+    const t = String(v || "").trim();
+    if (!t || t.length < 8) {
+      throw new Error("client_id 太短 (期 >= 8 字 · 实 " + t.length + ")");
+    }
+    if (/PLACEHLDR/i.test(t)) {
+      throw new Error("client_id 含 PLACEHLDR · 拒 (是 placeholder · 非真值)");
+    }
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(LS_KEY, t);
+      }
+    } catch {}
+    CLIENT_ID = t;
+    return t;
+  }
+  function clearClientId() {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(LS_KEY);
+      }
+    } catch {}
+    // 清后回退 4 源 (URL > window > DEFAULT)
+    CLIENT_ID = _readUrlParam() || _readWindowGlobal() || DEFAULT_CLIENT_ID;
+    return CLIENT_ID;
+  }
+  // 信息: 当前 client_id 来自哪一源 (admin 面板用 · 让主公辨当前态)
+  function whichSource() {
+    if (_readUrlParam()) return "url_param";
+    if (_readLocalStorage()) return "localStorage";
+    if (_readWindowGlobal()) return "window_global";
+    return "default_placeholder";
+  }
 
   // let (非 const) · 守门 mock 时可经 __setUrlsForTest 注 (生产路径不动)
   let GH_DEVICE_CODE_URL = "https://github.com/login/device/code";
@@ -346,6 +440,11 @@
     isConfigured: isConfigured,
     start: start,
     setupHint: setupHint,
+    // 印 132 · client_id 智能加载 · admin 面板 UI 用 (帛书七十八 弱者道之用)
+    getClientId: getClientId,
+    setClientId: setClientId,
+    clearClientId: clearClientId,
+    whichSource: whichSource,
     // 印 130 · 守门 hook · mock 时可覆 GH endpoint URLs + client_id (生产不调)
     //   _seal130_oauth_device_flow_smoke.cjs 起 mock server 后调此注 URL
     //   不外发 · 不污染生产 (生产时 URLs 默 github.com)

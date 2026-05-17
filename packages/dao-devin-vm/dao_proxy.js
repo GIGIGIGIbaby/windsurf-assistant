@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * 真本源_单器.js · 印 101 · 原汤化原食 · 反三立一 · 道法自然
- * 末改 · 印 122 (sp_observe+SP 7 态) · 印 123 (web 二清对齐) · 印 124 (vendor/外接api 一身两轨) · 印 128 (一气化三清整体真本源治)
+ * 末改 · 印 122 (sp_observe+SP 7 态) · 印 123 (web 二清对齐) · 印 124 (vendor/外接api 一身两轨)
+ *      · 印 128 (一气化三清整体真本源治) · 印 129 (真本源切号 /admin/signin/windsurf)
+ *      · 印 130 (真本源接入闭环 /admin/keys/{add,list,remove} · 登→入池→用 一线到底)
  * ════════════════════════════════════════════════════════════════════════
  *
  * 主公印 101 诏 (2026-05-14 · UTC+08):
@@ -114,10 +116,11 @@ try {
 // § 0 · 元 · 版 · WebSocket 检
 // ════════════════════════════════════════════════════════════════════════
 const VERSION = "0.4.2";
-// 印 122 立 SEAL · 印 125 加 sp-dryrun (主公诏「居实不居华」) · 承前启后
+// 印 122 立 SEAL · 印 125 加 sp-dryrun · 印 130 加 admin-keys+signin (居实不居华) · 印号承续
+//   帛书·廿二「圣人执一·以为天下牧」: SEAL 一字反映实功 · 不滞后于注释首行 · 不滞后于 router
 const SEAL =
-  "印 122/125 · 双池+SP七态+wss-observe+silk双源 · auth gate · sp-dryrun · 反者道之动";
-const SEAL_AT = "2026-05-17T14:53+08:00";
+  "印 122/125/130 · 双池+SP七态+wss-observe+silk双源 · auth gate · sp-dryrun · admin-keys + signin · 反者道之动";
+const SEAL_AT = "2026-05-17T18:43+08:00";
 
 let WebSocketImpl;
 if (typeof WebSocket !== "undefined") {

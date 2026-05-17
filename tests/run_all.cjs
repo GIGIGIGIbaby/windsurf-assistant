@@ -48,6 +48,9 @@ const TESTS = [
   "_seal129_real_login_smoke", // 印 129 · 真本源切号 · 代主公登 windsurf · 反者道之动 (3-step mock + 失败路径 · 此登录为核心切号本源)
   "_seal130_keys_admin_smoke", // 印 130 · 真本源接入闭环 (主公立 · /admin/keys/{add,list,remove} 真路 · 守隐 + auth + 去重 + warn · 一线到底)
   "_seal130_oauth_device_flow_smoke", // 印 130 · OAuth Device-Flow 一键登 + 池接入闭环合并 (登→入池→用 · 去中心化 · 反者道之动)
+  "_seal131_chinese_path_spawn_smoke", // 印 131 · 中文路径子进程承双旗 (圣人执一 · run_all 双旗 + 5 守门 spawn 一致 · ENOENT 治本)
+  "_seal132_client_id_loader_smoke", // 印 132 · OAuth client_id 4 源智能加载 (URL > localStorage > window_global > DEFAULT) · 弱者道之用 · 帛书七十八
+  "_seal_inf_parallel_smoke", // 印 ∞ · 对照 tab + A/B 双路 + WAM 无感切号 · 物无非彼 物无非是 · 庄子齐物论
 ];
 
 let allOk = true;
@@ -55,16 +58,31 @@ const results = [];
 
 console.log("═══ ws-deploy 全套测试 · 印 69 ═══\n");
 
-// 印 131 · 反者道之动 · 中文路径下子进程承旗 · 圣人执一以为天下牧
+// 印 131 · 反者道之动 · 中文路径下子孙皆承旗 · 圣人执一以为天下牧
 //   帛书·廿二: 「圣人执一 · 以为天下牧」
+//   帛书·四十三: 「无有入于无间」
 //   Node v24 + Windows + 中文路径 + Junction: realpathSync → ENOENT
-//   解: 父子皆承 --preserve-symlinks + --preserve-symlinks-main · 一旗到底 · 道法自然
-//   主旗治 main script realpath · 副旗治 require() 内之 realpath · 双旗合一
-//   若父进程已带 (process.execArgv), 透传; 否则添之.
+//
+//   解: 双旗经 NODE_OPTIONS 环境变量传承 · 一旗到底 · 父子孙皆透
+//     - CLI 旗 (process.execArgv) 仅子继 · 孙不继
+//     - NODE_OPTIONS env 子孙皆继 · 无有入于无间
+//   主旗 (--preserve-symlinks-main) 治 main script realpath
+//   副旗 (--preserve-symlinks) 治 require() 内之 realpath
+//   双旗合一 · 子内复 spawn `node -c` / `node --check` 之 grandchild 亦得保
+const _DUAL_FLAGS = ["--preserve-symlinks", "--preserve-symlinks-main"];
+const _childEnv = { ...process.env };
+{
+  const _existing = (_childEnv.NODE_OPTIONS || "").trim();
+  const _missing = _DUAL_FLAGS.filter((f) => !_existing.includes(f));
+  if (_missing.length) {
+    _childEnv.NODE_OPTIONS = [_existing, ..._missing].filter(Boolean).join(" ");
+  }
+}
+// CLI 旗亦添 · 双保 (env + argv) · 帛书廿八 「为天下式 · 恒德不贰」
 const _childExecArgv = Array.isArray(process.execArgv)
   ? [...process.execArgv]
   : [];
-for (const _flag of ["--preserve-symlinks", "--preserve-symlinks-main"]) {
+for (const _flag of _DUAL_FLAGS) {
   if (!_childExecArgv.includes(_flag)) _childExecArgv.push(_flag);
 }
 
@@ -75,6 +93,7 @@ for (const t of TESTS) {
   const r = spawnSync(process.execPath, [..._childExecArgv, script], {
     stdio: "inherit",
     cwd: path.join(__dirname, ".."),
+    env: _childEnv,
   });
   const dt = Date.now() - t0;
   const exitCode = r.status === null ? -1 : r.status;

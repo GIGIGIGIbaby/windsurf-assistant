@@ -128,9 +128,11 @@ requiredFns.forEach((fn) => {
 });
 
 // 全局状态
+//   印 ∞ 升: __useTab 默 'parallel' (上 iframe + 下 chat · 物无非彼 物无非是)
+//   印 131.1 治 _seal101 同步 (自是返彼 · 庄子齐物论 · 帛书四十八「日损」)
 ok(
-  /let __useTab\s*=\s*"chat"/.test(appSrc),
-  "§2.x __useTab 默 'chat' (用户进默见对话)",
+  /let __useTab\s*=\s*"parallel"/.test(appSrc),
+  "§2.x __useTab 默 'parallel' (上 iframe + 下 chat · 印 ∞ 升)",
 );
 ok(
   /let __drawerOpen\s*=\s*null/.test(appSrc),
@@ -284,12 +286,14 @@ ok(
 // §7 · 用 + 管 二字守 (帛书四十八「为道日损」之体)
 // ───────────────────────────────────────────────────────────────────────
 head("§7 用 + 管 二字守 (大道至简)");
-// 用区 3 tab (chat/iframe/batch)
+// 用区 4 tab (parallel/chat/iframe/batch · 印 ∞ 加 parallel 默)
+// 印 131.1 治 · 容 prettier 多行 (makeUseTab(\n  "parallel" · 同印 128 容承续)
 ok(
-  /makeUseTab\("chat"/.test(appSrc) &&
-    /makeUseTab\("iframe"/.test(appSrc) &&
-    /makeUseTab\("batch"/.test(appSrc),
-  "§7.1 用区 3 tab: chat / iframe / batch",
+  /makeUseTab\(\s*"parallel"[^\)]*\)/.test(appSrc) &&
+    /makeUseTab\(\s*"chat"[^\)]*\)/.test(appSrc) &&
+    /makeUseTab\(\s*"iframe"[^\)]*\)/.test(appSrc) &&
+    /makeUseTab\(\s*"batch"[^\)]*\)/.test(appSrc),
+  "§7.1 用区 4 tab: parallel / chat / iframe / batch (印 ∞ parallel 默)",
 );
 // 管抽屉 4 节 (acct/sp/endpt/test)
 ok(
@@ -299,10 +303,10 @@ ok(
     /makeDrawerTab\("test"/.test(appSrc),
   "§7.2 管抽屉 4 节: acct / sp / endpt / test",
 );
-// 默 chat tab (用户进默见对话 · 最高频)
+// 默 parallel tab (用户进默见 iframe+chat 对照 · 印 ∞ 升 · 物无非彼)
 ok(
-  /let __useTab\s*=\s*"chat"/.test(appSrc),
-  "§7.3 默 chat tab (用户进默见对话)",
+  /let __useTab\s*=\s*"parallel"/.test(appSrc),
+  "§7.3 默 parallel tab (上 iframe · 下 chat · 印 ∞ 物无非彼)",
 );
 // 默 抽屉收 (用 80% / 管 默隐)
 ok(

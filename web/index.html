@@ -1247,6 +1247,107 @@
         font-size: 10px;
       }
 
+      /* ═══════════════════════════════════════════════════════════════
+         印 ∞ (2026-05-17) · 对照 tab · 上 iframe + 下 mini chat
+         帛书·二: 物无非彼 · 物无非是 · 自彼则不见 · 自是则知之
+         主公诏: 右栏对照 devin.ai · 实时交互 · 测试反代 · 无感使用
+         ═══════════════════════════════════════════════════════════════ */
+      .v101-parallel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+        gap: 4px;
+      }
+      .v101-parallel-ifr-head {
+        flex-shrink: 0;
+        margin-bottom: 0;
+      }
+      .v101-parallel-iframe {
+        width: 100%;
+        flex: 1 1 45%;
+        min-height: 160px;
+        border: 1px solid var(--line2);
+        border-radius: 4px;
+        background: #0a0a0a;
+      }
+      .v101-parallel-hint {
+        text-align: center;
+        font-size: 10px;
+        color: var(--dim2);
+        padding: 3px 0;
+        letter-spacing: 1.5px;
+        flex-shrink: 0;
+        border-top: 1px dashed var(--line);
+        border-bottom: 1px dashed var(--line);
+        margin: 2px 0;
+      }
+      .v101-parallel-chat-head {
+        flex-shrink: 0;
+        margin-bottom: 0;
+      }
+      .v101-parallel-hist {
+        flex: 1 1 55%;
+        min-height: 100px;
+        overflow-y: auto;
+      }
+      .v101-parallel-input {
+        flex-shrink: 0;
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+         印 ∞ · 左栏 A/B 双路状态卡 (Devin VM 反代之两路: Windsurf + Devin Cloud)
+         主公诏: 接收 devin cloud vm 反代出的 windsurf api 和 devin cloud
+         ═══════════════════════════════════════════════════════════════ */
+      .v128-route-card {
+        background: var(--bg2);
+        border: 1px solid var(--line2);
+        border-radius: 4px;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+        font-size: 11px;
+      }
+      .v128-route-card-title {
+        font-size: 10px;
+        color: var(--dim);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .v128-route-card-title .grow { flex: 1; }
+      .v128-route-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        font-family: "Cascadia Code", "Consolas", monospace;
+      }
+      .v128-route-row + .v128-route-row {
+        border-top: 1px dashed var(--line);
+      }
+      .v128-route-tag {
+        font-weight: 700;
+        width: 18px;
+      }
+      .v128-route-tag.a { color: var(--accent2); }
+      .v128-route-tag.b { color: var(--purple); }
+      .v128-route-path {
+        color: var(--fg2);
+        flex: 1;
+        font-size: 10px;
+      }
+      .v128-route-state {
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .v128-route-state.ok { color: var(--ok); }
+      .v128-route-state.err { color: var(--err); }
+      .v128-route-state.idle { color: var(--dim2); }
+
       /* 批跑 内 */
       .v101-batch-head {
         margin-bottom: 8px;
@@ -1559,6 +1660,72 @@
             </div>
           </div>
         </div>
+
+        <!-- 印 132 · OAuth client_id 智能配 (弱者道之用 · 一次为·万次用) -->
+        <details
+          id="gate-oauth-config-details"
+          style="
+            margin-top: 8px;
+            padding: 8px;
+            border: 1px dashed var(--gold, #d4a850);
+            border-radius: 4px;
+            opacity: 0.85;
+          "
+        >
+          <summary
+            style="
+              cursor: pointer;
+              color: var(--gold, #d4a850);
+              font-size: 11px;
+            "
+          >
+            ⚙ 配 OAuth App client_id
+            (<span id="gate-oauth-config-source">…</span>)
+          </summary>
+          <div style="margin-top: 8px; font-size: 11px; color: var(--dim, #888)">
+            主公一次"为" · 5 min 建 OAuth App ·
+            <a
+              href="https://github.com/settings/developers"
+              target="_blank"
+              style="color: var(--gold, #d4a850)"
+              >github.com/settings/developers ↗</a
+            >
+            · ☑ Enable Device Flow · 拿 Client ID 粘下↓ ·
+            零代码改 · 持久 localStorage
+          </div>
+          <div class="gate-input-row" style="margin-top: 8px">
+            <input
+              type="text"
+              id="gate-oauth-config-input"
+              class="inp grow"
+              placeholder="Ov23li... 或 Iv1... (主公 OAuth App Client ID)"
+              autocomplete="off"
+            />
+          </div>
+          <div class="gate-actions" style="margin-top: 6px">
+            <button class="btn" id="gate-oauth-config-save">
+              💾 存 (持久)
+            </button>
+            <button
+              class="btn ghost tiny"
+              id="gate-oauth-config-clear"
+              style="margin-left: 4px"
+            >
+              ✗ 清
+            </button>
+            <span class="grow"></span>
+            <span
+              id="gate-oauth-config-status"
+              style="font-size: 11px; color: var(--dim, #888)"
+            ></span>
+          </div>
+          <div
+            style="margin-top: 6px; font-size: 10px; color: var(--dim2, #666)"
+          >
+            或临时 URL ·
+            <code>?dao_oauth_client_id=Ov23li...</code> · 一次性高优先
+          </div>
+        </details>
 
         <!-- 兜底 · PAT 入口 (隐私洁癖 / 主公 OAuth App 未建 / 企业 SSO 用户) -->
         <details

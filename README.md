@@ -3,7 +3,7 @@
 > 道生一 · 一生二 · 二生三 · 三生万物
 > 反者道之动 · 弱者道之用 · 天下之物生于有 · 有生于无
 
-A fully decentralized Windsurf assistant &mdash; **一气化三清 · 道并行而不悖** · 印 65 三清立 · 印 101 大道至简 · 反者道之动 · 为道日损.
+A fully decentralized Windsurf assistant &mdash; **一气化三清 · 道并行而不悖** · 印 65 三清立 · 印 101 大道至简 · **印 ∞ 道法自然推进到底·★ 对照 tab 默见·左 A/B 双路·中 WAM 无感** · 反者道之动 · 为道日损.
 
 历之详 (印 88 → 印 101 之阶) 入 [`_archive/seal-history.md`](_archive/seal-history.md). 当前道只示三清 + 一装三步 + 道义守.
 
