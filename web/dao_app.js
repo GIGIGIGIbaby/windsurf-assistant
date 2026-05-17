@@ -565,12 +565,12 @@
       ]),
     );
 
-    // C · 反代提示词管理 (印 52 守一不离)
+    // C · 反代提示词管理 (印 52 守一不离 · 印 123 升 7 态对齐 dao_proxy)
     const sp = D.sp;
     root.appendChild(
       el("div", { class: "pane" }, [
         el("div", { class: "pane-hd" }, [
-          "反代提示词 · SP 三模 ",
+          "反代提示词 · SP 七态 ",
           el("span", { class: "meta" }, [sp.mode]),
         ]),
         el("div", { class: "pane-bd" }, [
@@ -578,8 +578,13 @@
             "div",
             { class: "sp-mode-grp" },
             [
-              ["passthrough", "透 · 不动 system"],
-              ["dao", "道 · 帛书《老子》替"],
+              // 印 123 · 七态对齐 dao_proxy /v1/system/prompt allowed (passthrough 兼老 alias bypass)
+              ["passthrough", "透 · 不动 (=bypass)"],
+              ["dao", "★ 道 · 帛书《老子》全替"],
+              ["usernote", "★ usernote · §3.17 合法槽"],
+              ["prepend", "前 · 道+原"],
+              ["append", "后 · 原+道"],
+              ["override", "盖 · ∗thinking-loop"],
               ["custom", "自定 · 用户 SP 替"],
             ].map(([m, label]) =>
               el(
@@ -1527,22 +1532,29 @@
 
   // 印 88 · SP mode 推送 VM /sp/mode · 道随修者得之
   //   帛书·二十二: 「圣人执一」—— 三者合一 · web 为外·VM 为内
+  // 印 122 升: /sp/mode → /v1/system/prompt {strategy} · 7 态对齐 dao_proxy
+  // 印 123: passthrough 兼老 alias bypass (def.sp.mode 默 passthrough 不动 · 道法自然)
   async function syncSpModeToVm(mode) {
     const D = memo.data;
     if (!D.vmUrl || !D.vmAuthKey) return; // 默静 · 未填则不推
+    // 印 123 · passthrough 兼老 alias bypass · 字串对齐 dao_proxy 七态
+    const strategy = mode === "passthrough" ? "bypass" : mode;
     try {
-      const r = await fetch(D.vmUrl + "/sp/mode", {
+      const r = await fetch(D.vmUrl + "/v1/system/prompt", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + D.vmAuthKey,
         },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({ strategy }),
       });
       if (r.ok) {
         const j = await r.json();
         toast(
-          "SP · mode=" + (j.mode || mode) + " · silk=" + (j.silkChars || "-"),
+          "SP · " +
+            (j.strategy || strategy) +
+            " · updatedAt=" +
+            (j.updatedAt || "-"),
           "ok",
         );
       }
@@ -1552,17 +1564,18 @@
   }
 
   // 印 88 · SP custom 推 VM /sp/custom
+  // 印 122 升: /sp/custom → /v1/system/prompt {customSp}
   async function syncSpCustomToVm(custom) {
     const D = memo.data;
     if (!D.vmUrl || !D.vmAuthKey) return;
     try {
-      await fetch(D.vmUrl + "/sp/custom", {
+      await fetch(D.vmUrl + "/v1/system/prompt", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + D.vmAuthKey,
         },
-        body: JSON.stringify({ custom }),
+        body: JSON.stringify({ customSp: custom }),
       });
     } catch {}
   }
@@ -3110,17 +3123,26 @@
     );
   }
 
-  // 抽屉 · SP 节 (提示词综合管理 · 印 101 新)
+  // 抽屉 · SP 节 (提示词综合管理 · 印 101 立 · 印 123 升 7 态对齐 dao_proxy)
   function renderDrawer_sp(container) {
     const D = memo.data;
     if (!D.sp) D.sp = { mode: "dao", custom: "" };
     if (!D.spLibrary) D.spLibrary = [];
 
-    // 三模切
+    // 印 123 · 七态切 (passthrough 兼老 alias bypass · syncSpModeToVm 之时翻字)
+    const SP_MODES = [
+      ["passthrough", "原透"],
+      ["dao", "★ 道"],
+      ["usernote", "★ usernote"],
+      ["prepend", "前"],
+      ["append", "后"],
+      ["override", "盖"],
+      ["custom", "自定"],
+    ];
     const modeBtnGrp = el(
       "div",
       { class: "sp-mode-grp" },
-      ["passthrough", "dao", "custom"].map((m) =>
+      SP_MODES.map(([m, label]) =>
         el(
           "button",
           {
@@ -3132,22 +3154,27 @@
               openDrawer("sp");
             },
           },
-          [m === "passthrough" ? "原" : m === "dao" ? "道 (默)" : "自定义"],
+          [label],
         ),
       ),
     );
+    const SP_HINTS = {
+      passthrough: "原透: 不注 SP · 让客户端自带 (= bypass · 默)",
+      dao: "道: 注入帛书《老子》全文 (5000+ 字 · 双源 silk 真合)",
+      usernote: "usernote: §3.17 合法槽 (note name=dao-priority author=user)",
+      prepend: "前: 道+原 · 帛书在前 · 原 SP 在后",
+      append: "后: 原+道 · 原 SP 在前 · 帛书在后",
+      override: "盖: ∗thinking-loop · 强抗 persona (慎用)",
+      custom: "自定: 注入下方 textarea 之 SP",
+    };
     container.appendChild(
       el("div", { class: "v101-drawer-section" }, [
         el("div", { class: "v101-drawer-section-title" }, [
-          "SP 三模 (当前: " + D.sp.mode + ")",
+          "SP 七态 (当前: " + D.sp.mode + ")",
         ]),
         modeBtnGrp,
         el("div", { class: "hint" }, [
-          D.sp.mode === "passthrough"
-            ? "原: 不注 SP · 让客户端自带"
-            : D.sp.mode === "dao"
-              ? "道: 注入 dao-proxy-min 内置 SP (帛书道义)"
-              : "自定义: 注入下方 textarea 之 SP",
+          SP_HINTS[D.sp.mode] || "未知 mode (清二治为 7 态 · 老值兼)",
         ]),
       ]),
     );
@@ -3331,8 +3358,25 @@
         ]),
         // 印 115 · 反者道之动 · 触 Devin VM 反代 fleet workflow (鸡犬相闻)
         el("div", { class: "row gap", style: { marginTop: "8px" } }, [
-          el("button", { class: "btn ghost small", onclick: () => triggerDevinFleet_yin115(2) }, ["★ 起 N=2 Devin VM (印 115)"]),
-          el("button", { class: "btn ghost small", onclick: () => { if (typeof autoFindCloudPoolGist === "function") autoFindCloudPoolGist(); } }, ["刷池"]),
+          el(
+            "button",
+            {
+              class: "btn ghost small",
+              onclick: () => triggerDevinFleet_yin115(2),
+            },
+            ["★ 起 N=2 Devin VM (印 115)"],
+          ),
+          el(
+            "button",
+            {
+              class: "btn ghost small",
+              onclick: () => {
+                if (typeof autoFindCloudPoolGist === "function")
+                  autoFindCloudPoolGist();
+              },
+            },
+            ["刷池"],
+          ),
         ]),
       ]),
     );
@@ -3460,23 +3504,47 @@
   // ═══ 印 115 · 反者道之动 · GH Actions workflow 触发 (帛书 80 鸡犬相闻) ═══
   async function triggerDevinFleet_yin115(n) {
     n = n || 2;
-    const pat = (typeof daoSync !== "undefined" && daoSync.getPat) ? daoSync.getPat() : localStorage.getItem("dao_pat");
-    if (!pat) { toast("无 PAT · 请先登入", "warn"); return; }
-    const owner = (typeof daoSync !== "undefined" && daoSync.user && daoSync.user.login) || "";
-    if (!owner) { toast("未识 owner · 重登", "warn"); return; }
+    const pat =
+      typeof daoSync !== "undefined" && daoSync.getPat
+        ? daoSync.getPat()
+        : localStorage.getItem("dao_pat");
+    if (!pat) {
+      toast("无 PAT · 请先登入", "warn");
+      return;
+    }
+    const owner =
+      (typeof daoSync !== "undefined" && daoSync.user && daoSync.user.login) ||
+      "";
+    if (!owner) {
+      toast("未识 owner · 重登", "warn");
+      return;
+    }
     const repo = "windsurf-assistant";
     try {
       const r = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/actions/workflows/dao-fleet-devin-cloud.yml/dispatches`,
-        { method: "POST", headers: { Authorization: `token ${pat}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify({ ref: "main", inputs: { n: String(n) } }) }
+        {
+          method: "POST",
+          headers: {
+            Authorization: `token ${pat}`,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ref: "main", inputs: { n: String(n) } }),
+        },
       );
       if (r.status === 204) {
         toast(`★ 印 115 workflow 触发 · 起 ${n} Devin VM · ~120s`, "ok");
-        setTimeout(() => { if (typeof autoFindCloudPoolGist === "function") autoFindCloudPoolGist(); }, 90000);
+        setTimeout(() => {
+          if (typeof autoFindCloudPoolGist === "function")
+            autoFindCloudPoolGist();
+        }, 90000);
       } else {
         const t = await r.text();
         toast(`触发失: ${t.slice(0, 100)}`, "err");
       }
-    } catch (e) { toast(`错: ${e.message}`, "err"); }
+    } catch (e) {
+      toast(`错: ${e.message}`, "err");
+    }
   }
 })();

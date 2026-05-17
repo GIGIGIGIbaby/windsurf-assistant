@@ -262,6 +262,73 @@ for (const fp of [
   else ng(path.basename(fp), `node -c 失: ${(r.stderr || "").slice(0, 200)}`);
 }
 
+// ─── §12 印 123 · 清二治 · web SP 7 态对齐 dao_proxy ─────────────────
+console.log("\n[12] 印 123 · 清二治 · web SP 7 态对齐 (dao_app.js)");
+const daoAppPath = path.resolve(__dirname, "..", "web", "dao_app.js");
+if (fs.existsSync(daoAppPath)) {
+  const src = fs.readFileSync(daoAppPath, "utf8");
+  // 验 7 态字串全在
+  const sevenStates = [
+    "bypass",
+    "dao",
+    "usernote",
+    "prepend",
+    "append",
+    "override",
+    "custom",
+  ];
+  // 注: web 端 passthrough 兼老 alias bypass · 字串映射在 syncSpModeToVm
+  const webModes = [
+    "passthrough",
+    "dao",
+    "usernote",
+    "prepend",
+    "append",
+    "override",
+    "custom",
+  ];
+  for (const m of webModes) {
+    if (src.includes(`"${m}"`)) ok(`web 态 "${m}" 立`);
+    else ng(`web SP 态 "${m}" 缺 (dao_app.js)`, "印 123 升 7 态");
+  }
+  // 验 endpoint 升 /v1/system/prompt (印 122 现接口)
+  if (src.includes("/v1/system/prompt"))
+    ok("endpoint /v1/system/prompt 接齐 (印 122)");
+  else
+    ng(
+      "endpoint /v1/system/prompt 缺 (dao_app.js syncSpModeToVm)",
+      "印 123 治断",
+    );
+  // 验 passthrough → bypass 翻字 (兼老)
+  if (
+    src.match(/passthrough[^"]*\?\s*"bypass"/) ||
+    src.includes('mode === "passthrough" ? "bypass"')
+  ) {
+    ok("passthrough → bypass 翻字立 (兼老)");
+  } else
+    ng(
+      "passthrough → bypass 翻字缺 (dao_app.js syncSpModeToVm)",
+      "印 123 兼老",
+    );
+  // 验 body strategy 字段 (印 122 接口)
+  if (
+    src.includes("strategy }") ||
+    src.includes("strategy:") ||
+    src.match(/JSON\.stringify\(\{\s*strategy\s*\}/)
+  ) {
+    ok("body strategy 字段立 (印 122)");
+  } else ng("body strategy 字段缺", "应 POST { strategy }");
+  // 验 customSp 字段 (印 122 接口)
+  if (src.includes("customSp")) ok("body customSp 字段立 (印 122)");
+  else ng("body customSp 字段缺", "应 POST { customSp }");
+  // 验 SP 七态文案
+  if (src.includes("SP 七态") || src.includes("七态"))
+    ok("SP 七态 标题升 (印 123)");
+  else ng("SP 七态 标题缺", "应升「SP 七态」");
+} else {
+  ng("dao_app.js 不存", daoAppPath);
+}
+
 console.log("");
 console.log(
   `═══ 总: \x1b[32m${pass} 过\x1b[0m / \x1b[31m${fail} 失\x1b[0m ═══`,
