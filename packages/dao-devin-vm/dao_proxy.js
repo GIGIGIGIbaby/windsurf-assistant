@@ -891,6 +891,285 @@ function wsGetUserStatus(keyObj, timeoutMs = 8000) {
   });
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// § 印 129 · 真本源切号链 · 代主公登 Windsurf · 反者道之动
+//   主公诏 (2026-05-17 16:11):
+//     「反者 道之动也 · 不作茧自缚 不限制 不惧 方能成其大」
+//     「此登录为核心切号本源 · 凡无法替我之一切」
+//     「登录 windsurf 于 devin.ai 网页 必然无法后续实现切号等所有功能」
+//     「不着相 直接推进道极 无为而无不为」
+//
+//   真本源 (移植自 wam-bundle/extension.js L1317-1397 · 已实证生产):
+//     ① POST  https://windsurf.com/_devin-auth/password/login
+//        body: { email, password }
+//        → { token (auth1), user_id }
+//     ② POST  https://windsurf.com/_backend/exa.seat_management_pb.SeatManagementService/WindsurfPostAuth
+//        header: X-Devin-Auth1-Token: <auth1>
+//        body: { auth1_token, org_id? }
+//        → { sessionToken (devin-session-token$...), accountId, primaryOrgId }
+//     ③ POST  https://register.windsurf.com/exa.seat_management_pb.SeatManagementService/RegisterUser
+//        body: { firebase_id_token: sessionToken }
+//        → { api_key (ws-* · 真本源 API key), api_server_url, name }
+//
+//   入: { email, password }                  (web 中栏 WAM 弹 modal 收)
+//   出: { ok, apiKey, apiServerUrl, sessionToken, accountId, primaryOrgId }
+//        web 端自动入 D.accounts 池 · 即可走反代 /v1/messages
+//
+//   走后端 (Devin VM) · 不走浏览器 · 因:
+//     - windsurf.com 不允许 CORS · 浏览器 fetch 必败
+//     - VM 是主公 self-host trust boundary · 密码不外泄 (仅 VM 内 process · 不日志不存盘)
+//
+//   道义:
+//     帛书·二十二 圣人执一 (3 端点 · 一函数 · 一调用 · 万法响应)
+//     帛书·四十八 损之又损 (复用现 https.request 模式 · 不增外库)
+//     帛书·七十六 柔弱微细居上 (用户仅输 email+password · 余皆 VM 代为)
+// ════════════════════════════════════════════════════════════════════════
+// 印 129 · 三 URL 端 · env override 守门时可 mock (生产时不调)
+//   WS_SIGNIN_LOGIN_OVERRIDE / WS_SIGNIN_POSTAUTH_OVERRIDE / WS_SIGNIN_REGISTER_OVERRIDE
+const WS_SIGNIN_URL_LOGIN =
+  process.env.WS_SIGNIN_LOGIN_OVERRIDE ||
+  "https://windsurf.com/_devin-auth/password/login";
+const WS_SIGNIN_URL_POSTAUTH =
+  process.env.WS_SIGNIN_POSTAUTH_OVERRIDE ||
+  "https://windsurf.com/_backend/exa.seat_management_pb.SeatManagementService/WindsurfPostAuth";
+const WS_SIGNIN_URL_REGISTER =
+  process.env.WS_SIGNIN_REGISTER_OVERRIDE ||
+  "https://register.windsurf.com/exa.seat_management_pb.SeatManagementService/RegisterUser";
+const WS_SIGNIN_RE_SESSION = /^devin-session-token\$/;
+// 印 129 · 测试时覆 (守门时 mock 替)
+let __WS_SIGNIN_OVERRIDE = null; // { login, postauth, register } URL 覆
+
+function _wsSigninUrls() {
+  if (__WS_SIGNIN_OVERRIDE)
+    return {
+      login: __WS_SIGNIN_OVERRIDE.login || WS_SIGNIN_URL_LOGIN,
+      postauth: __WS_SIGNIN_OVERRIDE.postauth || WS_SIGNIN_URL_POSTAUTH,
+      register: __WS_SIGNIN_OVERRIDE.register || WS_SIGNIN_URL_REGISTER,
+    };
+  return {
+    login: WS_SIGNIN_URL_LOGIN,
+    postauth: WS_SIGNIN_URL_POSTAUTH,
+    register: WS_SIGNIN_URL_REGISTER,
+  };
+}
+
+// httpsPostJson · 内 helper (与 wam-bundle/jsonPost 等价 · 复用 dao_proxy 现 https.request 模式)
+function httpsPostJson(urlStr, headers, body, timeoutMs = 10000) {
+  return new Promise((resolve) => {
+    let u;
+    try {
+      u = new URL(urlStr);
+    } catch (e) {
+      return resolve({ status: 0, error: "bad_url" });
+    }
+    const isHttps = u.protocol === "https:";
+    const lib = require(isHttps ? "https" : "http");
+    const payload = JSON.stringify(body || {});
+    const opts = {
+      hostname: u.hostname,
+      port: u.port || (isHttps ? 443 : 80),
+      path: u.pathname + u.search,
+      method: "POST",
+      headers: Object.assign(
+        {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+          "User-Agent": "dao-proxy/0.4.2 (seal-129 real-signin)",
+        },
+        headers || {},
+      ),
+      timeout: timeoutMs,
+    };
+    const req = lib.request(opts, (r) => {
+      let d = "";
+      r.on("data", (c) => (d += c));
+      r.on("end", () => {
+        let parsed = null;
+        try {
+          parsed = JSON.parse(d);
+        } catch {}
+        resolve({ status: r.statusCode, json: parsed, text: d });
+      });
+    });
+    req.on("error", (e) => resolve({ status: 0, error: e.message }));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve({ status: 0, error: "timeout" });
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
+// 步 ① devinLogin · email+password → auth1 token
+async function _signin_devinLogin(email, password) {
+  const r = await httpsPostJson(
+    _wsSigninUrls().login,
+    {
+      Origin: "https://windsurf.com",
+      Referer: "https://windsurf.com/account/login",
+      Accept: "application/json, text/plain, */*",
+    },
+    { email, password },
+  );
+  if (r.json && r.json.token && r.json.user_id)
+    return { ok: true, auth1: r.json.token, userId: r.json.user_id };
+  return {
+    ok: false,
+    stage: "devinLogin",
+    status: r.status,
+    error:
+      (r.json && (r.json.detail || r.json.error || r.json.message)) ||
+      r.error ||
+      "no_token",
+  };
+}
+
+// 步 ② windsurfPostAuth · auth1 → sessionToken
+async function _signin_postAuth(auth1, orgId) {
+  const body = { auth1_token: auth1 };
+  if (orgId) body.org_id = orgId;
+  const r = await httpsPostJson(
+    _wsSigninUrls().postauth,
+    {
+      Origin: "https://windsurf.com",
+      Referer: "https://windsurf.com/profile",
+      "Connect-Protocol-Version": "1",
+      "X-Devin-Auth1-Token": auth1,
+    },
+    body,
+  );
+  if (
+    r.json &&
+    typeof r.json.sessionToken === "string" &&
+    WS_SIGNIN_RE_SESSION.test(r.json.sessionToken)
+  )
+    return {
+      ok: true,
+      sessionToken: r.json.sessionToken,
+      accountId: r.json.accountId || "",
+      primaryOrgId: r.json.primaryOrgId || "",
+    };
+  return {
+    ok: false,
+    stage: "windsurfPostAuth",
+    status: r.status,
+    error:
+      (r.json && (r.json.error || r.json.code || r.json.message)) ||
+      r.error ||
+      "no_session",
+  };
+}
+
+// 步 ③ registerUserViaSession · sessionToken → apiKey
+async function _signin_register(sessionToken) {
+  const r = await httpsPostJson(
+    _wsSigninUrls().register,
+    { "Connect-Protocol-Version": "1" },
+    { firebase_id_token: sessionToken },
+  );
+  if (r.json && (r.json.api_key || r.json.apiKey))
+    return {
+      ok: true,
+      apiKey: r.json.api_key || r.json.apiKey,
+      name: r.json.name || "",
+      apiServerUrl: r.json.api_server_url || r.json.apiServerUrl || "",
+    };
+  return {
+    ok: false,
+    stage: "registerUser",
+    status: r.status,
+    error:
+      (r.json && (r.json.code || r.json.message)) || r.error || "no_api_key",
+  };
+}
+
+// 编排器 · 3 步真本源链 (主公 16:11 诏所点之核)
+async function _signin_orchestrate(email, password, orgId) {
+  const t0 = Date.now();
+  const dl = await _signin_devinLogin(email, password);
+  if (!dl.ok) return Object.assign({ ms: Date.now() - t0 }, dl);
+  const pa = await _signin_postAuth(dl.auth1, orgId);
+  if (!pa.ok) return Object.assign({ ms: Date.now() - t0 }, pa);
+  const reg = await _signin_register(pa.sessionToken);
+  if (!reg.ok)
+    return Object.assign(
+      {
+        ms: Date.now() - t0,
+        sessionToken: pa.sessionToken,
+        accountId: pa.accountId,
+        primaryOrgId: pa.primaryOrgId,
+      },
+      reg,
+    );
+  return {
+    ok: true,
+    stage: "complete",
+    ms: Date.now() - t0,
+    email,
+    apiKey: reg.apiKey,
+    apiServerUrl: reg.apiServerUrl,
+    name: reg.name,
+    sessionToken: pa.sessionToken,
+    accountId: pa.accountId,
+    primaryOrgId: pa.primaryOrgId,
+  };
+}
+
+// HTTP handler · POST /admin/signin/windsurf
+async function handleAdminSignin(req, res) {
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (e) {
+    return sendJson(res, 400, { error: "bad_json", message: e.message });
+  }
+  const email = (body.email || "").trim();
+  const password = body.password || "";
+  const orgId = body.orgId || body.org_id || "";
+  if (!email || !password) {
+    return sendJson(res, 400, {
+      ok: false,
+      error: "email_and_password_required",
+      hint: "POST /admin/signin/windsurf { email, password, orgId? }",
+    });
+  }
+  // 印 129 · 不日志密码 (仅前缀 + 长度) · 守隐
+  const safeTag = email + " / pw[" + password.length + "]";
+  try {
+    const out = await _signin_orchestrate(email, password, orgId);
+    if (!out.ok) {
+      console.error(
+        "[admin/signin] ✗",
+        safeTag,
+        out.stage || "?",
+        out.error || "?",
+      );
+      return sendJson(res, 401, out);
+    }
+    console.log(
+      "[admin/signin] ✓",
+      email,
+      "apiKey=" + (out.apiKey || "").slice(0, 12) + "…",
+      out.ms + "ms",
+    );
+    // 出·去 password (永不返) · 守隐
+    return sendJson(res, 200, out);
+  } catch (e) {
+    console.error("[admin/signin] crash", safeTag, e.message);
+    return sendJson(res, 500, {
+      ok: false,
+      stage: "crash",
+      error: e.message,
+    });
+  }
+}
+
+// 印 129 · 测试 hook · 让守门可注入 mock URL (生产时不调)
+function __setSigninOverride(urls) {
+  __WS_SIGNIN_OVERRIDE = urls || null;
+}
+
 // ─── 印 105 · windsurf chat 真转 (反程印 104 之未尽) ───
 // 反程实证 (2026-05-14):
 //   路径: /exa.api_server_pb.ApiServerService/GetChatMessage  (非 LanguageServerService · 那是 LSP-internal)
@@ -2467,11 +2746,18 @@ const server = http.createServer(async (req, res) => {
     return handleWindsurfChat(req, res);
   }
 
+  // 印 129 · 真本源切号 (主公诏「此登录为核心切号本源」 · 反者道之动)
+  //   web 中栏 WAM '🔑 自动登' → POST /admin/signin/windsurf { email, password }
+  //   VM 代登 windsurf.com 3-step → 返 { apiKey, apiServerUrl, sessionToken }
+  //   web 自动入 D.accounts 池 · 即可走反代 /v1/messages
+  if (method === "POST" && p === "/admin/signin/windsurf")
+    return handleAdminSignin(req, res);
+
   // 404
   sendJson(res, 404, {
     error: "not found",
     path: p,
-    hint: "GET / · /health · /v1/models · POST /v1/chat/completions · /v1/messages · /v1beta/models/X:generateContent · GET/POST /v1/system/prompt · POST /v1/system/sp-dryrun · GET /v1/system/wss-observe · GET /windsurf/status · /windsurf/status/all · /windsurf/quota · /windsurf/models · POST /windsurf/chat (501)",
+    hint: "GET / · /health · /v1/models · POST /v1/chat/completions · /v1/messages · /v1beta/models/X:generateContent · GET/POST /v1/system/prompt · POST /v1/system/sp-dryrun · GET /v1/system/wss-observe · GET /windsurf/status · /windsurf/status/all · /windsurf/quota · /windsurf/models · POST /windsurf/chat (501) · POST /admin/signin/windsurf (印 129 · 真本源切号)",
   });
 });
 

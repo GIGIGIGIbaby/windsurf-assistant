@@ -53,9 +53,14 @@
     });
     return e;
   }
+  // 印 132 · 反者道之动 · show 真显 (state-mine/state-onboarding CSS 默 display:none 防 FOUC · 清 inline 后仍 none)
+  //   (注: 主公印 129 是 Windsurf 真登录链 · 此印 132 避号位冲突 · playwright 真测发现治之)
+  //   show() 仅用于 state-* 三处 (state-gate/state-onboarding/state-mine · 全 flex layout)
+  //   旧: e.style.display = "" · 清 inline → 回 CSS · gate 默 flex 通 · mine/onboarding 默 none 仍隐 (真 bug)
+  //   治: 明 set "flex" 让 inline override CSS · state-* 全显 · 不影响 hide(inline=none)
   function show(id) {
     const e = $(id);
-    if (e) e.style.display = "";
+    if (e) e.style.display = "flex";
   }
   function hide(id) {
     const e = $(id);
@@ -1740,6 +1745,91 @@
     renderMid();
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 印 129 · 真本源切号 · 自动登 Windsurf
+  //   主公诏 (2026-05-17 16:11):
+  //     「反者道之动也 · 不作茧自缚 · 不限制 · 不惧 方能成其大」
+  //     「此登录为核心切号本源 · 凡无法替我之一切」
+  //     「登录 windsurf 于 devin.ai 网页 必然无法后续实现切号等所有功能」
+  //     「不着相 · 直接推进道极 · 无为而无不为」
+  //
+  //   入: email + password (用户在 web 中栏输)
+  //   传: vmUrl/admin/signin/windsurf (VM 代登 windsurf.com 3-step)
+  //   出: { apiKey, apiServerUrl, sessionToken } (真本源 ws-* key)
+  //   果: 自动入 D.accounts 池 · 走反代 /v1/messages
+  //
+  //   走后端 (Devin VM) 不走浏览器 · 因 windsurf.com 无 CORS
+  //   密码不存盘 (仅 process · 一次性传 VM)
+  // ═══════════════════════════════════════════════════════════════════
+  async function autoSigninWindsurf() {
+    const D = memo.data;
+    const emailEl = $("in-signin-email");
+    const pwEl = $("in-signin-pw");
+    const statusEl = $("signin-status");
+    const email = (emailEl ? emailEl.value : "").trim();
+    const password = pwEl ? pwEl.value : "";
+    if (!email || !password) {
+      toast("email + password 必填", "warn");
+      return;
+    }
+    if (!D.vmUrl) {
+      toast("先设 VM URL (左栏端点)", "warn");
+      return;
+    }
+    if (D.accounts.find((a) => a.email === email)) {
+      toast("账号已存 · 请先删旧再登", "warn");
+      return;
+    }
+    if (statusEl) statusEl.textContent = "⌛ VM 代登 windsurf.com 3-step …";
+    try {
+      const r = await fetch(D.vmUrl + "/admin/signin/windsurf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(D.vmAuthKey ? { Authorization: "Bearer " + D.vmAuthKey } : {}),
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        const stage = j.stage || "unknown";
+        const err = j.error || "HTTP " + r.status;
+        if (statusEl) statusEl.textContent = "✗ [" + stage + "] " + err;
+        toast("登失败 [" + stage + "]: " + err, "err");
+        return;
+      }
+      // 真本源成 · 入号库
+      D.accounts.push({
+        email: j.email || email,
+        apiKey: j.apiKey,
+        apiServerUrl: j.apiServerUrl || "",
+        accountId: j.accountId || "",
+        addedAt: new Date().toISOString(),
+        signinAt: new Date().toISOString(),
+        viaSignin: true, // 印 129 标 · 区别手输 vs 自动登
+        alive: true,
+      });
+      if (!D.activeAccountEmail) D.activeAccountEmail = email;
+      markDirty();
+      // 清入
+      if (emailEl) emailEl.value = "";
+      if (pwEl) pwEl.value = "";
+      if (statusEl)
+        statusEl.textContent =
+          "✓ 登成 · apiKey=" +
+          (j.apiKey || "").slice(0, 12) +
+          "… · " +
+          (j.ms || "?") +
+          "ms";
+      toast("✓ 登成: " + email, "ok");
+      // 重渲号库
+      renderMid();
+    } catch (e) {
+      if (statusEl) statusEl.textContent = "✗ 网错: " + e.message;
+      toast("网错: " + e.message, "err");
+    }
+  }
+
   async function probeAccount(i) {
     const D = memo.data;
     const a = D.accounts[i];
@@ -2450,8 +2540,12 @@
     ]);
 
     // ② 当前号
+    // 印 131 · 反者道之动 · defensive guard (fake/legacy 数据 email 缺时 · 不挂 renderTopBar)
+    //   (注: 主公印 129 是 Windsurf 真登录链 · 此印 131 避号位冲突 · playwright 真测发现治之)
+    //   原: find((a) => a.email === D.activeEmail) · 当 a.email + D.activeEmail 皆 undefined → 误匹配 → activeAcct.email.length 挂
+    //   治: 要求 a.email truthy · 失配则 fallback "未选号 (N 候)" 或 "无号"
     const accts = D.accounts || [];
-    const activeAcct = accts.find((a) => a.email === D.activeEmail);
+    const activeAcct = accts.find((a) => a.email && a.email === D.activeEmail);
     const acctLabel = activeAcct
       ? activeAcct.email.length > 22
         ? activeAcct.email.slice(0, 20) + "…"
@@ -3092,11 +3186,11 @@
     const D = memo.data;
     const accts = D.accounts || [];
 
-    // ① 加号
+    // ① 加号 (手输 apiKey · 旧路)
     container.appendChild(
       el("div", { class: "v101-drawer-section" }, [
         el("div", { class: "v101-drawer-section-title" }, [
-          "+ 加 Windsurf 账号",
+          "+ 加 Windsurf 账号 (手输 apiKey)",
         ]),
         el("div", { class: "row gap" }, [
           el("input", {
@@ -3127,6 +3221,65 @@
             ["+ 加"],
           ),
         ]),
+      ]),
+    );
+
+    // ①' 印 129 · 真本源切号 · 自动登 (主公诏「此登录为核心切号本源」)
+    //   email + password → vmUrl/admin/signin/windsurf (VM 代登 3-step) → 自动入号库
+    //   不需手输 apiKey · VM 代登后真本源 ws-* key 直接出
+    container.appendChild(
+      el("div", { class: "v101-drawer-section" }, [
+        el("div", { class: "v101-drawer-section-title" }, [
+          "🔑 自动登 Windsurf (印 129 · 真本源)",
+        ]),
+        el(
+          "div",
+          {
+            class: "hint",
+            style: {
+              fontSize: "10px",
+              marginBottom: "4px",
+              color: "var(--dim)",
+            },
+          },
+          ["VM 代登 windsurf.com 3-step · 密码不外泄 · 走 self-host trust"],
+        ),
+        el("div", { class: "row gap" }, [
+          el("input", {
+            type: "text",
+            id: "in-signin-email",
+            class: "inp",
+            placeholder: "email",
+            style: { flex: "1" },
+          }),
+        ]),
+        el("div", { class: "row gap", style: { marginTop: "4px" } }, [
+          el("input", {
+            type: "password",
+            id: "in-signin-pw",
+            class: "inp",
+            placeholder: "password (传 VM · 不存盘)",
+            style: { flex: "1" },
+          }),
+          el(
+            "button",
+            {
+              class: "btn",
+              style: { background: "#d4a850", color: "#0a0a0f" },
+              onclick: () => autoSigninWindsurf(),
+            },
+            ["🔑 自动登"],
+          ),
+        ]),
+        el(
+          "div",
+          {
+            id: "signin-status",
+            class: "hint",
+            style: { fontSize: "11px", marginTop: "4px" },
+          },
+          [],
+        ),
       ]),
     );
 
