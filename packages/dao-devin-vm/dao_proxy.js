@@ -1170,6 +1170,150 @@ function __setSigninOverride(urls) {
   __WS_SIGNIN_OVERRIDE = urls || null;
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// § 印 130 · 真本源接入闭环 · 反代池 runtime 管 · 反者道之动
+// ════════════════════════════════════════════════════════════════════════
+//   「圣人执一 · 以为天下牧」(廿二)
+//   「为道者日损 · 损之又损 · 以至于无为 · 无为而无不为」(四十八)
+//   「物无非彼 · 物无非是」(庄子·齐物论 · 主公诏引)
+//
+//   印 129 立真本源切号链 (代主公登 windsurf 出 ws-* key)
+//   印 130 立真本源接入池 — 让 ws-* key 立刻接入运行中之 WS_POOL_STATE
+//
+//   流 (一线到底):
+//     web autoSigninWindsurf
+//       → POST /admin/signin/windsurf {email, password}    (印 129)
+//       → 出 {apiKey: "ws-*", apiServerUrl, sessionToken}
+//       → POST /admin/keys/add {apiKey, srvUrl, email}     (印 130)
+//       → WS_POOL_STATE.keys.push · 即可走 /v1/messages 反代真活
+//
+//   守隐 (帛书五十六「塞其闷 · 闭其门」):
+//     - DAO_AUTH_TOKEN env 启时 · 全 admin/* 路由 受 checkAuth 保护 (印 106)
+//     - apiKey 返时仅前 12 字 · 永不全显 (脱敏)
+//     - 去重: 已存 apiKey 不再加 (返 200 + duplicate=true · 不报错 · 客端可重幂等)
+//
+//   非破坏性 (帛书四十八「损之又损」):
+//     - 不改 loadWindsurfPool · 不改 pickWsKey · 不改 wsGetUserStatus
+//     - 仅推 WS_POOL_STATE.keys[]  · 现有反代逻辑透明承之
+// ════════════════════════════════════════════════════════════════════════
+
+function _maskKey(k) {
+  return (k || "").slice(0, 12) + "…";
+}
+
+function handleAdminKeysList(req, res) {
+  const items = WS_POOL_STATE.keys.map((k) => ({
+    apiKey: _maskKey(k.apiKey),
+    srvUrl: k.srvUrl,
+    ok: k.ok || 0,
+    err: k.err || 0,
+    lastUsedAt: k.lastUsedAt || 0,
+    cooldownUntil: k.cooldownUntil || 0,
+    plan: k.plan || null,
+    email: k.email || "",
+    addedAt: k.addedAt || 0,
+  }));
+  return sendJson(res, 200, {
+    ok: true,
+    count: items.length,
+    cursor: WS_POOL_STATE.cursor,
+    rotateCount: WS_POOL_STATE.rotateCount,
+    loaded: WS_POOL_STATE.loaded,
+    err: WS_POOL_STATE.err,
+    keys: items,
+  });
+}
+
+async function handleAdminKeysAdd(req, res) {
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (e) {
+    return sendJson(res, 400, { error: "bad_json", message: e.message });
+  }
+  const apiKey = (body.apiKey || body.api_key || "").trim();
+  if (!apiKey) {
+    return sendJson(res, 400, {
+      ok: false,
+      error: "api_key_required",
+      hint: "POST /admin/keys/add { apiKey: 'ws-*', srvUrl?, email? }",
+    });
+  }
+  // 印 130 · 真本源验 · ws-* key 格 (windsurf 真本源 prefix)
+  //   不强 · 仅警 (允 mock 测时用 mock-* 之类)
+  const isWs = apiKey.startsWith("ws-");
+  // 去重 · 帛书六十四「为之于其未有也」 — 已存即幂等返
+  const dup = WS_POOL_STATE.keys.find((k) => k.apiKey === apiKey);
+  if (dup) {
+    return sendJson(res, 200, {
+      ok: true,
+      duplicate: true,
+      apiKey: _maskKey(apiKey),
+      count: WS_POOL_STATE.keys.length,
+    });
+  }
+  const srvUrl =
+    body.srvUrl || body.api_server_url || "https://server.codeium.com";
+  const email = (body.email || "").trim();
+  WS_POOL_STATE.keys.push({
+    apiKey,
+    srvUrl,
+    email,
+    ok: 0,
+    err: 0,
+    lastUsedAt: 0,
+    lastErrAt: 0,
+    cooldownUntil: 0,
+    plan: null,
+    addedAt: Date.now(),
+  });
+  // 印 130 · 池由空转为有 · loaded 立 · err 清
+  WS_POOL_STATE.loaded = true;
+  WS_POOL_STATE.err = null;
+  console.log(
+    `[admin/keys/add] ✓ ${_maskKey(apiKey)} email=${email || "?"} pool=${WS_POOL_STATE.keys.length}${isWs ? "" : " (warn:non-ws-prefix)"}`,
+  );
+  return sendJson(res, 200, {
+    ok: true,
+    apiKey: _maskKey(apiKey),
+    count: WS_POOL_STATE.keys.length,
+    warn: isWs ? null : "key does not start with 'ws-'",
+  });
+}
+
+async function handleAdminKeysRemove(req, res) {
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (e) {
+    return sendJson(res, 400, { error: "bad_json", message: e.message });
+  }
+  const apiKey = (body.apiKey || body.api_key || "").trim();
+  if (!apiKey) {
+    return sendJson(res, 400, {
+      ok: false,
+      error: "api_key_required",
+      hint: "POST /admin/keys/remove { apiKey }",
+    });
+  }
+  const before = WS_POOL_STATE.keys.length;
+  WS_POOL_STATE.keys = WS_POOL_STATE.keys.filter((k) => k.apiKey !== apiKey);
+  const removed = before - WS_POOL_STATE.keys.length;
+  // 守 cursor 不溢 · 帛书三十二「知止所以不殆」
+  if (WS_POOL_STATE.cursor >= WS_POOL_STATE.keys.length) {
+    WS_POOL_STATE.cursor = 0;
+  }
+  console.log(
+    `[admin/keys/remove] ${removed > 0 ? "✓" : "✗ not_found"} ${_maskKey(apiKey)} pool=${WS_POOL_STATE.keys.length}`,
+  );
+  return sendJson(res, removed > 0 ? 200 : 404, {
+    ok: removed > 0,
+    removed,
+    apiKey: _maskKey(apiKey),
+    count: WS_POOL_STATE.keys.length,
+  });
+}
+
 // ─── 印 105 · windsurf chat 真转 (反程印 104 之未尽) ───
 // 反程实证 (2026-05-14):
 //   路径: /exa.api_server_pb.ApiServerService/GetChatMessage  (非 LanguageServerService · 那是 LSP-internal)
@@ -2753,11 +2897,22 @@ const server = http.createServer(async (req, res) => {
   if (method === "POST" && p === "/admin/signin/windsurf")
     return handleAdminSignin(req, res);
 
+  // 印 130 · 真本源接入闭环 (登→入池→用 一线到底)
+  //   web 真登成 ws-* key → POST /admin/keys/add → WS_POOL_STATE.keys.push
+  //   即可走 /v1/messages · /windsurf/status 等真反代
+  //   守隐: apiKey 返时仅前 12 字 · 去重幂等 · 全路 受 checkAuth (印 106)
+  if (method === "POST" && p === "/admin/keys/add")
+    return handleAdminKeysAdd(req, res);
+  if (method === "GET" && p === "/admin/keys/list")
+    return handleAdminKeysList(req, res);
+  if (method === "POST" && p === "/admin/keys/remove")
+    return handleAdminKeysRemove(req, res);
+
   // 404
   sendJson(res, 404, {
     error: "not found",
     path: p,
-    hint: "GET / · /health · /v1/models · POST /v1/chat/completions · /v1/messages · /v1beta/models/X:generateContent · GET/POST /v1/system/prompt · POST /v1/system/sp-dryrun · GET /v1/system/wss-observe · GET /windsurf/status · /windsurf/status/all · /windsurf/quota · /windsurf/models · POST /windsurf/chat (501) · POST /admin/signin/windsurf (印 129 · 真本源切号)",
+    hint: "GET / · /health · /v1/models · POST /v1/chat/completions · /v1/messages · /v1beta/models/X:generateContent · GET/POST /v1/system/prompt · POST /v1/system/sp-dryrun · GET /v1/system/wss-observe · GET /windsurf/status · /windsurf/status/all · /windsurf/quota · /windsurf/models · POST /windsurf/chat (501) · POST /admin/signin/windsurf (印 129) · POST /admin/keys/add · GET /admin/keys/list · POST /admin/keys/remove (印 130 · 真本源接入闭环)",
   });
 });
 

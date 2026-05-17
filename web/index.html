@@ -1466,7 +1466,7 @@
         </div>
 
         <div class="gate-step">
-          <span class="num">1</span>粘 <b>GitHub PAT</b> · 一次"为"
+          <span class="num">1</span>登 <b>GitHub</b> · 一钮 · 道法自然
         </div>
         <div class="gate-step">
           <span class="num">2</span>自动 <b>fork</b> + 启 <b>Pages</b> + 建私有
@@ -1478,40 +1478,142 @@
           自属对话
         </div>
 
-        <div class="gate-input-row">
-          <input
-            type="password"
-            id="gate-pat"
-            class="inp grow"
-            placeholder="粘 GitHub PAT (ghp_* 或 github_pat_*)"
-            autocomplete="off"
-          />
-        </div>
-        <div class="gate-actions">
-          <button class="btn" id="gate-btn-login">以 PAT 登入 →</button>
-          <span class="grow"></span>
-          <!-- cleanup-2026-05-16 · legacy.html 旁支损 · gate-link-legacy 锚保位 (隐) · 旧测仍引 ID -->
-          <a
-            class="btn ghost"
-            id="gate-link-legacy"
-            href="#"
-            style="display: none"
-            >legacy</a
+        <!-- 印 130 · OAuth Device-Flow 一键登 (主推荐 · 去中心化) -->
+        <div class="gate-actions" style="margin: 12px 0 8px">
+          <button
+            class="btn"
+            id="gate-btn-oauth"
+            style="
+              flex: 1;
+              background: linear-gradient(180deg, #d4a850 0%, #b8923f 100%);
+              color: #0a0a0f;
+              font-weight: 600;
+            "
           >
+            🔑 一键登 GitHub (Device-Flow) →
+          </button>
+        </div>
+        <!-- OAuth 状态显示区 (默隐 · 起后显) -->
+        <div
+          id="gate-oauth-state"
+          style="
+            display: none;
+            margin: 8px 0 12px;
+            padding: 12px;
+            background: var(--bg2, #1a1a24);
+            border: 1px solid var(--line, #2a2a3a);
+            border-radius: 6px;
+            font-size: 12px;
+          "
+        >
+          <div
+            id="gate-oauth-step"
+            style="color: var(--gold, #d4a850); font-weight: 600"
+          >
+            ⌛ 起 device-flow…
+          </div>
+          <div
+            id="gate-oauth-code-row"
+            style="display: none; margin-top: 8px"
+          >
+            <div style="color: var(--dim, #888); margin-bottom: 4px">
+              在 GitHub 页输此 8 位 code:
+            </div>
+            <div
+              id="gate-oauth-code"
+              style="
+                font-size: 22px;
+                font-family: 'Cascadia Code', Consolas, monospace;
+                letter-spacing: 4px;
+                font-weight: 700;
+                color: var(--gold, #d4a850);
+                padding: 8px;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 4px;
+                text-align: center;
+              "
+            >
+              ----·----
+            </div>
+            <div
+              id="gate-oauth-uri"
+              style="margin-top: 6px; color: var(--dim, #888)"
+            >
+              → <a id="gate-oauth-link" href="#" target="_blank"
+                >github.com/login/device</a
+              >
+              <button
+                id="gate-oauth-copy"
+                class="btn tiny"
+                style="margin-left: 8px"
+              >
+                ⧉ 复制 code
+              </button>
+              <button
+                id="gate-oauth-cancel"
+                class="btn tiny ghost"
+                style="margin-left: 4px"
+              >
+                取消
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div class="gate-pat-info">
-          <b>取 PAT</b> ·
-          <a href="https://github.com/settings/tokens?type=beta" target="_blank"
-            >github.com/settings/tokens (fine-grained 推荐)</a
+        <!-- 兜底 · PAT 入口 (隐私洁癖 / 主公 OAuth App 未建 / 企业 SSO 用户) -->
+        <details
+          style="
+            margin-top: 8px;
+            padding: 8px;
+            border: 1px dashed var(--line, #2a2a3a);
+            border-radius: 4px;
+          "
+        >
+          <summary
+            style="cursor: pointer; color: var(--dim, #888); font-size: 11px"
           >
-          <br />
-          <b>scope 需</b> · <code>repo</code> (fork + write) +
-          <code>gist</code> (私有 Gist 读写)
-          <br />
-          <b>隐私</b> · PAT 仅存你浏览器 <code>localStorage</code> · zhouyoukang
-          不见任何字节 · 退出即清
-        </div>
+            ▸ 或用 PAT 兜底 (主公 OAuth App 未建 / 企业 SSO / 隐私洁癖)
+          </summary>
+          <div class="gate-input-row" style="margin-top: 8px">
+            <input
+              type="password"
+              id="gate-pat"
+              class="inp grow"
+              placeholder="粘 GitHub PAT (ghp_* 或 github_pat_*)"
+              autocomplete="off"
+            />
+          </div>
+          <div class="gate-actions">
+            <button class="btn ghost" id="gate-btn-login">
+              以 PAT 登入 →
+            </button>
+            <span class="grow"></span>
+            <!-- cleanup-2026-05-16 · legacy.html 旁支损 · gate-link-legacy 锚保位 (隐) · 旧测仍引 ID -->
+            <a
+              class="btn ghost"
+              id="gate-link-legacy"
+              href="#"
+              style="display: none"
+              >legacy</a
+            >
+          </div>
+
+          <div class="gate-pat-info" style="margin-top: 6px">
+            <b>取 PAT</b> ·
+            <a
+              href="https://github.com/settings/tokens?type=beta"
+              target="_blank"
+              >github.com/settings/tokens (fine-grained 推荐)</a
+            >
+            <br />
+            <b>scope 需</b> · <code>repo</code> (fork + write) +
+            <code>gist</code> (私有 Gist 读写) + <code>workflow</code>
+            (dispatch)
+            <br />
+            <b>隐私</b> · PAT 仅存你浏览器 <code>localStorage</code> ·
+            zhouyoukang 不见任何字节 · 退出即清
+          </div>
+        </details>
 
         <div class="gate-footer">
           <span>原汤化原食 · 每号一 VM · 自反代自身 API</span>
@@ -1671,7 +1773,7 @@
 
     <!-- ═══ 底道义 ═══ -->
     <footer class="dao-tail">
-      印 129 · 一气化三清 · IDE 三栏并行 · 真本源切号 · 反者道之动 · GitHub:
+      印 130 · OAuth Device-Flow · 一键登 · 去中心化 · 反者道之动 · GitHub:
       <a
         href="https://github.com/zhouyoukang/windsurf-assistant"
         target="_blank"
@@ -1684,6 +1786,8 @@
 
     <!-- ═══ 主脚本 (按依赖序) ═══ -->
     <script src="dao_github_sync.js"></script>
+    <script src="dao_oauth.js"></script>
+    <!-- 印 130 · GitHub OAuth Device-Flow · 一键登 · 去中心化 -->
     <script src="dao_bootstrap.js"></script>
     <script src="dao_app.js"></script>
   </body>

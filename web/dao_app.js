@@ -12,6 +12,11 @@
 //   onboarding 在 upstream · 已识 PAT → 跑 fork → Pages → Gist → 跳专属页
 //   mine       在用户 fork · 三栏 (左 API+SP / 中 WAM 切号 / 右 chat)
 //
+// 一气化三清 (web 是二清 · 接 dao-core / wam / dao-proxy-min 三清后端):
+//   I · dao-core      → 反代 API 真本 (此 web 调 vmUrl/v1/messages)
+//   II · wam          → 切号引擎 (此 web 中栏 WAM 池管 + 印 129 自动登)
+//   III · dao-proxy-min → 提示词反代 (此 web 左栏 SP 7 态)
+//
 // 数据流:
 //   gist (云) ─── readGist ───→ memo ──[user edit + debounce 1.5s]→ writeGist
 //   memo · 单一真相 · 修一处万法响应
@@ -156,6 +161,8 @@
   }
 
   // ═══ Gate · 入口减法 (帛书·四十八: 为道者日损) ════════════════════════
+  //   印 130 · 反者道之动 · OAuth Device-Flow 一钮登 (主推荐 · 去中心化)
+  //         · 兜底 PAT 入口 (隐私洁癖 / 主公 OAuth App 未建)
   function renderGate() {
     show("state-gate");
     hide("state-onboarding");
@@ -163,6 +170,7 @@
     setText("hdr-login", "(未登入)");
     setText("hdr-gist", "");
 
+    // ─── PAT 兜底入口 (印 100 之承) ─────────────────────────────────────
     const inp = $("gate-pat");
     const btn = $("gate-btn-login");
     const lnk = $("gate-link-legacy");
@@ -212,6 +220,179 @@
     if (lnk) {
       lnk.style.display = "none";
     }
+
+    // ─── 印 130 · OAuth Device-Flow (主推荐) ───────────────────────────
+    bindOauthFlow();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 印 130 · GitHub OAuth Device-Flow · 反者道之动 · 一钮代 PAT 之繁
+  // ═══════════════════════════════════════════════════════════════════
+  // 主公诏 (2026-05-17):
+  //   「从用户公网登录 github 账号后 后端连接操作同步一切底层 · 去中心化」
+  //
+  // 帛书·四十八「为道者日损」: PAT 取 (settings/tokens · 选 scope · 拷贝) → 损
+  // 帛书·廿二「圣人执一」    : OAuth token == PAT API 等价 · 一处入 · 万处用
+  // 帛书·廿五「道法自然」    : 浏览器直走 GH 标准 endpoint · 无后端中转
+  //
+  // 流:
+  //   ① 用户点 "🔑 一键登 GitHub" 钮
+  //   ② daoOAuth.start() → POST /login/device/code → 拿 user_code (8 位) + verification_uri
+  //   ③ UI 显 user_code · 自动 window.open(verification_uri) 新窗
+  //   ④ 用户在 GH 页输 8 位 code · 选授权范围 · 确认
+  //   ⑤ App 轮询 /login/oauth/access_token (5s 一次 · 15 min 限)
+  //   ⑥ 拿到 access_token → daoSync.setPat(token) (复用 oneShot 全链路 · 帛书廿二)
+  //   ⑦ 调 whoami() → 同 PAT 路径 → enterMine 或 renderOnboarding
+  // ═══════════════════════════════════════════════════════════════════
+  function bindOauthFlow() {
+    const obtn = $("gate-btn-oauth");
+    if (!obtn || obtn.__bound) return;
+    obtn.__bound = true;
+
+    const stateBox = $("gate-oauth-state");
+    const stepEl = $("gate-oauth-step");
+    const codeRow = $("gate-oauth-code-row");
+    const codeEl = $("gate-oauth-code");
+    const linkEl = $("gate-oauth-link");
+    const copyBtn = $("gate-oauth-copy");
+    const cancelBtn = $("gate-oauth-cancel");
+
+    let currentFlow = null; // { cancel() }
+    let currentCode = "";
+
+    function setStep(txt, color) {
+      if (stepEl) {
+        stepEl.textContent = txt;
+        if (color) stepEl.style.color = color;
+      }
+    }
+    function showCode(code, uri) {
+      currentCode = code;
+      if (codeRow) codeRow.style.display = "";
+      if (codeEl) codeEl.textContent = code;
+      if (linkEl) {
+        linkEl.href = uri;
+        linkEl.textContent = uri.replace(/^https?:\/\//, "");
+      }
+    }
+    function hideState() {
+      if (stateBox) stateBox.style.display = "none";
+      if (codeRow) codeRow.style.display = "none";
+      currentCode = "";
+    }
+    function unlockBtn() {
+      obtn.disabled = false;
+      obtn.textContent = "🔑 一键登 GitHub (Device-Flow) →";
+    }
+
+    // 复制 code
+    if (copyBtn && !copyBtn.__bound) {
+      copyBtn.__bound = true;
+      copyBtn.addEventListener("click", async () => {
+        if (!currentCode) return;
+        try {
+          await navigator.clipboard.writeText(currentCode);
+          copyBtn.textContent = "✓ 已复";
+          setTimeout(() => (copyBtn.textContent = "⧉ 复制 code"), 1500);
+        } catch {
+          toast("复制失败 · 请手抄", "warn");
+        }
+      });
+    }
+    // 取消
+    if (cancelBtn && !cancelBtn.__bound) {
+      cancelBtn.__bound = true;
+      cancelBtn.addEventListener("click", () => {
+        if (currentFlow && typeof currentFlow.cancel === "function") {
+          currentFlow.cancel();
+          currentFlow = null;
+        }
+        hideState();
+        unlockBtn();
+        toast("已取消 OAuth 登录", "info");
+      });
+    }
+
+    // 主按钮
+    obtn.addEventListener("click", async () => {
+      if (!window.daoOAuth) {
+        toast("印 130 OAuth 模块未加载 · 检查 dao_oauth.js", "err");
+        return;
+      }
+      // 先 check 是否已 PAT
+      if (window.daoSync && window.daoSync.hasPat()) {
+        toast("已有 token · 走 PAT 流 · 或先退出再登", "warn");
+        return;
+      }
+      // 显示状态区
+      if (stateBox) stateBox.style.display = "";
+      obtn.disabled = true;
+      obtn.textContent = "⌛ device-flow 中…";
+      setStep("⌛ 起 device-flow…", "var(--gold, #d4a850)");
+
+      currentFlow = window.daoOAuth.start({
+        scope: "repo gist workflow",
+        onCode: (info) => {
+          // 显 user_code · 开 verification_uri 新窗
+          showCode(info.user_code, info.verification_uri);
+          setStep(
+            "✓ 已起 · 请在新窗 GitHub 页输上方 8 位 code · 15 min 内有效",
+            "var(--gold, #d4a850)",
+          );
+          // 自动开新窗 (用户可关 · 不强求)
+          try {
+            window.open(info.verification_uri, "_blank", "noopener,noreferrer");
+          } catch {}
+        },
+        onPoll: (info) => {
+          setStep(
+            "⌛ 等用户授权… (轮询 " +
+              info.polls +
+              " 次 · 剩 " +
+              info.remaining_s +
+              "s)",
+            "var(--dim, #888)",
+          );
+        },
+        onSuccess: async (info) => {
+          setStep("✓ 授权成功 · token 已入 localStorage · 验中…", "#7eb87e");
+          currentFlow = null;
+          // 调 whoami → 走 PAT 同路径
+          try {
+            memo.me = await daoSync.whoami();
+          } catch (e) {
+            daoSync.clearPat();
+            setStep("✗ whoami 失败: " + e.message, "#e07070");
+            unlockBtn();
+            return;
+          }
+          setStep("✓ @" + memo.me.login + " 已识 · 跳转中…", "#7eb87e");
+          setText("hdr-login", "@" + memo.me.login);
+          // 走与 PAT 同路径
+          if (memo.site.isUserFork && memo.site.owner === memo.me.login) {
+            enterMine();
+          } else {
+            renderOnboarding();
+          }
+        },
+        onError: (err) => {
+          currentFlow = null;
+          // client_id 未配 → 给主公明示 + 滚到 PAT 兜底
+          if (
+            err.message &&
+            /client_id_invalid|OAuth App 未建/.test(err.message)
+          ) {
+            setStep(
+              "✗ 主公 OAuth App 未建 · 见 docs/印130 · 或下展 ▸ 用 PAT 兜底",
+              "#e07070",
+            );
+          } else {
+            setStep("✗ " + err.stage + ": " + err.message, "#e07070");
+          }
+          unlockBtn();
+        },
+      });
+    });
   }
 
   // ═══ Onboarding · 印 100 太极笙万物 (一笔 oneShot 自举闭环) ════════════
@@ -1822,6 +2003,35 @@
           (j.ms || "?") +
           "ms";
       toast("✓ 登成: " + email, "ok");
+      // 印 130 · 真本源接入闭环 (登→入池→用 一线到底)
+      //   将真登出之 ws-* key 立即注入 VM dao_proxy 反代池 (WS_POOL_STATE)
+      //   失败不阻 · 因登已成 (key 已入号库) · 池接入是「锦上添花」
+      try {
+        const addR = await fetch(D.vmUrl + "/admin/keys/add", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(D.vmAuthKey ? { Authorization: "Bearer " + D.vmAuthKey } : {}),
+          },
+          body: JSON.stringify({
+            apiKey: j.apiKey,
+            srvUrl: j.apiServerUrl || "",
+            email: email,
+          }),
+        });
+        const addJ = await addR.json().catch(() => ({}));
+        if (addR.ok && addJ.ok) {
+          if (statusEl)
+            statusEl.textContent +=
+              " · 池+1 (count=" + (addJ.count || "?") + ")";
+          toast("✓ 接入反代池 (count=" + (addJ.count || "?") + ")", "ok");
+        } else if (statusEl) {
+          statusEl.textContent += " · 池接入失败";
+        }
+      } catch (e) {
+        // 网错不阻 · 主公可后续手动调 /admin/keys/add 补
+        if (statusEl) statusEl.textContent += " · 池接入网错";
+      }
       // 重渲号库
       renderMid();
     } catch (e) {

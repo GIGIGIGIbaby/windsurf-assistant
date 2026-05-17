@@ -46,6 +46,8 @@ const TESTS = [
   "_yin125_sp_inject_smoke", // 印 125 · 反者道之动 · SP 真注入实证 (POST /v1/system/sp-dryrun · 由号返实 · 居实不居华)
   "_seal128_yiqi_sanqing_smoke", // 印 128 · 一气化三清整体真本源治 · 物无非彼物无非是 · 件齐 + 印号 + 三层对齐
   "_seal129_real_login_smoke", // 印 129 · 真本源切号 · 代主公登 windsurf · 反者道之动 (3-step mock + 失败路径 · 此登录为核心切号本源)
+  "_seal130_keys_admin_smoke", // 印 130 · 真本源接入闭环 (主公立 · /admin/keys/{add,list,remove} 真路 · 守隐 + auth + 去重 + warn · 一线到底)
+  "_seal130_oauth_device_flow_smoke", // 印 130 · OAuth Device-Flow 一键登 + 池接入闭环合并 (登→入池→用 · 去中心化 · 反者道之动)
 ];
 
 let allOk = true;
