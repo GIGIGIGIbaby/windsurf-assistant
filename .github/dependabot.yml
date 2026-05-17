@@ -1,0 +1,39 @@
+# Dependabot configuration — automated dependency updates
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Scope: weekly checks for npm dependencies and GitHub Actions versions.
+# Rate-limit: at most 5 open Dependabot PRs at a time, to avoid noise.
+
+version: 2
+updates:
+  # npm dependencies (root workspace + all packages/* via inferred discovery)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - npm
+    commit-message:
+      prefix: deps
+      include: scope
+
+  # GitHub Actions workflow versions (pin/floating tags)
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+      include: scope
