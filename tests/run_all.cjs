@@ -40,6 +40,8 @@ const TESTS = [
   "_seal101_smoke", // 印 101 · 万法归宗 · 大道至简 · 用 + 管 二字 (反者道之动 · 为道日损)
   "_seal115_smoke", // 印 115 · 反者道之动 · GH 面板综合管 · Devin VM 反代核心 (鸡犬相闻)
   "_seal121_smoke", // 印 121 · auth_chain 三口同源守门 (web ↔ workflow ↔ daemon · 圣人执一)
+  "_seal122_smoke", // 印 122 · yin122 全审纳入律 (3 件 git tracked + 印号统一 + silk 双源 + §0.1 软接入)
+  "_seal122_watchdog_smoke", // 印 122 · vm_pool_watchdog 守门 (自启换之 · tunnel rotation · 5min poll)
 ];
 
 let allOk = true;
