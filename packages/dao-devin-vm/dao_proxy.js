@@ -2431,19 +2431,25 @@ function chatViaWss({
 // ════════════════════════════════════════════════════════════════════════
 // § 7 · metrics (轻 · in-memory)
 // ════════════════════════════════════════════════════════════════════════
+// 印 140 · 加 inflight 计数 · 让 total = success + err + inflight 自洽 (帛书六十四「慎终若始」)
+//   真用户实证发现: client timeout 后 proxy 后台仍跑 · 旧 metrics 显 total=8/ok=0/err=2 不自洽
+//   inflight 字段让主公一眼见「6 笔在跑」 · 道法自然之透明
 const METRICS = {
   startedAt: Date.now(),
   requests: { total: 0, openai: 0, anthropic: 0, gemini: 0, windsurf: 0 },
   successes: { total: 0 },
   errors: { total: 0 },
+  inflight: { total: 0 },
   latencies: [],
 };
 function recReq(t) {
   METRICS.requests.total++;
+  METRICS.inflight.total++;
   if (t in METRICS.requests) METRICS.requests[t]++;
 }
 function recOk(ms) {
   METRICS.successes.total++;
+  METRICS.inflight.total = Math.max(0, METRICS.inflight.total - 1);
   if (typeof ms === "number" && ms > 0) {
     METRICS.latencies.push(ms);
     if (METRICS.latencies.length > 100) METRICS.latencies.shift();
@@ -2451,6 +2457,7 @@ function recOk(ms) {
 }
 function recErr() {
   METRICS.errors.total++;
+  METRICS.inflight.total = Math.max(0, METRICS.inflight.total - 1);
 }
 function snapMetrics() {
   const lats = [...METRICS.latencies].sort((a, b) => a - b);
@@ -2464,6 +2471,7 @@ function snapMetrics() {
     requests: METRICS.requests,
     successes: METRICS.successes,
     errors: METRICS.errors,
+    inflight: METRICS.inflight,
     successRate:
       METRICS.requests.total > 0
         ? Math.round(
@@ -3674,9 +3682,11 @@ async function handleWindsurfChat(req, res, preBody, preModel, preAccount) {
     account,
   });
 
-  // 轮 pool 试 (max 8 · 防 quota 一遍后死)
+  // 印 140 · max 8 → 3 (与印 139 devin maxTries 一致 · 帛书四十八「损之又损 以至于无为」)
+  //   真用户实证发现: 13 件全 quota 限时 retry 8 次仅累上游负担
+  //   试 3 件足证池态 (全 ok / 全 limit / 部分 limit) · 余件入下笔再试
   const tried = [];
-  const maxTries = Math.min(WS_POOL_STATE.keys.length, 8);
+  const maxTries = Math.min(WS_POOL_STATE.keys.length, 3);
   let lastResult = null;
   const t0 = Date.now();
   for (let i = 0; i < maxTries; i++) {

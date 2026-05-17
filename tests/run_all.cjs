@@ -58,6 +58,7 @@ const TESTS = [
   "_seal137_devin_yunsheng_integration_smoke", // 印 137 · 整合 Devin云原生 印 122 三件附庸 (playbook_helper · usernote_strategy.test · sp_observe inline) · 17 子测 · 万物自宾 · 帛书三十二
   "_seal138_devin_full_jiehe_smoke", // 印 138 · Devin云原生 虚拟机反代深整合 (4 模块 34 件 + 3 文献 · 取之尽锱铢用之如泥沙) · 24 子测 · 玄德 · 帛书六十五
   "_seal139_real_user_truth_smoke", // 印 139 · 真用户实证 · 三真本源治 (PROMPT_TIMEOUT 5min→2min + maxTries 5→3 + wam-state watcher · 帛书六十四/四十八/五十七)
+  "_seal140_zhenshi_yongshu_zhiben_smoke", // 印 140 · 真用户实证治本 · windsurf maxTries 8→3 + METRICS inflight 字段 · 损之又损 · 帛书四十八/六十四
 ];
 
 let allOk = true;
