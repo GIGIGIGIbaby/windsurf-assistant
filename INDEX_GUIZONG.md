@@ -17,6 +17,8 @@
 > **2026-05-16 · 印 115 · 反者道之动 · GH 面板综合管 · Devin VM 反代核心 · 鸡犬相闻 · 民至老死不相往来**
 >
 > **2026-05-17 · 印 ∞ · 道法自然推进到底 · ★ 对照 tab 默见 · 上 iframe app.devin.ai + 下 chat 反代 · 左栏 A/B 双路状态卡 · 中栏 WAM 无感切号 · 物无非彼物无非是 · 道并行不悖**
+>
+> **2026-05-17 · 印 ∞.5 · 全链路闭环导中 · 一脚本起两子 (`node scripts/dao_run_all.cjs`) · 自注 vmUrl · A/B 真返 16 模 · chat 真转 wss 真返道德经 · 我无为也而民自化**
 
 ---
 
@@ -561,6 +563,12 @@ node tests/run_all.cjs  →  20/20 ✓ · 0 regression
 | **印 132.2** | setupHint 步⑥ 三选一 (admin面板 / URL / 改码) | 「反者道之动」 (帛书 40) | hint 仅提改码 · 未提零代码 admin 面板路 |
 | **印 132.3** | 印132 doc 修过时引 + 加 132.1/132.2 节 + 浏览器真验节 | 「慎终若始」 (帛书 64) | doc 与实件偏离 (文件名 / 计数 / 守门总数) |
 | **印 ∞** | ★ 对照 tab 默见 · 上 iframe app.devin.ai + 下 chat 反代 · 左栏 A/B 双路状态卡 · 中栏 WAM 无感切号 | 「物无非彼物无非是 · 道并行不悖」 (庄子齐物) | 反代与真站同等价未验 · 用户无从双面同问验之 |
+| **印 ∞.1** | 道动测之果 · 修 6 BUG (renderOffline 苛 gistId / iframe CSP / hdr-login 离线 / openDrawer v128 / PAT 401 苛清 / sendChatV101 parallel) | 「反者道之动·弱者道之用」 (帛书 40) | 用主公视角真测·真发现·真修 |
+| **印 ∞.2** | B 路 /dc/* 显式 devin cloud 反代 · 双路 (A=Windsurf智能 + B=Devin显式) | 「弱者道之用」 (帛书 78) | 用户不知 vm 是 windsurf 还是 devin · B 路给透明 |
+| **印 ∞.3** | apiKey 三型前缀识 (devin-session-token$ + ws-* + mock-or-other) | 「大曰逝·逝曰远·远曰反」 (帛书 25) | windsurf register 返 devin-session-token$ 而非旧 ws-* · 不识则全弃 |
+| **印 ∞.4** | wsChat hostList 含 keyObj.srvUrl 首位 | 「天下莫柔弱于水」 (帛书 78) | wsChat 用硬编码 host · 浪费首轮 (真 srvUrl 在 keyObj) |
+| **印 133** | WAM 本地真本源桥 · ~/.wam → /admin/wam/{local,use} · 主公真号库 (179 件解析) | 「带入用户一切」 (主公诏 20:08) | 真号库本地有 (~/.wam/accounts.md) 但反代不读 · 桥 之 |
+| **印 ∞.5** | 全链路闭环导中证毕 · `node scripts/dao_run_all.cjs` 一脚本起两子 · web 自注 vmUrl=127.0.0.1:7780 · A/B 真返 16 模 · chat 真转 wss 真返道德经 (latency 96-182s p50=126s) | 「我无为也而民自化」 (帛书 57) | 主公诏「实时一切·全链路彻底闭环·实现无为而治」 |
 
 ### 印 131.1 · 主公诏「居实不居华」之承续 (2026-05-17 18:43)
 
