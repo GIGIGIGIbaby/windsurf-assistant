@@ -130,8 +130,13 @@ function startVm() {
 }
 
 // ─── ③ · 起 web http 静服 ────────────────────────────────────────────────
+// 印 ∞.5 治: EADDRINUSE 自动 fallback 端 (帛书六十四「为之于其未有也」)
+//   主公并行可能已起其他 web (如 Devin 云原生 :8765)
+//   此处不阻死 · 自动试下一空闲端 (8766 → 8767 → 8768 ...)
 let webServer = null;
-function startWeb() {
+let _actualWebPort = WEB_PORT;
+function startWeb(triedPort) {
+  const tryPort = triedPort || WEB_PORT;
   const MIME = {
     ".html": "text/html; charset=utf-8",
     ".js": "application/javascript; charset=utf-8",
@@ -162,8 +167,23 @@ function startWeb() {
       res.end(data);
     });
   });
-  webServer.listen(WEB_PORT, "127.0.0.1", () => {
-    log("D", `起 web · ${WEB_URL}`);
+  webServer.on("error", (e) => {
+    if (e.code === "EADDRINUSE" && tryPort < WEB_PORT + 10) {
+      try {
+        webServer.close();
+      } catch {}
+      log(
+        "Y",
+        `端 ${tryPort} 已占 · 试 ${tryPort + 1} (帛书六十四「为之于其未有也」)`,
+      );
+      startWeb(tryPort + 1);
+    } else {
+      log("R", `web 起失: ${e.code || e.message}`);
+    }
+  });
+  webServer.listen(tryPort, "127.0.0.1", () => {
+    _actualWebPort = tryPort;
+    log("D", `起 web · http://127.0.0.1:${tryPort}`);
   });
 }
 
@@ -209,6 +229,90 @@ async function waitVmReady(maxMs) {
     await new Promise((f) => setTimeout(f, 500));
   }
   return { ok: false, err: "timeout " + maxMs + "ms" };
+}
+
+// ─── 印 ∞.5 · WAM 自注入 (无为而无不为) ─────────────────────────────────
+//   起 vm 后 · 自打 /admin/wam/local → 解析 auth1 件 → /admin/wam/use 注前 N 件
+//   主公诏「代替我之一切 · 全链路彻底闭环」之实
+//   帛书五十七: 「我无为也 · 而民自化」
+function httpJson(method, p, body) {
+  return new Promise((resolve) => {
+    const u = new URL(VM_URL + p);
+    const payload = body ? JSON.stringify(body) : null;
+    const req = http.request(
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname + u.search,
+        method,
+        headers: Object.assign(
+          { "Content-Type": "application/json" },
+          payload ? { "Content-Length": Buffer.byteLength(payload) } : {},
+        ),
+        timeout: 5000,
+      },
+      (r) => {
+        let d = "";
+        r.on("data", (c) => (d += c));
+        r.on("end", () => {
+          let j = null;
+          try {
+            j = JSON.parse(d);
+          } catch {}
+          resolve({ status: r.statusCode, json: j });
+        });
+      },
+    );
+    req.on("error", (e) => resolve({ status: 0, error: e.message }));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve({ status: 0, error: "timeout" });
+    });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+async function autoInjectFromWam(maxInject) {
+  const max = maxInject || 5;
+  // GET /admin/wam/local
+  const r = await httpJson("GET", "/admin/wam/local");
+  if (!r.json || !r.json.available || !Array.isArray(r.json.items)) {
+    log("Y", `WAM 本地无访 · 跳自注 (${r.error || "unknown"})`);
+    return { injected: 0, total: 0 };
+  }
+  const auth1Items = [];
+  for (let i = 0; i < r.json.items.length; i++) {
+    const it = r.json.items[i];
+    if (it && it.tokenKind === "auth1") {
+      auth1Items.push({ index: i, email: it.email });
+    }
+  }
+  log(
+    "D",
+    `WAM · 解析 ${r.json.items.length} 件 · ${auth1Items.length} 件 auth1 可注`,
+  );
+  if (auth1Items.length === 0) return { injected: 0, total: 0 };
+  let injected = 0;
+  for (const it of auth1Items.slice(0, max)) {
+    const u = await httpJson("POST", "/admin/wam/use", {
+      index: it.index,
+      mode: "token-direct",
+    });
+    if (u.json && u.json.ok) {
+      injected++;
+      log(
+        "K",
+        `  · idx=${it.index} ${it.email} → ${u.json.duplicate ? "已存" : "入池"} (count=${u.json.count})`,
+      );
+    } else {
+      log(
+        "Y",
+        `  · idx=${it.index} 注失: ${(u.json && u.json.error) || u.error}`,
+      );
+    }
+  }
+  return { injected, total: auth1Items.length };
 }
 
 // ─── ⑤ · 主 ──────────────────────────────────────────────────────────────
@@ -270,9 +374,34 @@ async function main() {
     log("R", "dao_proxy 健失: " + (h.err || JSON.stringify(h).slice(0, 200)));
   }
 
+  // 印 ∞.5 · 起后自注 WAM auth1 件 (无为而无不为 · 帛书五十七)
+  //   主公诏「代替我之一切」之实 — 不假定 _real_ws_keys.json 存在
+  //   即使无 _real_ws_keys.json · 也从 ~/.wam/accounts.md 直接自注
+  if (h.ok) {
+    log("D", "WAM 自注 · 帛书五十七「我无为也 · 而民自化」");
+    const inj = await autoInjectFromWam(5);
+    if (inj.injected > 0) {
+      log(
+        "G",
+        `WAM 自注 ✓ · ${inj.injected}/${inj.total} 件入池 · ws-pool 即活`,
+      );
+    } else {
+      log("Y", `WAM 自注 · 0 件 (auth1 候 ${inj.total} · 已存或不可用)`);
+    }
+    // 探 /v1/models 看模数
+    const m = await httpJson("GET", "/v1/models");
+    if (m.json && m.json.data) {
+      log("G", `/v1/models · ${m.json.data.length} 模可见`);
+    }
+  }
+
   console.log("");
   console.log(C.G("  道法自然 · 无为而无不为"));
-  console.log(C.G("  主公 → " + C.D(WEB_URL + "/index.html?v=128")));
+  console.log(
+    C.G(
+      "  主公 → " + C.D(`http://127.0.0.1:${_actualWebPort}/index.html?v=128`),
+    ),
+  );
   console.log("");
   console.log(
     C.K("  · 浏览器入 mine 时 dao_app.js 自检 vmUrl · 若空则填 " + VM_URL),
