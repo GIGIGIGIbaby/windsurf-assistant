@@ -1,0 +1,100 @@
+{
+  "version": "1.0.0",
+  "_comment_": "印 128 · bindings.json · 一 windsurf 账号 一 VM · 持久化绑定表",
+  "_comment_2_": "主公复此件 → bindings.json · 一号一VM.ps1 自动维护",
+  "_comment_3_": "git ignore: bindings.json (含 sessionId/tunnel/email · 不公开)",
+  "savedAt": "2026-05-17T10:00:00Z",
+  "lastSyncedAt": "2026-05-17T11:00:00Z",
+  "bindings": [
+    {
+      "idx": 0,
+      "account": {
+        "email": "example_a@gmail.com",
+        "tag": "c7d9bf15",
+        "tokenLast4": "...a1b2",
+        "source": "unify"
+      },
+      "vm": {
+        "sessionId": "devin-c3eba3d93c1234567890abcdef",
+        "tunnelUrl": "https://omni-router-app-tunnel-hit8i0sl.devinapps.com",
+        "spawnedAt": "2026-05-17T10:00:00Z",
+        "deployedAt": "2026-05-17T10:08:00Z",
+        "ttlExpire": "2026-05-18T10:00:00Z",
+        "deployStatus": "deployed",
+        "spStrategy": "bypass",
+        "spConfig": "",
+        "spCustom": "",
+        "metaDeployStatus": "not_deployed",
+        "publicTunnelUrl": ""
+      },
+      "boundAt": "2026-05-17T10:00:00Z",
+      "lastVerifiedAt": "2026-05-17T11:00:00Z",
+      "status": "alive",
+      "memo": "主公此号意图 (e.g. prod / dev / sandbox)"
+    },
+    {
+      "idx": 1,
+      "account": {
+        "email": "example_b@gmail.com",
+        "tag": "a1b2c3d4",
+        "tokenLast4": "...c3d4",
+        "source": "unify"
+      },
+      "vm": {
+        "sessionId": "devin-d4f5e6789012345678901234567",
+        "tunnelUrl": "https://omni-router-app-tunnel-mn3p4q5r.devinapps.com",
+        "spawnedAt": "2026-05-17T10:05:00Z",
+        "deployedAt": "2026-05-17T10:13:00Z",
+        "ttlExpire": "2026-05-18T10:05:00Z",
+        "deployStatus": "deployed",
+        "spStrategy": "dao",
+        "spConfig": "",
+        "spCustom": "",
+        "spDaoChapter": 22,
+        "metaDeployStatus": "deployed",
+        "publicTunnelUrl": "https://example.trycloudflare.com"
+      },
+      "boundAt": "2026-05-17T10:05:00Z",
+      "lastVerifiedAt": "2026-05-17T11:00:00Z",
+      "status": "alive",
+      "memo": "dao SP 态 · 反代 cascade + cortex"
+    },
+    {
+      "idx": 2,
+      "account": {
+        "email": "example_c@gmail.com",
+        "tag": "e5f6g7h8",
+        "tokenLast4": "...g7h8",
+        "source": "unify"
+      },
+      "vm": {
+        "sessionId": "devin-prev-c1c2c3c4c5c6c7c8c9c0",
+        "tunnelUrl": "https://omni-router-app-tunnel-xyz789.devinapps.com",
+        "spawnedAt": "2026-05-16T10:00:00Z",
+        "deployedAt": "2026-05-16T10:08:00Z",
+        "ttlExpire": "2026-05-17T10:00:00Z",
+        "deployStatus": "deployed",
+        "spStrategy": "usernote",
+        "spConfig": "",
+        "spCustom": "",
+        "spNote": "用户特别说明: 回答需精简 · 仅一段",
+        "metaDeployStatus": "not_deployed",
+        "publicTunnelUrl": ""
+      },
+      "boundAt": "2026-05-16T10:00:00Z",
+      "lastVerifiedAt": "2026-05-17T10:30:00Z",
+      "status": "dead",
+      "memo": "TTL 过期 · 主公可 rebind -Idx 2 重起"
+    }
+  ],
+  "history": [
+    {
+      "idx": 99,
+      "account": { "email": "old_unbind@gmail.com", "tag": "00000000" },
+      "vm": { "sessionId": "devin-historical-xxxx" },
+      "unboundAt": "2026-05-17T05:00:00Z",
+      "reason": "main_unbound_by_user",
+      "_comment_": "主公主动 unbind 之号 · 留 record · 守玄德"
+    }
+  ]
+}

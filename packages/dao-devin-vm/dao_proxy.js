@@ -167,7 +167,8 @@ const CFG = {
   // wss 反代
   wssUrl: process.env.WSS_URL || "wss://app.devin.ai/api/acp/live",
   defaultModel: process.env.DEFAULT_MODEL || "devin-cloud",
-  promptTimeoutMs: parseInt(process.env.PROMPT_TIMEOUT_MS || "300000", 10),
+  // 印 139 · 5min → 2min (慎终若始 · 帛书六十四) · 上游不响应时不占资源过久
+  promptTimeoutMs: parseInt(process.env.PROMPT_TIMEOUT_MS || "120000", 10),
 
   // Windsurf 上游 (印 101 v0.1 · pass-through 可选)
   windsurfUpstream: process.env.WINDSURF_UPSTREAM || "",
@@ -614,6 +615,54 @@ const POOL_STATE = {
   rotateCount: 0,
 };
 
+// 印 139 · WAM 真本源 watcher (反者道之动 · 主公 IDE 切号 → dao_proxy 自 reload activeApiKey)
+//   帛书五十七「我无为也，而民自化」· 主公无须重启 dao_proxy · 池 token 自更新
+function _yin139_watchWamState() {
+  if (!CFG.wamFile || !fs.existsSync(CFG.wamFile)) return;
+  let lastKey = null;
+  try {
+    const w = JSON.parse(fs.readFileSync(CFG.wamFile, "utf8"));
+    if (w.activeApiKey) lastKey = _normalizeToken(w.activeApiKey);
+  } catch {}
+  fs.watchFile(CFG.wamFile, { interval: 2000, persistent: false }, () => {
+    let w;
+    try {
+      w = JSON.parse(fs.readFileSync(CFG.wamFile, "utf8"));
+    } catch {
+      return; // 写入瞬态 · 忽 (下次再读)
+    }
+    const newKey = _normalizeToken(w.activeApiKey || "");
+    if (!newKey || newKey === lastKey) return;
+    lastKey = newKey;
+    const idx = POOL_STATE.pool.findIndex(
+      (t) => t.source === "wam:activeApiKey",
+    );
+    const entry = {
+      token: newKey,
+      raw: w.activeApiKey,
+      source: "wam:activeApiKey",
+      ok: 0,
+      err: 0,
+      lastUsedAt: 0,
+      lastErrAt: 0,
+      cooldownUntil: 0,
+    };
+    if (idx >= 0) {
+      POOL_STATE.pool[idx] = entry;
+      logI(
+        `印 139 · wam reload · ${mask(newKey)} (switches=${w.switches || "?"} · ${w.activeEmail || "?"})`,
+      );
+    } else {
+      POOL_STATE.pool.push(entry);
+      logI(
+        `印 139 · wam add · ${mask(newKey)} (新源 · pool=${POOL_STATE.pool.length})`,
+      );
+    }
+  });
+  logI(`印 139 · wam-state.json watch 立 (帛书五十七 · 我无为也而民自化)`);
+}
+_yin139_watchWamState();
+
 const COOLDOWN_MS = 30_000; // 30s · 错则冷却 (避连续打死)
 function pickToken() {
   const now = Date.now();
@@ -697,7 +746,8 @@ function markOk(t) {
 //      - tokenObj 给则首试用之 · 后续 rotation 自pick
 //      - tokenObj 不给则全程 pickToken
 // 行为: 错为 quota/rate/transient/auth → 自动换 token 再试 · 最多 maxTries
-async function chatViaWssRetry(args, { maxTries = 5 } = {}) {
+// 印 139 · maxTries 5 → 3 (损之又损 · 帛书四十八) · 免连续打死上游· default 凝maxTries被调者覆盖仍可
+async function chatViaWssRetry(args, { maxTries = 3 } = {}) {
   // chatViaWss 是 function 声明 · JS hoist · 直接调
   const tried = new Set();
   let lastErr = null;

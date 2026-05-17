@@ -1,0 +1,7 @@
+# Module D 之 .gitignore · 守玄德 (帛书六十五)
+# .dao_*_token / _logs / _state 含真 token + 真测据 · 不入公网 git
+.dao_auth_token
+.dao_meta_auth_token
+_logs/
+_state/
+workflow/

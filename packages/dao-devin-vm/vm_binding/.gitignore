@@ -1,0 +1,6 @@
+# Module C 之 .gitignore · 守玄德 (帛书六十五)
+# bindings.json 含真 sessionId + tunnel secret token · 不入公网 git
+bindings.json
+bindings.json.bak
+_logs/
+_state/
