@@ -59,6 +59,7 @@ const TESTS = [
   "_seal138_devin_full_jiehe_smoke", // 印 138 · Devin云原生 虚拟机反代深整合 (4 模块 34 件 + 3 文献 · 取之尽锱铢用之如泥沙) · 24 子测 · 玄德 · 帛书六十五
   "_seal139_real_user_truth_smoke", // 印 139 · 真用户实证 · 三真本源治 (PROMPT_TIMEOUT 5min→2min + maxTries 5→3 + wam-state watcher · 帛书六十四/四十八/五十七)
   "_seal140_zhenshi_yongshu_zhiben_smoke", // 印 140 · 真用户实证治本 · windsurf maxTries 8→3 + METRICS inflight 字段 · 损之又损 · 帛书四十八/六十四
+  "_seal142_smoke", // 印 142 · 反者道之动 · spam-flag 第二层 (Actions disabled) · cascade A 之印 + cascade B 之补遗 · 帛书四十/十六/四十三
 ];
 
 let allOk = true;
