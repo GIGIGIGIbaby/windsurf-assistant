@@ -79,6 +79,9 @@ const DRY_GIST = args.includes("--dry-gist");
 // 印 113 道义: --reuse-pool · 不耗 ACU spawn 新 VM
 // 用现池 alive (主公 keeper 已维) · 仅 deploy dao_proxy (帛书 八 上善若水 · 用其所有)
 const REUSE_POOL = args.includes("--reuse-pool");
+// 印 148 道义: --wam-all · 从 ~/.wam 全态 (active + backups) 拉 N 件 token · 真『一账号一 VM』
+// 帛书四十二「道生一 · 一生二 · 二生三 · 三生万物」· 一身 → N token → N VM
+const WAM_ALL = args.includes("--wam-all");
 
 const C = {
   G: (s) => `\x1b[32m${s}\x1b[0m`,
@@ -177,20 +180,34 @@ function spawnDevinVM(devinToken) {
     let stderr = "";
     let done = false;
     let urlEmitted = null; // 早识 URL · 立 resolve 不等子全闭 (省时)
+    // 印 146 · 反者道之动 · 帛书廿七「善行者无辙迹·善结者无绳约而不可解也」
+    //   原: 抓到 URL 立 SIGKILL · vm_omni 之 appendPool/record-log 来不及调 · 池空
+    //   治: 抓到 URL 后候 8s · 让 vm_omni 完成 appendPool + record JSON 写盘后再 SIGKILL
+    //   (vm_omni L774-883 之 finish() · L854 appendPool · L855 console.log record)
     const finish = (urlOrNull) => {
       if (done) return;
       done = true;
       clearTimeout(killTimer);
-      try {
-        child.kill("SIGKILL");
-      } catch {}
+      const doKillAndResolve = () => {
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+        if (urlOrNull) {
+          log(C.G(`  ✓ VM 起 · ${urlOrNull.split("@")[1].slice(0, 40)}`));
+          resolve("https://" + urlOrNull);
+        } else {
+          const tail = (stdout + stderr).slice(-200);
+          log(C.R(`  ✗ spawn 失 · 无 URL · tail: ${tail}`));
+          resolve(null);
+        }
+      };
       if (urlOrNull) {
-        log(C.G(`  ✓ VM 起 · ${urlOrNull.split("@")[1].slice(0, 40)}`));
-        resolve("https://" + urlOrNull);
+        log(
+          C.GR(`  · 抓 URL · 候 8s vm_omni appendPool/record-log 后 SIGKILL`),
+        );
+        setTimeout(doKillAndResolve, 8000);
       } else {
-        const tail = (stdout + stderr).slice(-200);
-        log(C.R(`  ✗ spawn 失 · 无 URL · tail: ${tail}`));
-        resolve(null);
+        doKillAndResolve();
       }
     };
     child.stdout.on("data", (d) => {
@@ -350,8 +367,33 @@ async function main() {
   } else if (DEVIN_TOKEN_OVERRIDE) {
     tokens = [DEVIN_TOKEN_OVERRIDE];
     log(`▶ 用 --devin-token (1 件)`);
+  } else if (WAM_ALL) {
+    // 印 148 · 反者道之动 · 从 _state/wam_token_pool.json 拉全 token (active + backups 去重)
+    // 帛书四十二「道生一 · 一生二 · 二生三 · 三生万物」· 主公一身 → N 件 token → N VM 并行
+    const poolFile = path.join(BASE, "_state", "wam_token_pool.json");
+    if (!fs.existsSync(poolFile)) {
+      throw new Error(
+        "无 _state/wam_token_pool.json · 请先 node _wam_pool_build.js",
+      );
+    }
+    const wamPool = JSON.parse(fs.readFileSync(poolFile, "utf8"));
+    tokens = wamPool.map((p) => p.token).filter(Boolean);
+    log(
+      C.Y(
+        `▶ WAM-ALL · 用 ~/.wam 全态 (active + backups 去重) · ${tokens.length} 件 token`,
+      ),
+    );
+    if (tokens.length === 0) throw new Error("wam_token_pool.json 为空 · 重建");
+    // N 自动 = min(N参数, 池件数) · 不超池
+    if (N > tokens.length) {
+      log(
+        C.Y(
+          `  · --n ${N} > 池 ${tokens.length} 件 · 自动降为 ${tokens.length} (一账号一 VM)`,
+        ),
+      );
+    }
   } else if (DRY_GIST) {
-    // 本地仿: 用 WAM
+    // 本地仿: 用 WAM activeApiKey 1 件 (旧路 · WAM_ALL 优先)
     const wamFile = path.join(
       require("os").homedir(),
       ".wam",
@@ -391,16 +433,21 @@ async function main() {
       .map((a) => ({ idx: a.idx, url: a.url, token: null }));
     log(C.G(`  ─ ${spawned.length} / ${N} 件 (池 alive=${alive.length})`));
   } else {
-    log(`▶ Step 1: spawn ${N} 件 Devin VM (并发)`);
+    // 印 148 · WAM_ALL 真『一账号一 VM』· 不轮 · N = min(N, tokens.length)
+    const effectiveN = WAM_ALL ? Math.min(N, tokens.length) : N;
+    log(
+      `▶ Step 1: spawn ${effectiveN} 件 Devin VM (并发${WAM_ALL ? " · 一账号一 VM" : ""})`,
+    );
     const spawnTasks = [];
-    for (let i = 0; i < N; i++) {
-      const tk = tokens[i % tokens.length];
+    for (let i = 0; i < effectiveN; i++) {
+      // WAM_ALL: tokens[i] 独占 (一账号一 VM) · 非 WAM_ALL: 轮 tokens[i % tokens.length]
+      const tk = WAM_ALL ? tokens[i] : tokens[i % tokens.length];
       spawnTasks.push(
         spawnDevinVM(tk).then((url) => ({ idx: i, url, token: tk })),
       );
     }
     spawned = (await Promise.all(spawnTasks)).filter((s) => s.url);
-    log(C.G(`  ─ ${spawned.length} / ${N} 件 spawn 成`));
+    log(C.G(`  ─ ${spawned.length} / ${effectiveN} 件 spawn 成`));
   }
   console.log("");
 

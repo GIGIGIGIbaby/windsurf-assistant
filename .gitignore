@@ -125,3 +125,14 @@ _test_auth*_real.cjs
 /_yin*_runall.log
 /_yin*_final.log
 /_seal*_final.log
+
+# 印 149 · 反者道之动 · windsurf-assistant 锚定 · 真本源 token 池禁入库
+# 帛书三十六「邦利器不可视人」 · 帛书四十「反者道之动」
+**/.dao_auth_token
+**/tokens_*.txt
+**/_state/
+**/seal113_deployer_*.json
+**/seal*_deployer_*.json
+_logs/
+**/_logs/
+*.log.err
