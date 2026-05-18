@@ -549,6 +549,111 @@ done
     console.log(C.R("  ✗"), e.message);
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  // [7.5/8] 印 150 · 真本源 · 注入 16 件 wam_token_pool.json 入 VM 之 ws-pool
+  //
+  //   主公诏「反代 windsurf 本体所有相关之资于云端」之实化
+  //   径: POST /admin/keys/add { apiKey: 'devin-session-token$<JWT>', email }
+  //       → VM 内 dao_proxy 之 WS_POOL_STATE.keys.push (印 130 · 印 ∞.3)
+  //       → ws-keys=N (突破单 IP cascade quota 限制)
+  //
+  //   不依: 不改 dao_proxy.js · 用其已有 admin/keys/add 路 · 反者道之动
+  //   守印 36 戒: 不上传 ~/.wam (避主公一身泄) · 仅推 token 经 https 一笔
+  // ════════════════════════════════════════════════════════════════════════
+  console.log(
+    "[7.5/8] " +
+      C.B("印 150 · 注入 wam_token_pool.json 16 件 token 入 VM ws-pool"),
+  );
+  try {
+    const POOL_TOKEN_FILE = path.join(
+      BASE_DIR,
+      "_state",
+      "wam_token_pool.json",
+    );
+    if (!fs.existsSync(POOL_TOKEN_FILE)) {
+      console.log(
+        C.Y("  ⊘ wam_token_pool.json 不存 · 跳 (仅 wss devin 池 · ws-keys=0)"),
+      );
+    } else {
+      const pool = JSON.parse(fs.readFileSync(POOL_TOKEN_FILE, "utf-8"));
+      console.log(C.GR(`  · 读 ${POOL_TOKEN_FILE} · ${pool.length} 件 token`));
+      let okCount = 0;
+      let dupCount = 0;
+      let errCount = 0;
+      for (let i = 0; i < pool.length; i++) {
+        const item = pool[i];
+        const apiKey = item.token || item.apiKey || "";
+        const email = item.email || "";
+        if (!apiKey.startsWith("devin-session-token$")) {
+          console.log(C.Y(`    [${i}] skip · 非 devin-session-token$ 格式`));
+          continue;
+        }
+        try {
+          const r = await req(
+            `${omniUrl}/port/7780/admin/keys/add`,
+            {
+              method: "POST",
+              headers: {
+                "X-Dao-Auth": authToken,
+                "Content-Type": "application/json",
+              },
+              timeout: 10000,
+            },
+            JSON.stringify({ apiKey, email }),
+          );
+          if (r.statusCode === 200) {
+            try {
+              const j = JSON.parse(r.text);
+              if (j.duplicate) dupCount++;
+              else if (j.ok) okCount++;
+              else errCount++;
+            } catch (_) {
+              errCount++;
+            }
+          } else {
+            errCount++;
+            if (i < 2) {
+              console.log(
+                C.Y(
+                  `    [${i}] HTTP ${r.statusCode} · ${(r.text || "").slice(0, 80)}`,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          errCount++;
+          if (i < 2) console.log(C.R(`    [${i}] ${e.message}`));
+        }
+        // 节流 · 避瞬时打死 admin 路 (但仍并行 · 100ms 间)
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      console.log(
+        C.G(
+          `  ✓ ws-pool 注入 · ok=${okCount} · dup=${dupCount} · err=${errCount} · 总=${pool.length}`,
+        ),
+      );
+
+      // 验 ws-keys 后态
+      try {
+        const hh = await req(`${omniUrl}/port/7780/health`, {
+          method: "GET",
+          headers: { "X-Dao-Auth": authToken },
+          timeout: 8000,
+        });
+        if (hh.statusCode === 200) {
+          const j = JSON.parse(hh.text);
+          console.log(
+            C.G(
+              `  ✓ ws-pool 后态: keys=${j.windsurf?.keys} · loaded=${j.windsurf?.loaded}`,
+            ),
+          );
+        }
+      } catch (_) {}
+    }
+  } catch (e) {
+    console.log(C.Y("  ! 注入失败 (非阻断 · devin 池仍可用): " + e.message));
+  }
+
   // 验 keeper alive
   console.log("[8/8] " + C.B("验 keeper alive"));
   const rkc = await omniRun(omniUrl, "pgrep -af keeper.sh | head -3");
