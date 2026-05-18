@@ -136,3 +136,16 @@ _test_auth*_real.cjs
 _logs/
 **/_logs/
 *.log.err
+
+# 印 159 · 一账号一虚拟机 · fleet master 运行时件
+# 帛书六十四「治之于其未乱」 · 不入库 · 但源件 (fleet_master.js / _yin159_*.cjs / .cmd) 入
+**/packages/dao-devin-vm/_cf_*.err
+**/packages/dao-devin-vm/_cf_*.log
+**/packages/dao-devin-vm/_cf_*.pid
+**/packages/dao-devin-vm/_cf_*.url
+**/packages/dao-devin-vm/_fleet_master.log
+**/packages/dao-devin-vm/_fleet_master.err
+**/packages/dao-devin-vm/_fleet_master.pid
+**/packages/dao-devin-vm/_yin159_console.txt
+**/packages/dao-devin-vm/_yin159_pubtest_out.txt
+**/packages/dao-devin-vm/_yin159_result.json
