@@ -1,8 +1,8 @@
 {
   "name": "dao-proxy-min",
   "displayName": "道Agent · 反者道之动 · 弱者道之用",
-  "description": "v9.9.0 · 印 124 · 第一细药 · 外接 api 归一 (六十三章「图难其易 · 为大其细」) · 承 v9.8.0 守一不离 主体字节级不动 · 加 vendor/外接api/ 一文件夹 (gateway 10 件字节级移 max v1.0.8 印 123 实证 22/38 模真活 + lm_register vscode.lm 注 14 provider + runtime 启停 wrapper + 配置.example) · 14 provider 之 N 模无感入 Cascade 选单 (与 4 BYOK 一视同仁) · 默关 · dao.外接api.enabled=true 才启 · 主公一字开 · 二轨 (反代核 :8889..8988 + gateway :11635..11734) per-user FNV 不撞 · 道并行而不相悖 · 守大常: invertSP/modifySPProto/modifyRawSP/modifyAnyInferenceSP/deepInvertProto/照观体系 字符级不变.",
-  "version": "9.9.0",
+  "description": "v9.9.19 · 印 151 · 损之又损 · IPC过载根治 (preview 872KB→52KB · tape 767KB→52KB · postMessage 1.7MB→22KB) · 承 v9.9.17 经藏多门 (4十二章「道生一」·五经藏下拉·老子/阴符经/赫拉克利特/克劳利律法 4单+老子+阴符经 1融·_CANON_MAP·持存) · 守大常: invertSP/modifySPProto/modifyRawSP/modifyAnyInferenceSP/deepInvertProto/照观体系 字符级不变.",
+  "version": "9.9.19",
   "publisher": "dao-agi",
   "license": "Apache-2.0",
   "engines": {

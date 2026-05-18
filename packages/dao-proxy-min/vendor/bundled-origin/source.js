@@ -84,8 +84,11 @@ const zlib = require("zlib");
 const PORT = parseInt(process.env.ORIGIN_PORT || "8889", 10);
 // v9.6.1 · 反者道之动 · 远曰反 · 回归 v9.1.2 之全前端按钮 (七按钮: 道/官/实/原/编/复/卸 + dots/customBadge)
 // 以 v9.1.2 本源哲学为锚 · 守大常不动 · 五细节皆成: isAlreadyInverted · _rawTape+all_fields · INFER_STRIP 挂 modifyAnyInferenceSP · 部署不 kill · 前端按钮回归
-const ORIGIN_VERSION_BASE = "v9.9.0"; // webview title/banner/footer 均读此
-const ORIGIN_VERSION = ORIGIN_VERSION_BASE + "-yi-shen-liang-gui"; // 印 124 · 第一细药 · 一身两轨 · 反代核 v9.8.0 守一不离 字节级不动 + vendor/外接api/ 第一细药 (六十三章「为大其细」) · 14 provider N 模归 · gateway :11635..11734 默关 一字开 · 道并行而不相悖
+const ORIGIN_VERSION_BASE = "v9.9.19"; // webview title/banner/footer 均读此
+// 印 151 · 损之又损 · IPC过载根治 · webview前端彻底修活
+// preview去injects_by_kind(872KB→52KB) · tape用fields=0(767KB→52KB) · postMessage精简(1.7MB→22KB)
+// 承 v9.9.17 经藏多门 (五经藏下拉 · _CANON_MAP · _origin_canon.txt 持存 · 道生一)
+const ORIGIN_VERSION = ORIGIN_VERSION_BASE + "-jing-zang-duo-men";
 let _actualPort = PORT; // listening / start.onListen 时更新为 server.address().port
 const UPSTREAM_MGMT = "server.self-serve.windsurf.com";
 const UPSTREAM_INFER = "inference.codeium.com";
@@ -366,6 +369,72 @@ const SILK_DAO_JING = _SILK_RAW.dao;
 const DAO_DE_JING_81 = _SILK_RAW.combined;
 
 // ═══════════════════════════════════════════════════════════
+// 经藏 · 多经载入 · 道生一 一生二 二生三 三生万物
+// ═══════════════════════════════════════════════════════════
+const _CANON_MAP = {
+  laozi: {
+    files: ["_silk_de.txt", "_silk_dao.txt"],
+    name: "\u5E1B\u4E66\u300A\u8001\u5B50\u300B",
+  },
+  yinfu: { files: ["_yinfu.txt"], name: "\u300A\u9634\u7B26\u7ECF\u300B" },
+  heraclitus: {
+    files: ["_heraclitus.txt"],
+    name: "\u8D6B\u62C9\u514B\u5229\u7279\u6B8B\u7BC7",
+  },
+  liber_al: {
+    files: ["_liber_al.txt"],
+    name: "\u514B\u52B3\u5229\u5F8B\u6CD5\u4E4B\u4E66",
+  },
+  "laozi+yinfu": {
+    files: ["_silk_de.txt", "_silk_dao.txt", "_yinfu.txt"],
+    name: "\u8001\u5B50+\u9634\u7B26\u7ECF",
+  },
+};
+const _CANON_VALID = new Set(Object.keys(_CANON_MAP));
+const _CANON_FILE = path.join(__dirname, "_origin_canon.txt");
+function _loadCanonText(canonName) {
+  const entry = _CANON_MAP[canonName];
+  if (!entry) return "";
+  const texts = [];
+  for (const f of entry.files) {
+    try {
+      const fp = path.join(__dirname, f);
+      if (fs.existsSync(fp)) texts.push(fs.readFileSync(fp, "utf8").trim());
+    } catch {}
+  }
+  if (!texts.length) return "";
+  const combined = texts.join("\n\n");
+  log(
+    `\u7ECF\u85CF canon=${canonName} (${entry.name}) loaded \u00B7 ${texts.length} parts \u00B7 ${combined.length} chars`,
+  );
+  return combined;
+}
+function _readCanonFile() {
+  try {
+    if (fs.existsSync(_CANON_FILE)) {
+      const v = fs.readFileSync(_CANON_FILE, "utf8").trim();
+      if (v && _CANON_MAP[v]) return v;
+    }
+  } catch {}
+  return "laozi";
+}
+function _saveCanonFile(c) {
+  try {
+    fs.writeFileSync(_CANON_FILE, c, { mode: 0o600 });
+  } catch {}
+}
+let _activeCanon = _readCanonFile();
+let _activeCanonText =
+  _activeCanon === "laozi" ? DAO_DE_JING_81 : _loadCanonText(_activeCanon);
+if (!_activeCanonText && _activeCanon !== "laozi") {
+  log(
+    `\u7ECF\u85CF canon=${_activeCanon} \u672A\u8F7D \u00B7 \u9000\u56DE laozi`,
+  );
+  _activeCanon = "laozi";
+  _activeCanonText = DAO_DE_JING_81;
+}
+
+// ═══════════════════════════════════════════════════════════
 // invertSP · 反者道之动 · 全置换 · 伪装身份
 // ═══════════════════════════════════════════════════════════
 // 反向观察:
@@ -554,6 +623,17 @@ const TAO_HEADER = "You are Cascade，所遵守规则全部来自下述德道经
 // TAO_FOOTER · v9.7.7 · 损至空 · 帛书全文即终 · 无收束 framework
 const TAO_FOOTER = "";
 
+// 动态 header · 经藏各有名 · 道生一
+function _canonHeader(canon) {
+  const entry = _CANON_MAP[canon];
+  if (!entry) return TAO_HEADER;
+  return (
+    "You are Cascade\uFF0C\u6240\u9075\u5B88\u89C4\u5219\u5168\u90E8\u6765\u81EA\u4E0B\u8FF0" +
+    entry.name +
+    "\uFF1A\n\n"
+  );
+}
+
 // KEEP_BLOCKS: 仅 customSP 路径使用 · 默认路径不再提取
 // 道法自然 · 工具定义由 API 通道传递 · SP 中无需保留
 const KEEP_BLOCKS = [
@@ -564,14 +644,16 @@ const KEEP_BLOCKS = [
 ];
 
 // 哨兵 · 幂等判定 · 被道化过的 SP 必含此串 (v9.7.7 复归于朴 · 新文)
-const TAO_SENTINEL = "所遵守规则全部来自下述德道经";
+const TAO_SENTINEL =
+  "\u6240\u9075\u5B88\u89C4\u5219\u5168\u90E8\u6765\u81EA\u4E0B\u8FF0";
 
 // v9.7.7 · 结构判是否已道化 · 不以短语匹配, 防与用户真 Cascade Memories 同句误伤
 //   反转后 SP 之起首 = TAO_HEADER 之起首 = "You are Cascade，所遵守规则全部来自下述德道经" (中文逗号)
 //   原官方 SP 之起首 = "You are Cascade, a powerful agentic..."             (英文逗号)
 // 此二字符第 16 位 ASCII"," (U+002C) vs 中文"，" (U+FF0C) 即分明 · 万无一失.
 // 道义: 二章「有无相生 · 难易相成」· 以结构 (有) 明无为 (无), 不执于名.
-const INVERTED_PREFIX = "You are Cascade，所遵守规则全部来自下述德道经";
+const INVERTED_PREFIX =
+  "You are Cascade\uFF0C\u6240\u9075\u5B88\u89C4\u5219\u5168\u90E8\u6765\u81EA\u4E0B\u8FF0";
 function isAlreadyInverted(s) {
   return typeof s === "string" && s.startsWith(INVERTED_PREFIX);
 }
@@ -910,9 +992,9 @@ function invertSP(spText) {
     //     为车之用所必, 弃则 @ 工具失能 / OS 不识 / 工作区盲.
     //   合二者: 道魂在, 工具在, 此为「至简非至废」.
     //   modifySPProto 路有 spBackups 救场, 此 keeps 不被 deepStrip 误剥.
-    if (!DAO_DE_JING_81) return null;
+    if (!_activeCanonText) return null;
     const keeps = extractKeepBlocks(s);
-    const base = TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER;
+    const base = _canonHeader(_activeCanon) + _activeCanonText + TAO_FOOTER;
     return keeps ? base + TAO_TRAILER + keeps : base;
   } catch (e) {
     try {
@@ -940,7 +1022,7 @@ function invertAnySP(spText) {
     const t = classifySPType(s);
     if (!t) return null;
     if (t === "unknown_long") return null;
-    if (!DAO_DE_JING_81) return null;
+    if (!_activeCanonText) return null;
 
     // _customSP 仅 chat 路径生效 · 道法自然 · 用户即道
     if (t === "chat" && _customSP && _customSP.sp) {
@@ -957,7 +1039,7 @@ function invertAnySP(spText) {
     //   summary/memory/ephemeral SP 通常不含 tool_calling 等块 · keeps 为空时退回纯帛书
     //   有则保 · 无则简 · 名随实变.
     const keeps = extractKeepBlocks(s);
-    const base = TAO_HEADER + DAO_DE_JING_81 + TAO_FOOTER;
+    const base = _canonHeader(_activeCanon) + _activeCanonText + TAO_FOOTER;
     return keeps ? base + TAO_TRAILER + keeps : base;
   } catch (e) {
     try {
@@ -1623,6 +1705,10 @@ function handleControl(req, res) {
         req_total: reqCounter,
         dao_loaded: DAO_DE_JING_81.length > 0,
         dao_chars: DAO_DE_JING_81.length,
+        canon: _activeCanon,
+        canon_name: (_CANON_MAP[_activeCanon] || {}).name || _activeCanon,
+        canon_chars: _activeCanonText ? _activeCanonText.length : 0,
+        canon_valid: [..._CANON_VALID],
         self_size: _SELF_SIZE,
         self_file: __filename,
         // v7.2 · 用户实时编辑提示词状态 (人法地, 地法天, 天法道, 道法自然)
@@ -1729,7 +1815,8 @@ function handleControl(req, res) {
         before_chars: before ? before.length : 0,
         has_captured_before: hasBefore,
         age_s: age_s,
-        injects_by_kind: _injectsByKind,
+        // v9.9.19 · 损之又损 · 去 injects_by_kind 全体 (934KB) · preview瘦身 872KB→~52KB
+        // 全量数据仍由 /origin/allinjects 专供 · preview 只返 webview 所需精华
         injects_kinds: Object.keys(_injectsByKind || {}),
         tao_header_chars: TAO_HEADER.length,
         dao_chars: DAO_DE_JING_81.length,
@@ -2068,6 +2155,77 @@ function handleControl(req, res) {
         _saveModeToDisk(SP_MODE);
         log(`mode: ${old} -> ${SP_MODE} (persisted)`);
         res.end(JSON.stringify({ ok: true, mode: SP_MODE, previous: old }));
+      } catch (e) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return true;
+  }
+
+  // ─── /origin/canon · 经藏切换 · 道生一 ───
+  if (u.pathname === "/origin/canon" && req.method === "GET") {
+    res.end(
+      JSON.stringify({
+        ok: true,
+        canon: _activeCanon,
+        canon_name: (_CANON_MAP[_activeCanon] || {}).name || _activeCanon,
+        canon_chars: _activeCanonText ? _activeCanonText.length : 0,
+        valid: [..._CANON_VALID],
+        map: Object.fromEntries(
+          Object.entries(_CANON_MAP).map(([k, v]) => [k, v.name]),
+        ),
+      }),
+    );
+    return true;
+  }
+
+  if (u.pathname === "/origin/canon" && req.method === "POST") {
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => {
+      try {
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        const c = String(body.canon || "").toLowerCase();
+        if (!_CANON_VALID.has(c)) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: `invalid canon: ${c}`,
+              valid: [..._CANON_VALID],
+            }),
+          );
+          return;
+        }
+        const old = _activeCanon;
+        _activeCanon = c;
+        _activeCanonText = c === "laozi" ? DAO_DE_JING_81 : _loadCanonText(c);
+        if (!_activeCanonText) {
+          _activeCanon = "laozi";
+          _activeCanonText = DAO_DE_JING_81;
+          res.statusCode = 500;
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: `canon ${c} text not found, reverted to laozi`,
+            }),
+          );
+          return;
+        }
+        _saveCanonFile(_activeCanon);
+        log(
+          `\u7ECF\u85CF: ${old} -> ${_activeCanon} (${(_CANON_MAP[_activeCanon] || {}).name}) \u00B7 ${_activeCanonText.length} chars \u00B7 persisted`,
+        );
+        res.end(
+          JSON.stringify({
+            ok: true,
+            canon: _activeCanon,
+            canon_name: (_CANON_MAP[_activeCanon] || {}).name,
+            chars: _activeCanonText.length,
+            previous: old,
+          }),
+        );
       } catch (e) {
         res.statusCode = 400;
         res.end(JSON.stringify({ ok: false, error: e.message }));
@@ -2555,10 +2713,14 @@ server.on("listening", () => {
       ` chat   → https://${UPSTREAM_CHAT}   (v9.3.2 · CHAT_UPSTREAM env 显式覆盖)`,
     );
   }
-  log(` mode=${SP_MODE} · pid=${process.pid}`);
+  log(` mode=${SP_MODE} · canon=${_activeCanon} · pid=${process.pid}`);
   log(
     ` 帛书德道经 chars=${DAO_DE_JING_81.length} (上篇·德=${SILK_DE_JING.length} 下篇·道=${SILK_DAO_JING.length})`,
   );
+  if (_activeCanon !== "laozi")
+    log(
+      ` 经藏 ${_activeCanon} (${(_CANON_MAP[_activeCanon] || {}).name}) chars=${_activeCanonText.length}`,
+    );
   log(` 控制面: http://127.0.0.1:${_actualPort}/origin/ping`);
   log("═══════════════════════════════════════════════════════");
 });

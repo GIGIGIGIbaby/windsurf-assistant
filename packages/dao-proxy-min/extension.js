@@ -976,6 +976,8 @@ class EssenceProvider {
           await this._handleSetCustomSP(msg);
         else if (msg.command === "resetCustomSP")
           await this._handleResetCustomSP();
+        else if (msg.command === "setCanon")
+          await this._handleSetCanon(msg.canon);
         else if (msg.command === "purge")
           await vscode.commands.executeCommand("dao.purge");
       } catch {}
@@ -1146,11 +1148,35 @@ class EssenceProvider {
         (data.proxy &&
           (data.proxy.after_chars || (data.proxy.after || "").length)) ||
         0;
+      // v9.9.19 · 损之又损 · 精简postMessage · 去大对象 · webview IPC过载根治
+      // proxy=872KB(含injects_by_kind) + allInjects=822KB → 致1.7MB IPC→webview冻结
+      // 修: 仅传 ping(~1KB) + proxy.after(~20KB) · 减至~22KB
+      const slimProxy = data.proxy
+        ? {
+            ok: data.proxy.ok,
+            after: data.proxy.after,
+            after_chars: afterChars,
+            age_s: data.proxy.age_s,
+            has_captured_before: data.proxy.has_captured_before,
+            before_chars: data.proxy.before_chars,
+          }
+        : null;
+      const slimData = {
+        ts: data.ts,
+        ping: data.ping,
+        proxyUp: data.proxyUp,
+        proxy: slimProxy,
+        modeLabel: data.modeLabel,
+        _port: data._port,
+      };
       try {
-        const ok = await this._view.webview.postMessage({ type: "data", data });
+        const ok = await this._view.webview.postMessage({
+          type: "data",
+          data: slimData,
+        });
         L.info(
           "refresh",
-          `postMessage ok=${ok} · proxy=${!!data.proxy} · after=${afterChars} · visible=${this._view.visible}`,
+          `postMessage ok=${ok} · proxy=${!!slimProxy} · after=${afterChars} · visible=${this._view.visible}`,
         );
         if (!ok)
           L.warn("refresh", "postMessage returned false (webview not ready?)");
@@ -1262,6 +1288,23 @@ class EssenceProvider {
           ok: false,
         });
       } catch {}
+    }
+  }
+
+  // 经藏切换 · 道生一 · webview 下拉 -> proxy /origin/canon -> 热切
+  async _handleSetCanon(canon) {
+    if (!this._view) return;
+    try {
+      const r = await httpPostJson(
+        `http://127.0.0.1:${_cachedPort}/origin/canon`,
+        { canon: String(canon || "laozi") },
+        2000,
+      );
+      log(`canon -> ${canon} (ok=${r && r.ok}, chars=${r && r.chars})`);
+      this._lastSig = "";
+      setTimeout(() => this.forceRefresh().catch(() => {}), 300);
+    } catch (e) {
+      log(`canon set fail: ${e && e.message}`);
     }
   }
 
@@ -1738,6 +1781,9 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
   .custom-badge { display: inline-block; font-size: 8px; padding: 0 4px; border-radius: 2px; background: rgba(232,160,64,0.2); color: #e8a040; border: 1px solid rgba(232,160,64,0.3); margin-left: 4px; }
   .btn-purge { margin-left: auto; opacity: 0.35; font-size: 11px; color: #e08080; }
   .btn-purge:hover { opacity: 1; background: rgba(224,128,128,0.1); }
+  #canonSelect { font-size: 10px; padding: 1px 2px; border: 1px solid rgba(128,128,128,0.3); background: var(--vscode-dropdown-background, rgba(0,0,0,0.2)); color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); border-radius: 3px; cursor: pointer; outline: none; font-family: inherit; max-width: 96px; margin-left: 4px; }
+  #canonSelect:focus { border-color: var(--vscode-focusBorder, #007fd4); }
+  #canonSelect option { background: var(--vscode-dropdown-listBackground, #252526); color: var(--vscode-dropdown-foreground, #ccc); }
 </style>
 </head>
 <body data-port="${proxyPort}">
@@ -1746,6 +1792,13 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
     <button class="mb" id="btnDao" title="\u9053Agent\u00b7\u5e1b\u4e66\u524d\u7f6e">\u9053</button>
     <button class="mb" id="btnOff" title="\u5b98\u65b9Agent\u00b7\u900f\u4f20">\u5b98</button>
     <button class="ib" id="editToggle" title="\u7f16\u8f91\u6ce8\u5165 SP">\u7f16</button>
+    <select id="canonSelect" title="\u7ecf\u85cf\u5207\u6362 \u00b7 \u9053\u751f\u4e00">
+      <option value="laozi">\u8001\u5b50</option>
+      <option value="yinfu">\u9634\u7b26\u7ecf</option>
+      <option value="heraclitus">\u8d6b\u62c9\u514b\u5229\u7279</option>
+      <option value="liber_al">\u514b\u52b3\u5229\u5f8b\u6cd5</option>
+      <option value="laozi+yinfu">\u8001\u5b50+\u9634\u7b26\u7ecf</option>
+    </select>
     <span id="customBadge"></span>
     <button class="ib btn-purge" id="btnPurge" title="\u4e86\u4e8b\u62c2\u8863\u53bb">\u2716</button>
   </div>
@@ -1788,6 +1841,7 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
   var $editStatus = document.getElementById('editStatus');
   var $editCount = document.getElementById('editCount');
   var $customBadge = document.getElementById('customBadge');
+  var $canonSelect = document.getElementById('canonSelect');
   var $btnPurge = document.getElementById('btnPurge');
 
   var lastText = '';
@@ -1882,6 +1936,12 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
     vsc.postMessage({ command: 'setMode', mode: 'official' });
   });
 
+  // ─── 经藏切换 · 道生一 一生二 二生三 三生万物 ───
+  $canonSelect.addEventListener('change', function() {
+    var c = $canonSelect.value;
+    vsc.postMessage({ command: 'setCanon', canon: c });
+  });
+
   // ─── 编辑模式 ───
   function _closeEditMode() {
     editMode = false;
@@ -1970,6 +2030,7 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
     fJson('/origin/ping').then(function(p){
       if (!p) return;
       if (p.mode) setModeUI(p.mode);
+      if (p.canon && $canonSelect.value !== p.canon) $canonSelect.value = p.canon;
       setDots(p);
       if (p.custom_sp != null) updateCustomBadge(p.custom_sp, p.custom_sp_chars);
     }).catch(function(){ setDots(null); });
@@ -1977,7 +2038,8 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
 
   function pull() {
     if (!_PORT) return;
-    fJson('/origin/tape?limit=1&fields=1').then(function(resp) {
+    // v9.9.19 · 损之又损 · fields=0 去除all_fields全文(432项·767KB) · 仅保 after/before 元数据(~52KB)
+    fJson('/origin/tape?limit=1&fields=0').then(function(resp) {
       if (resp && resp.ok && resp.tape && resp.tape.length > 0) {
         renderTapeEntry(resp.tape[0], new Date().toLocaleTimeString());
       } else {
