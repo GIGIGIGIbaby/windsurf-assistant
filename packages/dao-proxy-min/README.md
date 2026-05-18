@@ -1,10 +1,63 @@
-# 道Agent · dao-proxy-min · **v9.9.27** · 软编码彻终 · 适所有用户 · 适所有 fork
+# 道Agent · dao-proxy-min · **v9.9.28** · 根本底层卸自身本体 · detached cleanup spawn · 适所有用户 · 适所有 fork
 
 > **朴散为器, 圣人用则为官长, 夫大制无割.** —《二十八章》
 > **一者, 其上不攸, 其下不忽. 寻寻呵, 不可名也, 复归于无物.** —《十四章》
 > **人法地, 地法天, 天法道, 道法自然.** —《二十五章》
 > **反者道之动, 弱者道之用.** —《四十章》
 > **为道日损. 损之又损, 以至于无为, 无为而无不为.** —《四十八章》
+
+## v9.9.28 · detached cleanup spawn · 根本底层卸自身本体 · 印 159 (2026-05-19)
+
+**主公诏 (5/19 02:36)**: 「**无在乎一切路径 必须从根本底层首要解决点击卸载后能无论如何都能卸载插件本体**」
+
+**真本源诊** (印 158 v9.9.27 zhou 实证漏): Windsurf 1.110.1 fork **启动协议不可信**:
+
+- `.obsolete` 标了 9.9.22/23/24 → 启动协议**未清物理目录** ✗
+- `extensions.json` 中 self 条目: fork uninstall API **漏删** ✗
+- `:8981` utility 子进程: deactivate 时**未 kill** · 成孤儿反代 ✗
+
+3 病合 → 主公视为「最底层根本没卸载插件本体」.
+
+**治本一招** (反者道之动 · 自治 · 弱者道之用):
+
+★ spawn detached child_process · **脱 ext-host / Windsurf 主父子链** ★
+
+| 关键技术 | 作用 |
+|---|---|
+| `cp.spawn(process.execPath, [...], { detached:true, stdio:'ignore' })` | 脱父子链 · ext-host 死了它仍活 |
+| `child.unref()` | 父进程不等子进程退 |
+| `ELECTRON_RUN_AS_NODE=1` env | 让 Windsurf.exe (Electron) 跑普通 Node 脚本 (无需独立 Node 安装) |
+| `_cleanup_spawn.js` (346 行 · 五招清残) | 独立小进程 · 自治完成所有清 (帛书八十「小邦寡民」) |
+
+**`_cleanup_spawn.js` 五招清残**:
+
+1. **sleep 2s** — 等 ext-host 真死 + Windows 文件 lock 释放
+2. **rm 物理目录** — 扫 `<ext-dir>/<self-id>-*` → `fs.rmSync` (10 次重试 · 5s 总 · 治 .obsolete 启动协议漏清)
+3. **patch extensions.json** — 删 `<self-id>` 条目 (兜底 fork uninstall API 漏写)
+4. **patch .obsolete** — 删 `<self-id>-*` 死标 (清死标)
+5. **kill :8889~:8988 LISTENING utility** — 三法查 cmdline (`Get-CimInstance` / `wmic` / `tasklist`) · 三招皆失则兜底直 kill (因端口范围内 listening 必反代)
+
+**三路径全覆 + 幂等保** (`_detachedCleanupSpawned` 标 · 仅 spawn 一次):
+
+| 路径 | 触发 | spawn 时机 |
+|---|---|---|
+| ① **cmdPurge** (命令面板「了事拂衣去」) | 主公点命令 | F 段后 · reloadWindow 前 |
+| ② **watchdog** (`onDidChange`) | 扩展面板 [✘] · CLI uninstall · 编程卸 | self 不在 `extensions.all` → 立 spawn + reloadWindow (3s 后) |
+| ③ **deactivate** (兜底任何路径) | ext-host shutdown | 仅 `vscode.extensions.getExtension(self) === undefined` 时 spawn |
+
+**承 v9.9.27**: 软编码彻终 (`SELF_EXT_ID` / `SELF_EXT_DIR_REGEX`) + onDidChange watchdog · 不动.
+
+**承 v9.9.26**: 三招 (deactivate ⑦ 强标 .obsolete + cmdPurge 末自动 reloadWindow + 三平台主进程退) · 不动.
+
+**道义**:
+
+- 四十「**反者，道之动；弱者，道之用**」— 反 fork API 不可信 · 独立 spawn 自治
+- 六十四「**为之于其未乱也**」— spawn 先 · 后 reloadWindow · 治未乱
+- 八十「**小邦寡民**」— 独立小进程 · 不与争 · 唯做己事
+- 七十六「**天下莫柔弱于水, 而攻坚强者莫之能胜**」— 以独立 detached 之柔 · 攻 fork API 不可信之坚
+- 三十三「**胜人者有力也; 自胜者强也**」— 自身卸自身 · 自胜者强
+
+---
 
 ## v9.9.27 · 软编码彻终 · 印 158 (2026-05-19)
 

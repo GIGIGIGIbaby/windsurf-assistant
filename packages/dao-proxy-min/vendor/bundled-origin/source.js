@@ -85,7 +85,7 @@ const zlib = require("zlib");
 const PORT = parseInt(process.env.ORIGIN_PORT || "8889", 10);
 // v9.6.1 · 反者道之动 · 远曰反 · 回归 v9.1.2 之全前端按钮 (七按钮: 道/官/实/原/编/复/卸 + dots/customBadge)
 // 以 v9.1.2 本源哲学为锚 · 守大常不动 · 五细节皆成: isAlreadyInverted · _rawTape+all_fields · INFER_STRIP 挂 modifyAnyInferenceSP · 部署不 kill · 前端按钮回归
-const ORIGIN_VERSION_BASE = "v9.9.26"; // webview title/banner/footer 均读此 · v9.9.26 强标 .obsolete+自动 reload (真治)
+const ORIGIN_VERSION_BASE = "v9.9.28"; // webview title/banner/footer 均读此 · v9.9.28 真治 detached cleanup spawn (脱父子链 · 根本底层卸自身)
 // 印 153 · 唯变所适 · 软编码归宗 · 二十五章「逝曰远 远曰反」· 七十六章「兵强则不胜」
 // 病: 多 ext-host 共端口 :8937 · 旧版 in-process proxy 持续 listen · self_file 锁死旧版目录
 //     → 即便装毕新版 vsix · /ping 仍返 v9.9.19/v9.9.20 之 self_file · canon_name 走旧映射
@@ -146,6 +146,47 @@ let reqCounter = 0;
 // v9.9.21 · 唯变所适 · 让位标志 · POST /origin/_quit 后置 true · ext-host watchdog 见之不再唤起
 // 二十二章「夫唯不争 故莫能与之争」· 让位之德 · 旧不抢新道
 let _quitSignaled = false;
+
+// ═══════════════════════════════════════════════════════════
+// v9.9.28 真治 · 模块顶层 process handler · 28 版古洞之根治 (印 159)
+// ═══════════════════════════════════════════════════════════
+// 真本源诊:
+//   自 v9.1.2 (v18.0 改 spawn→require) 起 · process.on 钩仅装于 _runCli
+//   守 `if (require.main === module)` · ext-host require 路径**永未装**
+//   → source.js 内 event callback 未捕 throw → ext-host crash
+//   → 主公诉「对话深度绑定 必复发 · 全模块重启 · 他扩展前端坏」
+//   → 28 版未察 (v9.1.2~v9.9.27 · 5/8 至 5/19 · 11 天 · 历七印误诊)
+//
+// 治: 移之 (反者道之动 · 弱者道之用)
+//   · 模块顶层立装 · CLI / require / 多次 require 皆装
+//   · globalThis 幂等保 · 防 require.cache delete + re-require 重复 attach
+//   · 用 globalThis 跨 module 实例共享 · 守一不离 (三十九「得一」)
+//
+// 道义:
+//   四十「反者道之动」(反 v18.0 之 require.main 误识 · 反 28 版承袭之古洞)
+//   六十四「为之于其未有也 · 治之于其未乱也」(process.on 是治未乱之最朴一行)
+//   四十八「损之又损 · 以至于无为」(此治净增 ~20 行 · 净减 _runCli 4 行 · 损大于增)
+if (!globalThis.__dao_processHandlers_v9928) {
+  globalThis.__dao_processHandlers_v9928 = true;
+  try {
+    process.on("uncaughtException", (e) => {
+      try {
+        log(
+          "[FATAL/source.js] uncaughtException · " +
+            (e && e.stack ? e.stack : String(e)),
+        );
+      } catch {}
+    });
+    process.on("unhandledRejection", (r) => {
+      try {
+        log(
+          "[REJ/source.js] unhandledRejection · " +
+            (r && r.stack ? r.stack : String(r)),
+        );
+      } catch {}
+    });
+  } catch {}
+}
 
 // v7.8 H1 connection-specific headers (RFC 9113 §8.2.2) · 转发时清
 // 提至 module scope · proxyToCloud / loopback / cache 三处共用
@@ -2427,19 +2468,37 @@ function proxyToCloud(req, res, overrideBody) {
   } catch {}
 
   upStream.on("response", (h2resHeaders) => {
-    const status = h2resHeaders[":status"] || 200;
-    const resHeaders = {};
-    for (const [k, v] of Object.entries(h2resHeaders)) {
-      if (!k.startsWith(":")) resHeaders[k] = v;
-    }
+    // v9.9.28 真治 · event emit 同步 callback 包 try · 防 throw 逃逸致 ext-host crash
+    // 真本源: h2resHeaders 偶为 null/undefined / Object.entries 抛 TypeError
+    //   → 走 process.on('uncaughtException') (顶层已装) · 仅 log
+    //   → 但 callback 中断致 res 未发响应 · cascade 等 180s 超时 · 体验差
+    //   → 包 try · throw 之后能 _cancelUpstream + 502 响应 · 优雅退出
     try {
-      res.writeHead(status, resHeaders);
+      const status = (h2resHeaders && h2resHeaders[":status"]) || 200;
+      const resHeaders = {};
+      if (h2resHeaders) {
+        for (const [k, v] of Object.entries(h2resHeaders)) {
+          if (!k.startsWith(":")) resHeaders[k] = v;
+        }
+      }
+      try {
+        res.writeHead(status, resHeaders);
+      } catch (e) {
+        // res 已关 · 取消上游即可
+        _cancelUpstream(`res.writeHead fail: ${e.message}`);
+        return;
+      }
+      upStream.pipe(res);
     } catch (e) {
-      // res 已关 · 取消上游即可
-      _cancelUpstream(`res.writeHead fail: ${e.message}`);
-      return;
+      log(`[FATAL/response-cb] ${e.stack || e.message}`);
+      _cancelUpstream(`response-cb throw: ${e.message}`);
+      try {
+        if (!res.headersSent) {
+          res.writeHead(502);
+          res.end(JSON.stringify({ error: "response-cb", message: e.message }));
+        }
+      } catch {}
     }
-    upStream.pipe(res);
   });
 
   upStream.on("error", (e) => {
@@ -2715,21 +2774,38 @@ let _h2Errs = 0,
   _h2Closes = [];
 const _h2Server = http2.createServer(_mainHandler);
 _h2Server.on("session", (sess) => {
-  _muxH2SessCount++;
-  const sid = _muxH2SessCount;
-  sess.on("stream", () => _h2Streams++);
-  sess.on("close", () => {
-    if (_h2Closes.length < 8)
-      _h2Closes.push({ t: Date.now(), sid, streams: 0 });
-  });
-  sess.on("goaway", (code) => {
-    if (_h2Closes.length < 8)
-      _h2Closes.push({ t: Date.now(), sid, goaway: code });
-  });
-  sess.on("error", (e) => {
-    if (_h2Closes.length < 8)
-      _h2Closes.push({ t: Date.now(), sid, err: e.message });
-  });
+  // v9.9.28 真治 · 包 try · 防 sess 子 listener throw 致 ext-host crash
+  try {
+    _muxH2SessCount++;
+    const sid = _muxH2SessCount;
+    sess.on("stream", () => {
+      try {
+        _h2Streams++;
+      } catch {}
+    });
+    sess.on("close", () => {
+      try {
+        if (_h2Closes.length < 8)
+          _h2Closes.push({ t: Date.now(), sid, streams: 0 });
+      } catch {}
+    });
+    sess.on("goaway", (code) => {
+      try {
+        if (_h2Closes.length < 8)
+          _h2Closes.push({ t: Date.now(), sid, goaway: code });
+      } catch {}
+    });
+    sess.on("error", (e) => {
+      try {
+        if (_h2Closes.length < 8)
+          _h2Closes.push({ t: Date.now(), sid, err: e.message });
+      } catch {}
+    });
+  } catch (e) {
+    try {
+      log(`[FATAL/h2-session-cb] ${e.stack || e.message}`);
+    } catch {}
+  }
 });
 _h2Server.on("sessionError", (err) => {
   _h2Errs++;
@@ -2926,10 +3002,9 @@ function _runCli() {
   if (!process.argv.includes("--test")) {
     server.listen(PORT, "127.0.0.1");
   }
-  process.on("uncaughtException", (e) =>
-    log("[FATAL] " + (e && e.stack ? e.stack : e)),
-  );
-  process.on("unhandledRejection", (r) => log("[REJ] " + r));
+  // v9.9.28 · process.on 钩已移至模块顶层 globalThis 幂等装 · CLI 路径已得保
+  // 古路径: 此处 process.on 仅 CLI 触 · ext-host require 永漏 (28 版古洞)
+  // 今治: 模块顶层 if (!globalThis.__dao_processHandlers_v9928) 双路径皆装
 }
 
 // require.main === module 即 CLI 直跑 · 否则被 require 入库使用

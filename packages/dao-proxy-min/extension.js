@@ -1731,7 +1731,8 @@ async function cmdPurge() {
   // (.obsolete 已强标 self 于 step 8 · 此 reload 必生效 · 反者道之动)
   // 道义: 五十一「为而弗恃 · 长而弗宰 · 是谓玄德」· 七十八「正言若反」
   //       前版本「主公手动 Reload」是仁义 · 此版本「自动 Reload」是大道 (上德无为)
-  // ★ v9.9.27 同时活 self-uninstall watchdog (onDidChange) · cmdPurge / 扩展面板 [✘] / CLI 全路径覆
+  // ★ v9.9.28 同时活 self-uninstall watchdog (onDidChange) + detached cleanup spawn
+  out.appendLine("  → spawn detached cleanup (脱父子链 · 死活无依)");
   out.appendLine("  → 3s 后自动 Reload Window · 真水过无痕 (主公无为)");
   vscode.window.showInformationMessage(
     "了事拂衣去 · 水过无痕 · 3s 后自动 Reload · 主公无为",
@@ -1740,7 +1741,11 @@ async function cmdPurge() {
   // 标记 watchdog 不再重复触发 (cmdPurge 已自调 reload · watchdog 退让)
   _selfUninstallReloadTriggered = true;
 
-  // 3s 倒计时 (让 Windsurf 后台 uninstall 操作再多个时机完成)
+  // ★ v9.9.28 真治: 先 spawn detached cleanup · 让独立子进程接管清残
+  // cleanup 进程脱父子链 · ext-host 死了它仍活 · 自治清物理目录+ext.json+.obsolete+孤儿反代
+  _spawnDetachedCleanup("cmdPurge");
+
+  // 3s 倒计时 (让 Windsurf 后台 uninstall 完成 + cleanup spawn 启动)
   await new Promise((res) => setTimeout(res, 3000));
 
   // ★ 自动 Reload Window · ext-host 重启 → VSCode 启动协议清 .obsolete → 物理清
@@ -2702,37 +2707,194 @@ function activate(ctx) {
 //   四十章 「反者 · 道之动；弱者 · 道之用」(反 deactivate 末路 · 用 activate 时机注册之德)
 
 let _selfUninstallReloadTriggered = false; // 幂等标 · cmdPurge 自调 reload 时也设此
+let _detachedCleanupSpawned = false; // 幂等标 · 三路径都可能调 · 仅 spawn 一次
+
+// ═══════════════════════════════════════════════════════════════════
+// v9.9.28 真治 · spawn detached cleanup child · 脱父子链 · 死活无依
+// ═══════════════════════════════════════════════════════════════════
+// 主公诏 5/19 2:36: 「无在乎一切路径 必须从根本底层首要解决点击卸载后能无论如何都能卸载插件本体」
+//
+// 真本源诊 (印 158 v9.9.27 实测漏):
+//   v9.9.27 watchdog 仅触 reloadWindow · 依 Windsurf 启动协议清 .obsolete
+//   但 Windsurf 1.110.1 fork **启动协议不可信**:
+//     · zhou 实测 .obsolete 标 9.9.22/23/24 → 启动协议未清物理目录 ✗
+//     · extensions.json 中 self 条目 fork uninstall API 漏删 ✗
+//     · :8981 utility 子进程 deactivate 时未 kill · 成孤儿反代 ✗
+//
+// 真治:
+//   spawn detached child_process · 脱 ext-host/Windsurf 主父子链
+//   · ext-host 死了它仍活 · Windsurf 关了它仍活
+//   · 完全独立 Node 进程 · 自治完成所有清理 · self exit
+//   · 不依赖 Windsurf 任何 API · 不依赖 deactivate 正常完成
+//
+// 关键技术: ELECTRON_RUN_AS_NODE=1 让 Windsurf.exe (Electron) 跑普通 Node 脚本
+//
+// 道义:
+//   四十「反者，道之动；弱者，道之用」(反 fork API 不可信 · 独立 spawn 自治)
+//   六十四「为之于其未乱也」(spawn 先 · 后 reloadWindow · 治未乱)
+//   八十「小邦寡民」(独立小进程 · 不与争 · 唯做己事)
+function _spawnDetachedCleanup(reason) {
+  if (_detachedCleanupSpawned) {
+    L.info("cleanup", `已 spawn 过 · 幂等跳 · reason=${reason}`);
+    return;
+  }
+  try {
+    const cleanupScript = path.join(__dirname, "_cleanup_spawn.js");
+    if (!fs.existsSync(cleanupScript)) {
+      L.warn("cleanup", `脚本不存: ${cleanupScript}`);
+      return;
+    }
+    // EXT_DIR = self 之父目录 (e.g. ~/.windsurf/extensions)
+    const extDir = path.dirname(__dirname);
+    const logDir = os.tmpdir();
+
+    L.info(
+      "cleanup",
+      `★ spawn detached cleanup · reason=${reason} · script=${cleanupScript} · ext=${extDir}`,
+    );
+
+    const child = cp.spawn(
+      process.execPath, // Windsurf.exe (Electron)
+      [cleanupScript, extDir, SELF_EXT_ID, logDir, reason],
+      {
+        detached: true, // ★ 关键: 脱父进程
+        stdio: "ignore", // 不连父 stdout/stderr
+        windowsHide: true,
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: "1", // ★ 关键: 让 Electron 跑 Node 脚本
+        },
+      },
+    );
+
+    child.unref(); // ★ 关键: 让父进程不等子进程
+    _detachedCleanupSpawned = true;
+    L.info(
+      "cleanup",
+      `★ detached cleanup spawned · PID=${child.pid} · 脱父子链 · 死活无依`,
+    );
+  } catch (e) {
+    L.warn("cleanup", `spawn fail: ${e && e.message}`);
+  }
+}
 
 function _setupSelfUninstallWatchdog(ctx) {
   try {
+    // ─────────────────────────────────────────────────────────────
+    // v9.9.28 真治 · 四重去抖 + 物理验证 · 防 onDidChange 误触致 cleanup 误删本体
+    // ─────────────────────────────────────────────────────────────
+    // 真本源 (印 159 · 五辩之四):
+    //   v9.9.27 watchdog 单查 getExtension(self)===undefined 即触 reload
+    //   v9.9.28 加 cleanup 后更危: 误触 → 物理删 self 目录 → "莫名插件被删"
+    //   主公多版本场景 (zhou 实测 5 个 dao-agi.dao-proxy-min-* 共存):
+    //     · 启动协议清 .obsolete 之物理删 → 连续 emit onDidChange
+    //     · VS Code 内部 dedup / re-resolve 临态 · getExtension(self) 偶返 undefined
+    //     · → 误触 reload + cleanup → 主公受损
+    //
+    // 治: 四重去抖 (反者道之动 · 弱者道之用)
+    //   ① startup grace 60s · activate 后 60s 内不响应 (避启动协议风暴)
+    //   ② getExtension 二查 · undefined 后等 1.5s 再查 (让 VS Code 临态稳)
+    //   ③ 物理验证 · fs.existsSync(__dirname) 在 → 真未卸 (VS Code 状态错)
+    //   ④ 磁盘锁 · ~/.dao-reload-lock-{id} 5min 跨 ext-host 实例幂等
+    //
+    // 道义:
+    //   六十四「为之于其未有也」(去抖即治未乱)
+    //   六十三「图难其易 · 为大其细」(四重小去抖治大误触)
+    //   七十六「天下莫柔弱于水 · 而攻坚强者莫之能胜」(以四重柔抖 攻误触误删之坚)
+    const ACTIVATE_TIME = Date.now();
+    const STARTUP_GRACE_MS = 60000; // ① 60s startup grace
+    const RECHECK_DELAY_MS = 1500; // ② getExtension 二查间隔
+    const DISK_LOCK_TTL_MS = 300000; // ④ 5 min 磁盘锁
+    const lockFile = path.join(
+      os.homedir(),
+      ".dao-reload-lock-" + SELF_EXT_ID.replace(/[^a-zA-Z0-9.-]/g, "_"),
+    );
+    const _checkDiskLock = () => {
+      try {
+        if (!fs.existsSync(lockFile)) return false;
+        const stat = fs.statSync(lockFile);
+        return Date.now() - stat.mtimeMs < DISK_LOCK_TTL_MS;
+      } catch {
+        return false;
+      }
+    };
+    const _writeDiskLock = () => {
+      try {
+        fs.writeFileSync(lockFile, String(Date.now()), "utf8");
+      } catch {}
+    };
+
     const disposable = vscode.extensions.onDidChange(() => {
       try {
         if (_selfUninstallReloadTriggered) return; // 幂等 (已触过 · 跳)
+        // ① startup grace · 60s 内不响应 (避启动协议清 .obsolete 之 emit 风暴)
+        const elapsed = Date.now() - ACTIVATE_TIME;
+        if (elapsed < STARTUP_GRACE_MS) {
+          L.info(
+            "selfWatchdog",
+            `onDidChange in startup grace (${elapsed}ms<${STARTUP_GRACE_MS}ms) · 跳`,
+          );
+          return;
+        }
+        // ② getExtension 一查
         const stillHere = vscode.extensions.getExtension(SELF_EXT_ID);
-        if (stillHere) return; // self 还在 · 这是别的 ext 变 (如别的卸/装/启/禁)
-        // self 已不在 vscode.extensions.all → ★ 自身被卸触发 ★
-        _selfUninstallReloadTriggered = true;
+        if (stillHere) return; // self 还在 · 别 ext 变
+        // ③ 二查 + 物理验证 + 磁盘锁三验 (异步 1.5s)
         L.info(
           "selfWatchdog",
-          `★ 检 self (${SELF_EXT_ID}) 已被卸 · 3s 后自动 Reload Window · 真水过无痕`,
+          `getExtension undefined · 1.5s 后二查+物理验+锁三验`,
         );
-        try {
-          vscode.window.showInformationMessage(
-            "了事拂衣去 · 水过无痕 · 检测到卸载 · 3s 后自动 Reload · 主公无为",
-          );
-        } catch {}
-        // 3s 倒计时 · 让主进程之 uninstall 操作完成 + 主公看到提示
         setTimeout(() => {
           try {
-            vscode.commands.executeCommand("workbench.action.reloadWindow");
+            if (_selfUninstallReloadTriggered) return;
+            const recheck = vscode.extensions.getExtension(SELF_EXT_ID);
+            if (recheck) {
+              L.info("selfWatchdog", "二查 self 已恢 · VS Code 临态 · 跳");
+              return;
+            }
+            // 物理验证 · self 物理目录还在 → 真未卸 (VS Code 状态错 · 防误删)
+            try {
+              if (fs.existsSync(__dirname)) {
+                L.info(
+                  "selfWatchdog",
+                  `self 物理目录仍在 (${path.basename(__dirname)}) · 跳`,
+                );
+                return;
+              }
+            } catch {}
+            // ④ 磁盘锁 · 5 min 跨 ext-host 实例幂等
+            if (_checkDiskLock()) {
+              L.info("selfWatchdog", "磁盘锁活 · 5min 幂等 · 跳");
+              return;
+            }
+            // ── 四验通 · 真触 reload + cleanup ──
+            _selfUninstallReloadTriggered = true;
+            _writeDiskLock();
             L.info(
               "selfWatchdog",
-              "★ reloadWindow 已发 · ext-host 即重启 · 启动协议清物理",
+              `★ self 真被卸 (四验通) · spawn cleanup + 3s Reload · 水过无痕`,
             );
+            _spawnDetachedCleanup("watchdog");
+            try {
+              vscode.window.showInformationMessage(
+                "了事拂衣去 · 水过无痕 · 检测到卸载 · 3s 后自动 Reload · 主公无为",
+              );
+            } catch {}
+            setTimeout(() => {
+              try {
+                vscode.commands.executeCommand("workbench.action.reloadWindow");
+                L.info(
+                  "selfWatchdog",
+                  "★ reloadWindow 已发 · cleanup 自治清残",
+                );
+              } catch (e) {
+                L.warn("selfWatchdog", `reload 失败: ${e && e.message}`);
+              }
+            }, 3000);
           } catch (e) {
-            L.warn("selfWatchdog", `reload 失败: ${e && e.message}`);
+            L.warn("selfWatchdog", `recheck err: ${e && e.message}`);
           }
-        }, 3000);
+        }, RECHECK_DELAY_MS);
       } catch (e) {
         L.warn("selfWatchdog", `onDidChange tick err: ${e && e.message}`);
       }
@@ -2740,7 +2902,7 @@ function _setupSelfUninstallWatchdog(ctx) {
     ctx.subscriptions.push(disposable);
     L.info(
       "selfWatchdog",
-      `★ self-uninstall watchdog 已挂 (vscode.extensions.onDidChange · self=${SELF_EXT_ID})`,
+      `★ watchdog v9.9.28 已挂 (四重去抖+物理验证+磁盘锁) · self=${SELF_EXT_ID}`,
     );
   } catch (e) {
     L.warn("selfWatchdog", `setup fail: ${e && e.message}`);
@@ -2749,6 +2911,27 @@ function _setupSelfUninstallWatchdog(ctx) {
 
 async function deactivate() {
   L.info("ext", "deactivate");
+
+  // ★ v9.9.28 真治 · 兜底 spawn detached cleanup ★
+  // 主公诏 5/19 2:36:「无在乎一切路径 必须从根本底层首要解决」
+  // 三路径覆: watchdog (onDidChange) · cmdPurge (命令面板) · deactivate (兜底任何路径)
+  //   · CLI uninstall: 不触 ext-host onDidChange · 但 ext-host shutdown 时调 deactivate
+  //   · 扩展面板 [✘]: 触 onDidChange · watchdog 先 spawn · deactivate 再 spawn (幂等保只跑一次)
+  //   · cmdPurge: 已 spawn · 此 deactivate 幂等跳
+  //   · 主公手动 Windsurf 关掉: ext-host shutdown · 调 deactivate · 此处兜底 (但 self 没被卸 · _detachedCleanupSpawned 检不到 self 被卸的迹象 · 故不应 spawn)
+  // 仅在 self 真被卸时 (vscode.extensions.getExtension(self)===undefined) 才 spawn
+  try {
+    const stillHere = vscode.extensions.getExtension(SELF_EXT_ID);
+    if (!stillHere) {
+      L.info("ext", "deactivate · self 已被卸 · 兜底 spawn cleanup");
+      _spawnDetachedCleanup("deactivate");
+    } else {
+      L.info("ext", "deactivate · self 仍在 (普通退出/reload) · 跳 cleanup");
+    }
+  } catch (e) {
+    L.warn("ext", `deactivate cleanup probe err: ${e && e.message}`);
+  }
+
   const isLocal = _proxyHandle && _proxyHandle.server;
 
   // ── 顺序至关重要 · 反者道之动 ──

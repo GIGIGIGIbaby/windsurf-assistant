@@ -1,8 +1,8 @@
 {
   "name": "dao-proxy-min",
   "displayName": "道Agent · 反者道之动 · 弱者道之用",
-  "description": "v9.9.27 软编码彻终 · 二十八章「朴散为器·圣人用则为官长·夫大制无割」. 承 v9.9.25 抽 PKG_PUBLISHER+PKG_NAME→SELF_EXT_ID 之朴, 续治 cmdPurge step 7 (.obsolete 强标) + step 9 (uninstallExtension) + deactivate (identifier.id 比对) 残 5 处字面 dao-agi.dao-proxy-min 之散写, 全改 SELF_EXT_DIR_REGEX / SELF_EXT_ID · 抽自 package.json · 一处定义 全文一致 · 适所有用户 / 所有 fork / 所有 publisher.name 改名情形. 守 v9.9.26 真治 fork 漏 (强标 .obsolete + 自动 reloadWindow + deactivate 兜底) · 守 v9.9.25 cmdPurge 197 行朴 · 守 v9.9.22 三诉同治. 道义: 五十六「玄同」· 一者其上不攸 其下不忽 · 软编码即玄同 · 名实终一.",
-  "version": "9.9.27",
+  "description": "v9.9.28 三治同下 · 反者道之动 · 弱者道之用. 治一 (印 159 真本源 · 5/19 2:50 主公诉「对话深度绑定 ext-host crash 全模块重启」): source.js 之 process.on('uncaughtException') 自 v9.1.2 (v18.0 改 spawn→require) 起仅装于 _runCli · 守 if(require.main===module) · ext-host require 路径**永未装** → callback 未捕 throw → ext-host crash → 28 版未察 (5/8~5/19 · 历七印误诊). 移之至模块顶层 globalThis 幂等装 · CLI/require 双路径皆装 · 关键 callback (upStream.on response · _h2Server.on session) 包 try 兜底. 治二 (印 158 续 · 主公诏 5/19 2:36): detached cleanup spawn 自治卸载本体 — Windsurf 1.110.1 fork 启动协议不可信 (.obsolete/extensions.json/utility 三处漏) → spawn detached child_process 跑 _cleanup_spawn.js · ELECTRON_RUN_AS_NODE=1 跑 Node · 脱父子链 · 自治 sleep 2s+rm 物理+patch ext.json/.obsolete+kill :8889~:8988 孤儿. 治三 (印 159 副治 · 防 v9.9.28 cleanup 误删): watchdog 四重去抖 — ① 60s startup grace ② getExtension 1.5s 二查 ③ fs.existsSync(__dirname) 物理验证 ④ ~/.dao-reload-lock-{id} 5min 跨实例磁盘锁. 三路径全覆+幂等: watchdog/cmdPurge/deactivate. 道义: 四十「反者道之动」(反 28 版承袭之 require.main 误识 · 反 fork API 不可信 · 反 watchdog 单查易误触) · 六十四「为之于其未有 治之于其未乱」(process.on 是治未乱最朴 · 四重去抖治未乱) · 四十八「损之又损 至于无为」(净增 ~30 行 · 净减古路径 4 行 · 损大于增).",
+  "version": "9.9.28",
   "publisher": "dao-agi",
   "license": "Apache-2.0",
   "engines": {
