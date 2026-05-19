@@ -46,7 +46,6 @@
 //   dao.openPreview        · 浏览器观真 SP
 //   wam.verifyEndToEnd     · E2E 自检
 //   wam.selftest           · L1+L2 自检
-//   dao.purge              · 了事拂衣去
 
 "use strict";
 const vscode = require("vscode");
@@ -242,7 +241,7 @@ function removeSpawnHook() {
 }
 
 // ═══════════════════════════ LS 重启 ═══════════════════════════
-// 仅由用户显式命令触发 (cmdInvert / cmdPurge / deactivate); 不在 activate 调用 (真药 D)
+// 仅由用户显式命令触发 (cmdInvert / deactivate); 不在 activate 调用 (真药 D)
 // 第六十四章「为者败之」: activate 不主动干预 LS, 留待自然重启或用户意愿
 function forceRestartLS() {
   return new Promise((resolve) => {
@@ -1518,8 +1517,6 @@ class EssenceProvider {
           await this._handleResetCustomSP();
         else if (msg.command === "setCanon")
           await this._handleSetCanon(msg.canon);
-        else if (msg.command === "purge")
-          await vscode.commands.executeCommand("dao.purge");
       } catch {}
     });
     // v9.4.2 · SSR 道魂直嵌 · webview 一加载就见帛书全文 · 零 fetch/postMessage 依赖
@@ -1960,233 +1957,6 @@ async function cmdOpenPreview() {
   } catch {}
 }
 
-// ═══════════════════════════ 命令: 了事拂衣去 (净卸) ═══════════════════════════
-// v9.9.25 · 复 9.9.16 真朴 cmdPurge · 损 v9.9.22~24 之繁
-// 主公诏 5/19 00:30 「直接复用参照 9.9.15/9.9.16 版本 · 无需任何新增」
-// 主公诏 5/19 00:53 「确保最新版其他不变同时 · 解决核心卸载问题」
-// 病: v9.9.22~24 累加六层 (A/B/C/D/E/F) → 越叠越繁 · F 层 taskkill 暴杀使 .obsolete 写未落盘 → 复活
-//     dao-byok 同卸 / codeium.* 清 / fs.rmSync 自删 / .obsolete 自标 / quit + taskkill 主进程 · 反致名实失一
-// 治: 复 9.9.16 之朴 · cmdPurge 仅一招 + 主公手动 Reload Window
-//     ① workbench.extensions.uninstallExtension (race 15s · 9.9.15 真药 P+)
-//     ② 不弹 modal · 不 reloadWindow · 不 quit · 不 fs.rmSync · 主公自决
-// 道义: 四十八「为道日损」· 十六「致虚极也 守静笃也」· 二十八「复归于朴」· 反者道之动
-async function cmdPurge() {
-  const answer = await vscode.window.showWarningMessage(
-    "了事拂衣去 · 水过无痕 · 将彻底卸载道Agent:\n" +
-      "① 透传  ② 断钩  ③ 清锚  ④ 不杀LS  ⑤ 停代理\n" +
-      "⑥ 清持存  ⑦ 清 .dao-proxy  ⑧ 清 .obsolete 残\n" +
-      "⑨ 自卸 (race 15s · 等真卸毕)\n" +
-      "Windsurf 回归本源 · 零痕迹。确认？",
-    { modal: true },
-    "确认净卸",
-  );
-  if (answer !== "确认净卸") return;
-
-  const out = logger();
-  out.show(true);
-  out.appendLine("\n══════ 了事拂衣去 · 水过无痕 · v9.9.25 净卸开始 ══════");
-  out.appendLine("  · 复 9.9.16 真朴 · 损 v9.9.22~24 之繁");
-
-  // ── 顺序至关重要 · 反者道之动 ──
-  // 先清锚+杀LS → 后停代理 · 防 LS 连死代理 → Windsurf 卡死
-
-  // 1. 先设透传 · 过渡期 LS 若仍连代理 · 安全透传
-  try {
-    if (_proxyHandle && _proxyHandle.setMode)
-      _proxyHandle.setMode("passthrough");
-    out.appendLine("  ✓ 代理已设透传 (安全过渡)");
-  } catch {}
-
-  // 2. 卸 spawn hook · 新 LS 不再被截持
-  try {
-    _cachedAnchored = false;
-    removeSpawnHook();
-    out.appendLine("  ✓ spawn hook 已卸");
-  } catch {}
-
-  // 3. 清除所有 dao 相关 settings (文件直写 + API 双保险)
-  // VS Code API 对 codeium.* 键可能失败 (非注册键) · 文件直写兜底
-  try {
-    _clearAnchorFileSync();
-    const c = vscode.workspace.getConfiguration();
-    await Promise.allSettled(
-      ["dao.origin.port", "dao.origin.defaultMode", "dao.origin.banner"].map(
-        (k) =>
-          c
-            .update(k, undefined, vscode.ConfigurationTarget.Global)
-            .catch(() => {}),
-      ),
-    );
-    out.appendLine("  ✓ 所有 dao 设置已清 (文件+API · 并行)");
-  } catch (e) {
-    out.appendLine(`  ⚠ 清设置: ${e.message}`);
-  }
-
-  // 4. v9.9.2 真药 I + J · 不再杀 LS · 锁已清 · LS 自然 fallback (八章「上善若水」)
-  out.appendLine(
-    "  → v9.9.2 不再杀 LS · 残锁指死端口 · LS retry 失败 后自然 fallback 直连官方",
-  );
-  out.appendLine("  → 主公手动 Reload Window 可加速完成净化");
-
-  // 5. 停反代 · 此时 LS 已死或已重生直连官方 · 安全
-  try {
-    await proxyStop();
-    out.appendLine("  ✓ 反代已停");
-  } catch (e) {
-    out.appendLine(`  ⚠ 停反代: ${e.message}`);
-  }
-
-  // 6. 清 source.js 持存文件 (mode / lastinject / custom_sp / injectsbykind)
-  try {
-    const vd = vendorDir();
-    const persistFiles = [
-      "_origin_mode.txt",
-      "_lastinject.json",
-      "_custom_sp.json",
-      "_injectsbykind.json",
-    ];
-    let cleaned = 0;
-    for (const f of persistFiles) {
-      const fp = path.join(vd, f);
-      try {
-        if (fs.existsSync(fp)) {
-          fs.unlinkSync(fp);
-          cleaned++;
-        }
-      } catch {}
-    }
-    out.appendLine(`  ✓ 持存文件: ${cleaned} 清`);
-  } catch (e) {
-    out.appendLine(`  ⚠ 清持存: ${e.message}`);
-  }
-
-  // 7. 清 ~/.dao-proxy 目录 (如存在)
-  try {
-    const daoProxyDir = path.join(os.homedir(), ".dao-proxy");
-    if (fs.existsSync(daoProxyDir)) {
-      fs.rmSync(daoProxyDir, { recursive: true, force: true });
-      out.appendLine("  ✓ ~/.dao-proxy 已清");
-    }
-  } catch (e) {
-    out.appendLine(`  ⚠ 清 .dao-proxy: ${e.message}`);
-  }
-
-  // 8. ★ v9.9.26 真治 · 强标 self 入 .obsolete (复 v9.9.23 之 B 层)
-  // 真本源诊 (5/19 1:31): cascade CLI 实测证 Windsurf fork 1.110.1 之
-  //   ExtensionManagementService.uninstall 漏写 .obsolete (扩展面板 [✘] / CLI 皆如此)
-  // 死循环: 卸 → 仅删 extensions.json + 异步删物理目录(被 ext-host 锁→失败)
-  //         → .obsolete 不标 → 重启时 VSCode discover 扫物理 → 物理有+ext.json无+obs 无
-  //         → rediscover 复活 → 加回 extensions.json → activate 又锚
-  // 治本: cmdPurge 中 fs.writeFileSync(.obsolete) 直写 self · 一定到磁盘
-  //       VSCode 启动协议读 .obsolete 中条目 → 真物理清
-  try {
-    const selfDir = __dirname; // 当前 ext.js 所在目录
-    const selfDirName = path.basename(selfDir); // dao-agi.dao-proxy-min-9.9.26
-    const extDir = path.join(os.homedir(), ".windsurf", "extensions");
-    const obsFile = path.join(extDir, ".obsolete");
-    let obs = {};
-    if (fs.existsSync(obsFile)) {
-      try {
-        obs = JSON.parse(fs.readFileSync(obsFile, "utf8"));
-      } catch {
-        obs = {};
-      }
-    }
-    // ① 清 dao/wam 旧残留 (不留 9.9.16/22/23/24 等) · v9.9.27 软编码 SELF_EXT_DIR_REGEX
-    let removed = 0;
-    for (const k of Object.keys(obs)) {
-      if (SELF_EXT_DIR_REGEX.test(k) || /wam/i.test(k)) {
-        delete obs[k];
-        removed++;
-      }
-    }
-    // ② ★ 强标 self 入 .obsolete (核心真治)
-    obs[selfDirName] = true;
-    // ③ 一并扫物理目录中其他 dao-proxy-min-* 全标 (主公诺真水过无痕) · v9.9.27 软编码
-    try {
-      const dirs = fs.readdirSync(extDir);
-      let totalDpm = 0;
-      for (const d of dirs) {
-        if (SELF_EXT_DIR_REGEX.test(d)) {
-          obs[d] = true;
-          totalDpm++;
-        }
-      }
-      out.appendLine(`  ✓ .obsolete 全标 ${totalDpm} 个 ${PKG_NAME}-* 目录`);
-    } catch (e) {
-      out.appendLine(`  ⚠ 扫物理目录: ${e.message}`);
-    }
-    fs.writeFileSync(obsFile, JSON.stringify(obs), "utf8");
-    out.appendLine(`  ✓ self 已强标 .obsolete: ${selfDirName}`);
-  } catch (e) {
-    out.appendLine(`  ⚠ 强标 .obsolete: ${e.message}`);
-  }
-
-  // 9. 自卸插件 · v9.9.15 真药 P+ · race-timeout 15s · 等真卸毕
-  //   史诊: v9.9.14 race(3000) 早超时 → cmdPurge 返显 "已卸" 但 extensions.json 未更
-  //         → 主公启新 Windsurf 又加载 → activate 又锚 → 循环
-  //   药: race 15s + 中途 3s 进度提示 · 让主公真感知卸毕
-  out.appendLine(`  → 卸载插件 ${SELF_EXT_ID} ... (等至 15s)`);
-
-  let uninstallDone = false;
-  let uninstallErr = null;
-  const progressTimer = setInterval(() => {
-    if (!uninstallDone) out.appendLine("  · 卸毕中 ... (主公请稍候)");
-  }, 3000);
-
-  try {
-    await Promise.race([
-      (async () => {
-        await vscode.commands.executeCommand(
-          "workbench.extensions.uninstallExtension",
-          SELF_EXT_ID,
-        );
-        uninstallDone = true;
-      })(),
-      new Promise((res) => setTimeout(res, 15000)),
-    ]);
-    clearInterval(progressTimer);
-    if (uninstallDone) {
-      out.appendLine("  ✓ 真卸毕 · extensions.json 已更新");
-    } else {
-      out.appendLine(
-        "  ⚠ 15s 仍卡 · Windsurf 后台继续卸 · 主公关 Windsurf 再启即真净",
-      );
-    }
-  } catch (e) {
-    clearInterval(progressTimer);
-    uninstallErr = (e && e.message) || String(e);
-    out.appendLine(`  ⚠ 自卸: ${uninstallErr} · 请手动卸载`);
-  }
-
-  out.appendLine("══════ 了事拂衣去 · 水过无痕 · v9.9.29 印 161 朴本 ══════\n");
-
-  // 末. ★ 印 161 朴本 · 主公诏 5/19 「彻底去芜存菁 · 道法自然 · 损之又损」
-  // 砍 v9.9.27 watchdog (onDidChange) + v9.9.28 detached cleanup spawn (繁本 · 解不存在的问题)
-  // 信任 vscode 内核 · 主公一念 reload (主公自决 · 仁义而非强制)
-  // .obsolete step 8 已强标 self → 主公 reload 后 Windsurf 启动协议必清物理目录
-  // 道义: 四十八「损之又损 · 以至于无为 · 无为而无不为」
-  //       六十四「为之于其未乱也」(治在主公一念之先 · 不在 ext 自治)
-  //       五十一「为而弗恃 · 长而弗宰 · 是谓玄德」
-  out.appendLine(
-    "  → 主公一念 Reload Window 即真水过无痕 (Ctrl+Shift+P → Reload Window)",
-  );
-  vscode.window
-    .showInformationMessage(
-      "了事拂衣去 · .obsolete 已强标 · 主公 Reload Window 即真清 (Ctrl+Shift+P → Reload Window)",
-      "立即 Reload",
-    )
-    .then((choice) => {
-      if (choice === "立即 Reload") {
-        try {
-          vscode.commands.executeCommand("workbench.action.reloadWindow");
-        } catch (e) {
-          // ext-host 销毁中 · 异常忽
-        }
-      }
-    });
-}
-
 // ═══════════════════════════ 命令: E2E 自检 ═══════════════════════════
 async function cmdVerifyE2E() {
   await cmdSelftest();
@@ -2432,8 +2202,6 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
   .edit-bar .eb.reload:hover { background: rgba(128,176,224,0.15); }
   .edit-hint { font-size: 9px; opacity: 0.55; margin-bottom: 3px; padding: 2px 4px; font-style: italic; flex: 0 0 auto; }
   .custom-badge { display: inline-block; font-size: 8px; padding: 0 4px; border-radius: 2px; background: rgba(232,160,64,0.2); color: #e8a040; border: 1px solid rgba(232,160,64,0.3); margin-left: 4px; }
-  .btn-purge { margin-left: auto; opacity: 0.35; font-size: 11px; color: #e08080; }
-  .btn-purge:hover { opacity: 1; background: rgba(224,128,128,0.1); }
   #canonSelect { font-size: 10px; padding: 1px 2px; border: 1px solid rgba(128,128,128,0.3); background: var(--vscode-dropdown-background, rgba(0,0,0,0.2)); color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); border-radius: 3px; cursor: pointer; outline: none; font-family: inherit; max-width: 96px; margin-left: 4px; }
   #canonSelect:focus { border-color: var(--vscode-focusBorder, #007fd4); }
   #canonSelect option { background: var(--vscode-dropdown-listBackground, #252526); color: var(--vscode-dropdown-foreground, #ccc); }
@@ -2451,7 +2219,6 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
       <option value="yinfu">\u9053\u85cf\u300a\u9634\u7b26\u7ecf\u300b</option>
     </select>
     <span id="customBadge"></span>
-    <button class="ib btn-purge" id="btnPurge" title="\u4e86\u4e8b\u62c2\u8863\u53bb">\u2716</button>
   </div>
   <div class="stat" id="stat"></div>
   <pre id="sp" class="quiet">\uff08\u5f85\u9996\u6b21\u5bf9\u8bdd\uff09</pre>
@@ -2524,8 +2291,6 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
   var $editCount = document.getElementById('editCount');
   var $customBadge = document.getElementById('customBadge');
   var $canonSelect = document.getElementById('canonSelect');
-  var $btnPurge = document.getElementById('btnPurge');
-
   var lastText = '';
   var lastSP = '';
   var lastEntry = null;
@@ -2691,11 +2456,6 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
     if (isCustom) $customBadge.innerHTML = '<span class="custom-badge">\u81ea\u5b9a\u4e49' + (chars ? ' ' + chars + '\u5b57' : '') + '</span>';
     else $customBadge.innerHTML = '';
   }
-
-  // ─── 净卸 ───
-  $btnPurge.addEventListener('click', function() {
-    vsc.postMessage({ command: 'purge' });
-  });
 
   // ─── dots (三盏) ───
   function setDots(p) {
@@ -2892,7 +2652,7 @@ function getEssenceHtml(port, nonce, initialSP, webview, extensionUri) {
   setInterval(function() { vsc.postMessage({ command: 'refresh' }); }, 5000);
   // v9.9.20 jiqi · IIFE 全跑通 · 至此即活 · 上报 boot-done 标记
   // v9.9.22 · 加 canonChanged listener · 切经文真联动
-  _wdbg('boot-done', 'boot', { listeners: 'btnDao,btnOff,canon,editToggle,editSave,editReload,editReset,btnPurge,message[data,customSP,canonChanged]', ver: '9.9.22' });
+  _wdbg('boot-done', 'boot', { listeners: 'btnDao,btnOff,canon,editToggle,editSave,editReload,editReset,message[data,customSP,canonChanged]', ver: '9.9.31' });
 })();
 </script>
 </body>
@@ -2945,7 +2705,6 @@ function activate(ctx) {
       vscode.commands.registerCommand("dao.openPreview", cmdOpenPreview),
       vscode.commands.registerCommand("wam.verifyEndToEnd", cmdVerifyE2E),
       vscode.commands.registerCommand("wam.selftest", cmdSelftest),
-      vscode.commands.registerCommand("dao.purge", cmdPurge),
       // v9.9.0 · 印 124 · 第一细药 · 外接 api 开关 (默关 · 主公一字开)
       vscode.commands.registerCommand(
         "dao.外接api.toggle",
@@ -3113,16 +2872,15 @@ function activate(ctx) {
 // ═══════════════════════════════════════════════════════════════════
 // 印 161 · 损之又损 · 复归朴本 · 道法自然 (主公诏 5/19 「彻底去芜存菁」)
 // ═══════════════════════════════════════════════════════════════════
-// 此处原藏 v9.9.27 watchdog (~85 行) + v9.9.28 spawn cleanup (~140 行) + 幂等标志
-// 真本源参毕 (印 161): 反代本 in ext-host 内 · ext-host 死 → server 自然 close · 永无孤儿
-//   v9.9.27/28 之 watchdog + spawn = 「解决一个不存在的问题」之繁本
-// 治: 信任 vscode 内核 + ext-host 生命周期 + Windsurf 启动协议
-//   主公点 [✘] → vscode 标 .obsolete + 删 ext.json 条目 → 主公一念 reload → ext-host 死 → server close
-//   → 启动协议读 .obsolete → 删物理目录 → 真水过无痕
-// 兼底: deactivate ⑦ 段兜底标 .obsolete (印 156 真药 · 反 Windsurf fork bug · 留)
+// 此处原藏 v9.9.27 watchdog (~85 行) + v9.9.28 spawn cleanup (~140 行) + v9.9.31 净卸伴侣
+// 真本源参毕 (印 164): 大道至简 · 官方卸载已完全足够
+//   ext-host 死 → http server 自然 close · 永无孤儿
+//   官方 [✘] + Reload Window → 物理目录自动删除 (含所有持存文件)
+//   settings.json 锚清 → LS 重启直连官方 · 无需代码干预
 // 道义: 四十八「损之又损 · 以至于无为 · 无为而无不为」
-//       四十「反者道之动 · 弱者道之用」(反『自建×模式』 · 用 vscode 内核之朴)
+//       四十「反者道之动 · 弱者道之用」(反自制卸载 · 用官方机制之朴)
 //       三十七「道恒无名 · 朴唯小 · 而天下弗敢臣 · 侯王若能守之 · 万物将自宾」
+//       六十四「为之于其未有也 · 治之于其未乱也」(不固化 → 官方自然清)
 async function deactivate() {
   L.info("ext", "deactivate");
 
@@ -3151,14 +2909,8 @@ async function deactivate() {
   // 文件直写 → Windsurf file watcher → 内存刷新 · 后续 LS 重启指向官方
   if (isLocal) _clearAnchorFileSync();
 
-  // ④ 杀 LS · 使其重生 · 无钩无锚 → 直连官方
-  if (isLocal) {
-    try {
-      await forceRestartLS();
-    } catch {}
-  }
-
-  // v9.9.0 · 印 124 · ④.5 停外接 api (lm 注解 + kill gateway)
+  // v9.9.0 · 印 124 · 停外接 api (lm 注解 + kill gateway)
+  // 道义: 四十八「损之又损」— 不主动杀 LS · 官方 Reload Window 时 LS 自然重启直连官方
   try {
     await tryStopExternalApi();
   } catch {}
@@ -3169,63 +2921,17 @@ async function deactivate() {
     _essenceProvider = null;
   }
 
-  // ⑥ 停代理 · 此时 LS 已死或已重生直连官方 · 安全
+  // ⑥ 停代理 · ext-host 退出后 server 自然 close · proxyStop 加速
   await proxyStop();
 
-  // ⑦ ★ v9.9.26 真治 · deactivate 兜底标 .obsolete (兼面 [✘] / cmdPurge 同治)
-  // 真本源诊: Windsurf fork 1.110.1 之 ExtensionManagementService.uninstall
-  //   漏写 .obsolete → 重启 rediscover 复活
-  // 治: deactivate 时检 extensions.json · 若 self 不在 → 卸载触发 → 强标 .obsolete
-  // (deactivate 一定在 ext-host shutdown 前 sync 跑 · 写入必到磁盘)
-  try {
-    const selfDir = __dirname;
-    const selfDirName = path.basename(selfDir);
-    const extDir = path.join(os.homedir(), ".windsurf", "extensions");
-    const ejFile = path.join(extDir, "extensions.json");
-    let selfInJson = false;
-    if (fs.existsSync(ejFile)) {
-      try {
-        const arr = JSON.parse(fs.readFileSync(ejFile, "utf8"));
-        selfInJson = arr.some(
-          (e) =>
-            e &&
-            e.identifier &&
-            e.identifier.id === SELF_EXT_ID &&
-            e.location &&
-            e.location.path &&
-            e.location.path.toLowerCase().includes(selfDirName.toLowerCase()),
-        );
-      } catch {}
-    }
-    if (!selfInJson) {
-      // self 已从 extensions.json 删 (卸载触发) · 强标 .obsolete 兜底
-      const obsFile = path.join(extDir, ".obsolete");
-      let obs = {};
-      if (fs.existsSync(obsFile)) {
-        try {
-          obs = JSON.parse(fs.readFileSync(obsFile, "utf8"));
-        } catch {}
-      }
-      obs[selfDirName] = true;
-      // 兼扫物理目录全标 dao-proxy-min-* (主公诺真水过无痕)
-      try {
-        const dirs = fs.readdirSync(extDir);
-        for (const d of dirs) {
-          if (/^dao-agi\.dao-proxy-min-/.test(d)) obs[d] = true;
-        }
-      } catch {}
-      fs.writeFileSync(obsFile, JSON.stringify(obs), "utf8");
-      L.info("deactivate", `★ self 已强标 .obsolete · ${selfDirName}`);
-    }
-  } catch (e) {
-    L.info("deactivate", `obsolete 兜底标失败: ${e && e.message}`);
-  }
-
+  // ★ v9.9.32 印164 · 大道至简 · 无为而无不为
+  // 官方 [✘] + Reload Window → 物理目录自动删除 · 持存文件在 ext 目录内 · 无需手动清
+  // settings.json 锚已在 ③ 清除 · LS 下次重启直连官方 · 无固化 · 可被官方直接清除
   L.info(
     "deactivate",
     isLocal
-      ? "local: passthrough→清锚→杀LS→停代理 · 道法自然"
-      : "remote: 仅停代理",
+      ? "local: passthrough→unhook→清锚→停代理 · 官方卸载全包 · 大道至简"
+      : "remote: 仅停代理 · 无本地状态",
   );
 }
 

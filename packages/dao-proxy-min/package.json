@@ -1,8 +1,8 @@
 {
   "name": "dao-proxy-min",
   "displayName": "道Agent · 反者道之动 · 弱者道之用",
-  "description": "v9.9.29 (印 161 · 损之又损 · 复归朴本 · 道法自然 · 主公诏 5/19 「彻底去芜存菁」): 保印 160 终端会话池真药 + 砍印 158/159 watchdog+spawn cleanup 繁本. 真本源参毕: 反代本 in ext-host 内 · ext-host 死 → server 自然 close → 永无孤儿. v9.9.27 watchdog(~85 行) + v9.9.28 spawn cleanup(~140 行) + _cleanup_spawn.js(13.8KB) = 解决一个不存在的问题之繁本. 信任 vscode 内核 + ext-host 生命周期 + Windsurf 启动协议: 主公点 [✘] → vscode 标 .obsolete + 删 ext.json 条目 → 主公一念 reload → ext-host 死 → server close → 启动协议读 .obsolete → 删物理目录 → 真水过无痕. 兼底: deactivate ⑦ 段兜底标 .obsolete (印 156 真药 · 反 Windsurf fork bug · 留). 保: 印 160 终端会话池(七层污染一招治 · 每 sid 一独立 cmd.exe/bash 子进程 · cp.spawn /k mode · stdin pipe + sentinel 切片 · 零第三方 · _test_v9929_term_pool.js 15/15 PASS · 三路调: 命令面板/HTTP/内调). cmdPurge 朴: 主公一念 reload (仁义而非强制). 损: ~300 行 + 13.8KB script · 减 8.8% · 复杂度减 80%. 道义: 四十八「损之又损 · 以至于无为 · 无为而无不为」· 四十「反者道之动 · 弱者道之用」· 三十七「道恒无名 · 朴唯小 · 而天下弗敢臣 · 侯王若能守之 · 万物将自宾」· 二十八「朴散则为器 · 圣人用则为官长 · 夫大制无割」.",
-  "version": "9.9.29",
+  "description": "v9.9.32 (印 164 · 大道至简 · 一气化三清终结): 第一清·卸载大道至简 — deactivate() 极简: passthrough+unhook+清锚+停代理 · 删 forceRestartLS+.obsolete逻辑+净卸伴侣 (-76行) · 持存文件在 ext 目录内官方卸载自动清 · 官方 [✘]+Reload Window 全包 · 无固化. 第二清·终端隔离 — DaoTerminalPool 15/15 PASS 再验 · OS 进程级零污染 · 多 agent 并行零交织. 第三清·Windsurf重载根治 — source.js 五药全到位: 写盘三损(slim+async+debounce)+setImmediate后置+process.on顶层 · 主线程永不阻. 道义: 四十八「损之又损 · 以至于无为 · 无为而无不为」· 四十「反者道之动 · 弱者道之用」· 三十七「道恒无名 · 朴唯小 · 侯王若能守之 · 万物将自宾」.",
+  "version": "9.9.32",
   "publisher": "dao-agi",
   "license": "Apache-2.0",
   "engines": {
@@ -88,11 +88,6 @@
       {
         "command": "wam.selftest",
         "title": "闭环自检 (L1 + L2)",
-        "category": "道Agent"
-      },
-      {
-        "command": "dao.purge",
-        "title": "道Agent: 了事拂衣去 · 净卸 (停反代 · 清设置 · 卸插件 · 归本源)",
         "category": "道Agent"
       },
       {

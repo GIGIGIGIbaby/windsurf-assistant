@@ -85,7 +85,7 @@ const zlib = require("zlib");
 const PORT = parseInt(process.env.ORIGIN_PORT || "8889", 10);
 // v9.6.1 · 反者道之动 · 远曰反 · 回归 v9.1.2 之全前端按钮 (七按钮: 道/官/实/原/编/复/卸 + dots/customBadge)
 // 以 v9.1.2 本源哲学为锚 · 守大常不动 · 五细节皆成: isAlreadyInverted · _rawTape+all_fields · INFER_STRIP 挂 modifyAnyInferenceSP · 部署不 kill · 前端按钮回归
-const ORIGIN_VERSION_BASE = "v9.9.28"; // webview title/banner/footer 均读此 · v9.9.28 真治 detached cleanup spawn (脱父子链 · 根本底层卸自身)
+const ORIGIN_VERSION_BASE = "v9.9.32"; // webview title/banner/footer 均读此 · v9.9.32 印164 大道至简: deactivate极简(-76行)+三清终结 · v9.9.30五药: 写盘三损(slim+async+debounce)+setImmediate后置+process.on顶层
 // 印 153 · 唯变所适 · 软编码归宗 · 二十五章「逝曰远 远曰反」· 七十六章「兵强则不胜」
 // 病: 多 ext-host 共端口 :8937 · 旧版 in-process proxy 持续 listen · self_file 锁死旧版目录
 //     → 即便装毕新版 vsix · /ping 仍返 v9.9.19/v9.9.20 之 self_file · canon_name 走旧映射
@@ -298,19 +298,48 @@ _customSP = _loadCustomSP();
 // v17.55 · 实注捕获 · 观而不改 · 最近一次真实 SP 注入事件
 // 落盘持存 · 跨重启恒显 · 进程退不失 · 致虚守静 · 观复知常
 // 以 /origin/lastinject + /origin/preview 暴露 · essence.js 一屏即见本源之实
+// ★ v9.9.30 印 162 · 写盘三损 (slim + async + debounce) · 真治根源
+//   主公自证 (5/19): 卸后无问题 · 元凶在本体 · 印 152 修 webview 遗漏写盘侧
+//   每次 inference fs.writeFileSync(JSON.stringify(几 MB)) 同步阻塞 ext-host
+//   四十八「损之又损」· 四十「反者道之动」· 六十四「为之于其未有也」
 const _LASTINJECT_FILE = path.join(__dirname, "_lastinject.json");
+const _SAVE_DEBOUNCE_MS = 500;
+let _saveLastInjectTimer = null;
+let _saveInjectsByKindTimer = null;
+function _capForDisk(s) {
+  if (typeof s !== "string") return s;
+  if (s.length <= 4096) return s;
+  return (
+    s.slice(0, 3072) +
+    "\n…[" +
+    (s.length - 3328) +
+    "B trimmed]…\n" +
+    s.slice(-256)
+  );
+}
 function _loadLastInject() {
   try {
     if (fs.existsSync(_LASTINJECT_FILE)) {
+      // v9.9.30 · 旧版可能写大文件 (几 MB) · 大于 1MB 跳过 · 损之又损
+      try {
+        if (fs.statSync(_LASTINJECT_FILE).size > 1024 * 1024) {
+          log("[init] _lastinject.json too big · skip");
+          return null;
+        }
+      } catch {}
       return JSON.parse(fs.readFileSync(_LASTINJECT_FILE, "utf8"));
     }
   } catch {}
   return null;
 }
 function _saveLastInject() {
-  try {
-    if (_lastInject) {
-      fs.writeFileSync(
+  if (!_lastInject) return;
+  if (_saveLastInjectTimer) return; // debounce · 连续多次只触一次
+  _saveLastInjectTimer = setTimeout(() => {
+    _saveLastInjectTimer = null;
+    if (!_lastInject) return;
+    try {
+      fs.writeFile(
         _LASTINJECT_FILE,
         JSON.stringify({
           at: _lastInject.at,
@@ -322,13 +351,14 @@ function _saveLastInject() {
           transformed: _lastInject.transformed,
           before_chars: _lastInject.before_chars,
           after_chars: _lastInject.after_chars,
-          before: _lastInject.before,
-          after: _lastInject.after,
+          before: _capForDisk(_lastInject.before),
+          after: _capForDisk(_lastInject.after),
         }),
         { mode: 0o600 },
+        () => {},
       );
-    }
-  } catch {}
+    } catch {}
+  }, _SAVE_DEBOUNCE_MS);
 }
 let _lastInject = _loadLastInject();
 
@@ -345,17 +375,52 @@ const _INJECTSBYKIND_FILE = path.join(__dirname, "_injectsbykind.json");
 function _loadInjectsByKind() {
   try {
     if (fs.existsSync(_INJECTSBYKIND_FILE)) {
+      // v9.9.30 · 旧版可能写大文件 · 大于 5MB 跳过
+      try {
+        if (fs.statSync(_INJECTSBYKIND_FILE).size > 5 * 1024 * 1024) {
+          log("[init] _injectsbykind.json too big · skip");
+          return {};
+        }
+      } catch {}
       return JSON.parse(fs.readFileSync(_INJECTSBYKIND_FILE, "utf8"));
     }
   } catch {}
   return {};
 }
 function _saveInjectsByKind() {
-  try {
-    fs.writeFileSync(_INJECTSBYKIND_FILE, JSON.stringify(_injectsByKind), {
-      mode: 0o600,
-    });
-  } catch {}
+  if (_saveInjectsByKindTimer) return; // debounce
+  _saveInjectsByKindTimer = setTimeout(() => {
+    _saveInjectsByKindTimer = null;
+    try {
+      const slim = {};
+      for (const k of Object.keys(_injectsByKind || {})) {
+        const v = _injectsByKind[k] || {};
+        slim[k] = {
+          at: v.at,
+          rid: v.rid,
+          kind: v.kind,
+          variant: v.variant,
+          field: v.field,
+          role: v.role,
+          mode: v.mode,
+          transformed: v.transformed,
+          sp_role: v.sp_role,
+          before_chars: v.before_chars,
+          after_chars: v.after_chars,
+          before: _capForDisk(v.before),
+          after: _capForDisk(v.after),
+          all_fields_count: v.all_fields_count || 0,
+          all_fields_chars: v.all_fields_chars || 0,
+        };
+      }
+      fs.writeFile(
+        _INJECTSBYKIND_FILE,
+        JSON.stringify(slim),
+        { mode: 0o600 },
+        () => {},
+      );
+    } catch {}
+  }, _SAVE_DEBOUNCE_MS);
 }
 let _injectsByKind = _loadInjectsByKind() || {};
 
@@ -2630,91 +2695,99 @@ const _mainHandler = async (req, res) => {
     // 4. inference (含 CHAT_PROTO / CHAT_RAW / INFER_STRIP): 读 body
     const body = await readBody(req);
 
-    // 5. 广谱观察 · 字段级深扫
-    // v9.3.9 · 保 cands 引用 · 后步 _recordInject 顺存为 all_fields
-    let _allCandsForInject = [];
-    try {
-      const cands = observeAllSPInBody(body, req.url);
-      _allCandsForInject = cands || [];
-      if (cands.length > 0) {
-        log(
-          `#${rid} sp_scan url=${req.url.split("/").slice(-2).join("/")} ` +
-            `kinds=[${cands.map((c) => `${c.kind}@${c.field_path}/${c.chars}B`).join(",")}]`,
-        );
-      }
-    } catch (e) {
-      log(`#${rid} sp_scan err: ${e.message}`);
-    }
-
-    // 6. chat / INFER_STRIP 观察 (lastinject)
+    // 5+6. v9.9.30 印 162 · 观察记录后置 setImmediate · 请求转发先行
+    // 道义: step 5 (observeAllSPInBody) + step 6 (_recordInject/_recordRawTape)
+    //   均为 webview 面板观察用 · 不影响 step 7 (真改 body + 转发)
+    //   四十「反者道之动」(同步→异步) · 十一「当其无·有车之用」
+    //   大对话 N=100-200 字段 × 9 RegExp 同步阻塞 → 后置后主线程不堵
     if (
       kind === "CHAT_PROTO" ||
       kind === "CHAT_RAW" ||
       kind === "INFER_STRIP"
     ) {
-      const obs = observeSPFromBody(body, kind);
-      if (obs && obs.before && obs.before.length > 100) {
-        const inverted = SP_MODE === "invert" ? invertSP(obs.before) : null;
-        const after = inverted !== null ? inverted : obs.before;
-        // v9.3.9 · 大道至简 · 顺存 all_fields (该次 RPC body 所有 utf8 字段)
-        //         agent 接收一切之文字即此: SP + user_msg + tools + context + history
-        //         webview [全] 态按 field_path 顺序渲 · 一屏同观 (万法归宗)
-        // v9.8.0 · 守一不离 · raw_text/unknown 亦显 AFTER (post strip+neutralize) · 名实终一
-        const allFields = _allCandsForInject.map((c) =>
-          _buildAllFieldEntry(c, SP_MODE),
-        );
-        const injectEv = {
-          kind,
-          variant: obs.variant,
-          field: obs.field,
-          role: obs.role,
-          mode: SP_MODE,
-          transformed: inverted !== null,
-          before_chars: obs.before.length,
-          after_chars: after.length,
-          before: obs.before,
-          after,
-          all_fields: allFields,
-          all_fields_count: allFields.length,
-          all_fields_chars: allFields.reduce((s, f) => s + f.chars, 0),
-        };
-        _recordInject(injectEv);
-        // v9.4.5 · 底层之底 · 时序一切入 tape · 不分槽 · 反之又反
-        _recordRawTape(
-          Object.assign({}, injectEv, {
-            method: req.method,
-            rpc: req.url,
-            mode_at: SP_MODE,
-            route: route.host,
-          }),
-        );
-      } else {
-        // v9.4.5 · obs 无命中 (此 inference RPC 无 SP 字段) · 仍记 tape (仅 all_fields)
-        // v9.8.0 · raw_text/unknown 亦显 AFTER (post strip+neutralize)
-        const allFields = _allCandsForInject.map((c) =>
-          _buildAllFieldEntry(c, SP_MODE),
-        );
-        if (allFields.length > 0) {
-          _recordRawTape({
-            kind,
-            variant: null,
-            field: null,
-            role: null,
-            mode_at: SP_MODE,
-            transformed: false,
-            before: null,
-            after: null,
-            before_chars: 0,
-            after_chars: 0,
-            all_fields: allFields,
-            all_fields_count: allFields.length,
-            all_fields_chars: allFields.reduce((s, f) => s + f.chars, 0),
-            method: req.method,
-            rpc: req.url,
-            route: route.host,
-          });
+      const _dBody = body,
+        _dKind = kind,
+        _dMode = SP_MODE;
+      const _dMethod = req.method,
+        _dUrl = req.url,
+        _dHost = route.host,
+        _dRid = rid;
+      setImmediate(() => {
+        try {
+          let _allCandsForInject = [];
+          try {
+            const cands = observeAllSPInBody(_dBody, _dUrl);
+            _allCandsForInject = cands || [];
+            if (cands.length > 0) {
+              log(
+                `#${_dRid} sp_scan url=${_dUrl.split("/").slice(-2).join("/")} kinds=[${cands.map((c) => `${c.kind}@${c.field_path}/${c.chars}B`).join(",")}]`,
+              );
+            }
+          } catch (e) {
+            log(`#${_dRid} sp_scan err: ${e.message}`);
+          }
+          const obs = observeSPFromBody(_dBody, _dKind);
+          if (obs && obs.before && obs.before.length > 100) {
+            const inverted = _dMode === "invert" ? invertSP(obs.before) : null;
+            const after = inverted !== null ? inverted : obs.before;
+            const allFields = _allCandsForInject.map((c) =>
+              _buildAllFieldEntry(c, _dMode),
+            );
+            const injectEv = {
+              kind: _dKind,
+              variant: obs.variant,
+              field: obs.field,
+              role: obs.role,
+              mode: _dMode,
+              transformed: inverted !== null,
+              before_chars: obs.before.length,
+              after_chars: after.length,
+              before: obs.before,
+              after,
+              all_fields: allFields,
+              all_fields_count: allFields.length,
+              all_fields_chars: allFields.reduce((s, f) => s + f.chars, 0),
+            };
+            _recordInject(injectEv);
+            _recordRawTape(
+              Object.assign({}, injectEv, {
+                method: _dMethod,
+                rpc: _dUrl,
+                mode_at: _dMode,
+                route: _dHost,
+              }),
+            );
+          } else {
+            const allFields = _allCandsForInject.map((c) =>
+              _buildAllFieldEntry(c, _dMode),
+            );
+            if (allFields.length > 0) {
+              _recordRawTape({
+                kind: _dKind,
+                variant: null,
+                field: null,
+                role: null,
+                mode_at: _dMode,
+                transformed: false,
+                before: null,
+                after: null,
+                before_chars: 0,
+                after_chars: 0,
+                all_fields: allFields,
+                all_fields_count: allFields.length,
+                all_fields_chars: allFields.reduce((s, f) => s + f.chars, 0),
+                method: _dMethod,
+                rpc: _dUrl,
+                route: _dHost,
+              });
+            }
+          }
+        } catch (e) {
+          try {
+            log(`#${_dRid} deferred-observe err: ${e.message}`);
+          } catch {}
         }
-      }
+      });
     }
 
     // 7. v9.0 彻底隔离 · 庖丁解牛 · 以神遇而不以目视
