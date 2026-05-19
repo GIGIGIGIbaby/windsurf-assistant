@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>道·一气化三清 · 印 162</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+}
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  background: #2d2d30;
+  color: #d4d4d4;
+  border: 1px solid #3e3e42;
+  padding: 4px 8px;
+  border-radius: 3px;
+  outline: none;
+}
+button { cursor: pointer; }
+button:hover { background: #3e3e42; border-color: #5a5a5a; }
+button.primary { background: #0e639c; border-color: #1177bb; color: #fff; }
+button.primary:hover { background: #1177bb; }
+button.warn { background: #5a1d1d; border-color: #7a2a2a; color: #fff; }
+button.warn:hover { background: #7a2a2a; }
+button.small { padding: 2px 6px; font-size: 11px; }
+input:focus, textarea:focus, select:focus { border-color: #007acc; }
+.muted { color: #858585; }
+.ok { color: #4ec9b0; }
+.err { color: #f48771; }
+.warn { color: #dcdcaa; }
+.acc { color: #9cdcfe; }
+
+/* ─── header ─── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 32px; padding: 0 14px;
+  background: #2d2d30; border-bottom: 1px solid #3e3e42;
+}
+header .title { font-weight: 600; color: #cccccc; font-size: 13px; }
+header .title .seal { color: #6a9955; font-weight: 400; margin-left: 8px; font-size: 11px; }
+header .conn { display: flex; gap: 12px; align-items: center; font-size: 11px; color: #858585; }
+header .conn .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+header .conn .dot.ok { background: #4ec9b0; }
+header .conn .dot.err { background: #f48771; }
+header .conn .dot.warn { background: #dcdcaa; }
+
+/* ─── 三栏 grid ─── */
+main {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  height: calc(100vh - 32px);
+  gap: 1px;
+  background: #3e3e42;
+}
+.col { background: #1e1e1e; overflow: hidden; display: flex; flex-direction: column; }
+.col-head {
+  height: 28px; padding: 0 12px; line-height: 28px;
+  background: #252526; border-bottom: 1px solid #3e3e42;
+  font-size: 11px; color: #cccccc; text-transform: uppercase; letter-spacing: 0.5px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.col-body { flex: 1; overflow-y: auto; padding: 10px; }
+.col-body::-webkit-scrollbar { width: 10px; }
+.col-body::-webkit-scrollbar-thumb { background: #424242; border-radius: 5px; }
+.col-body::-webkit-scrollbar-thumb:hover { background: #5a5a5a; }
+
+/* ─── 段 ─── */
+section {
+  background: #252526; border: 1px solid #3e3e42; border-radius: 4px;
+  margin-bottom: 10px;
+}
+section > h3 {
+  font-size: 11px; font-weight: 600; color: #cccccc;
+  padding: 6px 10px; background: #2d2d30; border-bottom: 1px solid #3e3e42;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+section > h3 .badge {
+  background: #0e639c; color: #fff; font-size: 10px;
+  padding: 1px 6px; border-radius: 8px; font-weight: 400; letter-spacing: 0;
+}
+section .body { padding: 8px 10px; font-size: 12px; }
+.kv { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11px; }
+.kv .k { color: #858585; }
+.kv .v { color: #9cdcfe; }
+.kv .v.ok { color: #4ec9b0; }
+.kv .v.err { color: #f48771; }
+.row { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
+hr.sep { border: 0; border-top: 1px dashed #3e3e42; margin: 6px 0; }
+
+/* ─── 左栏 SP ─── */
+.sp-radio { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.sp-radio label {
+  font-size: 11px; padding: 2px 8px; border: 1px solid #3e3e42; border-radius: 12px;
+  cursor: pointer; background: #2d2d30;
+}
+.sp-radio label.active { background: #0e639c; border-color: #1177bb; color: #fff; }
+.sp-radio input { display: none; }
+textarea.sp-custom {
+  width: 100%; height: 60px; resize: vertical; font-size: 11px;
+  background: #1e1e1e; border: 1px solid #3e3e42; padding: 6px;
+}
+
+/* ─── 中栏 WAM ─── */
+.wam-active {
+  background: linear-gradient(90deg, #1f4d3c 0%, #1e1e1e 100%);
+  border: 1px solid #4ec9b0; padding: 8px; border-radius: 4px; margin-bottom: 10px;
+}
+.wam-active .email { color: #4ec9b0; font-weight: 600; font-size: 12px; }
+.wam-list { font-size: 11px; }
+.wam-row {
+  display: flex; align-items: center; padding: 4px 6px; gap: 6px;
+  border-bottom: 1px solid #2d2d30; cursor: pointer;
+}
+.wam-row:hover { background: #2d2d30; }
+.wam-row .em { flex: 1; color: #9cdcfe; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wam-row .h { color: #858585; font-size: 10px; min-width: 65px; text-align: right; }
+.wam-row .h.ok { color: #4ec9b0; }
+.wam-row .h.err { color: #f48771; }
+.wam-row .h.warn { color: #dcdcaa; }
+.wam-row.active { background: #1f4d3c; border-left: 2px solid #4ec9b0; padding-left: 4px; }
+
+/* ─── 右栏 chat (类 devin.ai) ─── */
+.chat-wrap { display: flex; flex-direction: column; height: 100%; }
+.chat-toolbar {
+  height: 36px; padding: 0 10px; display: flex; align-items: center; gap: 8px;
+  background: #252526; border-bottom: 1px solid #3e3e42; font-size: 11px;
+}
+.chat-toolbar select { padding: 2px 6px; }
+.chat-body {
+  flex: 1; overflow-y: auto; padding: 14px;
+  background: #1e1e1e;
+}
+.chat-body::-webkit-scrollbar { width: 10px; }
+.chat-body::-webkit-scrollbar-thumb { background: #424242; border-radius: 5px; }
+.msg { display: flex; gap: 10px; margin-bottom: 16px; }
+.msg .avatar {
+  width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0;
+  background: #0e639c; color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600;
+}
+.msg.user .avatar { background: #5a5a5a; }
+.msg.asst .avatar { background: #0e639c; }
+.msg.sys .avatar { background: #5a1d5a; }
+.msg .ct { flex: 1; min-width: 0; }
+.msg .meta { font-size: 10px; color: #858585; margin-bottom: 4px; display: flex; gap: 10px; }
+.msg .meta .model { color: #dcdcaa; }
+.msg .meta .routed { color: #6a9955; }
+.msg .text {
+  white-space: pre-wrap; line-height: 1.6; font-size: 13px; color: #d4d4d4;
+  word-break: break-word;
+}
+.msg .text code { background: #2d2d30; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+.msg .text pre {
+  background: #2d2d30; padding: 8px 10px; border-radius: 4px; margin: 6px 0;
+  overflow-x: auto; font-size: 12px;
+}
+.msg.streaming .text::after {
+  content: '▋'; color: #4ec9b0; animation: blink 1s steps(2) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.chat-input {
+  border-top: 1px solid #3e3e42; padding: 10px; background: #252526;
+}
+.chat-input .area {
+  display: flex; gap: 8px; align-items: flex-end;
+}
+.chat-input textarea {
+  flex: 1; min-height: 50px; max-height: 200px; resize: none;
+  background: #1e1e1e; border: 1px solid #3e3e42; padding: 8px;
+  font-size: 13px; line-height: 1.5;
+}
+.chat-input textarea:focus { border-color: #007acc; }
+.chat-input .tools { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; font-size: 11px; }
+
+/* ─── 工具调用 (原汤化原食) ─── */
+.tool-call {
+  background: #1f1f1f; border: 1px solid #3e3e42; border-left: 3px solid #dcdcaa;
+  border-radius: 3px; padding: 6px 10px; margin: 6px 0; font-size: 11px;
+}
+.tool-call .name { color: #dcdcaa; font-weight: 600; }
+.tool-call .out { color: #858585; white-space: pre-wrap; margin-top: 4px; font-size: 11px; }
+
+.empty {
+  text-align: center; color: #858585; padding: 40px 20px; font-size: 12px;
+}
+.empty .seal { color: #6a9955; font-style: italic; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">道·一气化三清<span class="seal">印 162 · 反者道之动 · 大曰逝逝曰远远曰反</span></div>
+  <div class="conn">
+    <span><span class="dot" id="dot-fleet"></span>fleet <span id="t-fleet">…</span></span>
+    <span><span class="dot" id="dot-proxy"></span>proxy <span id="t-proxy">…</span></span>
+    <span><span class="dot" id="dot-vm"></span>VM <span id="t-vm">…</span></span>
+    <button class="small" onclick="reloadAll()">↻ 刷</button>
+  </div>
+</header>
+
+<main>
+  <!-- ─── 左栏 · 云端 API + SP 管理 ─── -->
+  <div class="col">
+    <div class="col-head"><span>左·云端 API 管理</span><span class="muted" id="t-now"></span></div>
+    <div class="col-body">
+
+      <section>
+        <h3>反代基底 <span class="badge" id="b-fleet">…</span></h3>
+        <div class="body" id="s-fleet">…</div>
+      </section>
+
+      <section>
+        <h3>VM 池 <span class="badge" id="b-vm">…</span></h3>
+        <div class="body" id="s-vm">…</div>
+      </section>
+
+      <section>
+        <h3>提示词 (SP) <span class="badge" id="b-sp">…</span></h3>
+        <div class="body">
+          <div class="muted" style="margin-bottom: 4px;">现态:</div>
+          <div class="sp-radio" id="sp-radio">
+            <label><input type="radio" name="sp" value="bypass"><span>bypass</span></label>
+            <label><input type="radio" name="sp" value="override"><span>override</span></label>
+            <label><input type="radio" name="sp" value="prepend"><span>prepend</span></label>
+            <label><input type="radio" name="sp" value="append"><span>append</span></label>
+            <label><input type="radio" name="sp" value="dao"><span>dao (帛书 7204 字)</span></label>
+            <label><input type="radio" name="sp" value="custom"><span>custom</span></label>
+            <label><input type="radio" name="sp" value="usernote"><span>usernote</span></label>
+          </div>
+          <div class="muted" style="margin: 6px 0 2px 0;">customSp:</div>
+          <textarea class="sp-custom" id="sp-custom" placeholder="留空则用客端原 system 消息"></textarea>
+          <div class="row" style="margin-top: 6px;">
+            <button class="primary small" onclick="spApply()">▶ 应用</button>
+            <button class="small" onclick="spObserve()">观察注入</button>
+            <span class="muted" id="sp-status"></span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3>模型 <span class="badge" id="b-models">…</span></h3>
+        <div class="body" id="s-models" style="font-size: 11px; max-height: 150px; overflow-y: auto;">…</div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ─── 中栏 · WAM 切号 ─── -->
+  <div class="col">
+    <div class="col-head"><span>中·WAM 切号 (rtflow)</span><span class="muted" id="wam-count">…</span></div>
+    <div class="col-body">
+
+      <div class="wam-active" id="wam-active">
+        <div class="muted" style="font-size: 10px;">现 ACTIVE token (主公真号)</div>
+        <div class="email" id="wam-active-email">…</div>
+        <div class="muted" id="wam-active-stats" style="font-size: 10px;">…</div>
+      </div>
+
+      <section>
+        <h3>账号列 (主公 ~/.wam)</h3>
+        <div class="body" style="padding: 0;">
+          <div class="wam-list" id="wam-list">
+            <div class="empty">取主公 ~/.wam 中…</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3>原汤化原食 <span class="badge">VM 工具</span></h3>
+        <div class="body">
+          <div class="muted" style="margin-bottom: 4px;">于 VM 内执命 (反代 LLM 可自调):</div>
+          <textarea id="vm-cmd" style="width:100%; height: 50px; resize: vertical; font-family: monospace; background: #1e1e1e; border: 1px solid #3e3e42; padding: 6px; font-size: 11px;"
+            placeholder="e.g. uname -a · ls /home/ubuntu · ps aux | grep dao"></textarea>
+          <div class="row" style="margin-top: 6px;">
+            <button class="primary small" onclick="vmRun()">▶ 执于 VM</button>
+            <span class="muted" id="vm-status"></span>
+          </div>
+          <pre id="vm-out" style="margin-top: 6px; font-size: 10px; color: #858585; white-space: pre-wrap; max-height: 150px; overflow-y: auto; padding: 4px; background: #1e1e1e; border: 1px solid #3e3e42;"></pre>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ─── 右栏 · devin.ai 级 chat ─── -->
+  <div class="col chat-wrap">
+    <div class="col-head"><span>右·Chat (类 devin.ai · gpt5.5/4.7 真测)</span>
+      <span><button class="small" onclick="clearChat()">清</button></span>
+    </div>
+    <div class="chat-toolbar">
+      <span class="muted">模:</span>
+      <select id="chat-model">
+        <option value="gpt-5-5">gpt-5-5</option>
+        <option value="claude-sonnet-4-7">claude-sonnet-4-7</option>
+        <option value="claude-3-7-sonnet">claude-3-7-sonnet</option>
+        <option value="gpt-4o">gpt-4o</option>
+        <option value="gpt-4-1">gpt-4-1</option>
+      </select>
+      <span class="muted">max:</span>
+      <select id="chat-max">
+        <option value="512">512</option>
+        <option value="1024" selected>1024</option>
+        <option value="2048">2048</option>
+        <option value="4096">4096</option>
+      </select>
+      <span class="muted" id="chat-routed"></span>
+    </div>
+    <div class="chat-body" id="chat-body">
+      <div class="empty">
+        <div>道·一气化三清 · chat 等待主公旨令</div>
+        <div class="seal">「上士闻道·堇而行之」(帛书四十一)</div>
+        <div style="margin-top: 16px; font-size: 11px;">
+          <button class="small" onclick="quickAsk('用一句答: 什么是道?')">问·道</button>
+          <button class="small" onclick="quickAsk('写一个 Python 函数: 斐波那契数列前 10 项')">码·py</button>
+          <button class="small" onclick="quickAsk('分析这段代码并提建议:\\n\\nfunction add(a, b) { return a + b; }')">析·js</button>
+          <button class="small" onclick="quickAsk('原汤化原食: 请用 /api/vm/run 接口跑 uname -a · 取 VM 信息')">原汤·VM 信息</button>
+        </div>
+      </div>
+    </div>
+    <div class="chat-input">
+      <div class="area">
+        <textarea id="chat-input" placeholder="输入消息 · Enter 发送 · Shift+Enter 换行"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
+        <button class="primary" onclick="sendChat()" id="btn-send">发送</button>
+      </div>
+      <div class="tools">
+        <span class="muted">SP:</span><span id="sp-tag" class="acc">bypass</span>
+        <span class="muted">routed:</span><span id="rt-tag" class="muted">…</span>
+        <span class="muted">tok:</span><span id="tok-tag" class="muted">0</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// § 状态 + 工具
+// ════════════════════════════════════════════════════════════════════
+const STATE = { messages: [], totalTokens: 0, sp: null, models: [], wam: null };
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  const ct = r.headers.get('content-type') || '';
+  if (ct.includes('json')) return { ok: r.ok, json: await r.json(), code: r.status };
+  return { ok: r.ok, text: await r.text(), code: r.status };
+}
+
+function el(id) { return document.getElementById(id); }
+function fmt(n) { return n == null ? '?' : String(n); }
+function fmtMs(ms) { return ms == null ? '?' : (ms > 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms'); }
+
+// ════════════════════════════════════════════════════════════════════
+// § 全态刷
+// ════════════════════════════════════════════════════════════════════
+async function reloadAll() {
+  el('t-now').textContent = new Date().toLocaleTimeString('zh-CN');
+
+  // 一笔 /api/state 全态
+  const s = await api('/api/state');
+  if (!s.ok || !s.json) {
+    el('s-fleet').innerHTML = '<span class="err">取状失败</span>';
+    setDot('fleet', false); setDot('proxy', false); setDot('vm', false);
+    return;
+  }
+  const j = s.json;
+
+  // ─── fleet ───
+  const fl = j.fleet || {};
+  setDot('fleet', !!fl.ok);
+  el('t-fleet').textContent = fl.ok ? (fl.fleet?.alive + '/' + fl.fleet?.total) : 'err';
+  el('b-fleet').textContent = fl.ok ? ('v' + (fl.version || '?')) : 'err';
+  el('s-fleet').innerHTML = `
+    <div class="kv"><span class="k">version</span><span class="v">${fmt(fl.version)}</span></div>
+    <div class="kv"><span class="k">alive/total</span><span class="v ${fl.fleet?.alive ? 'ok' : 'err'}">${fmt(fl.fleet?.alive)}/${fmt(fl.fleet?.total)}</span></div>
+    <div class="kv"><span class="k">routedToVM</span><span class="v">${fmt(fl.metrics?.routedToVM)}</span></div>
+    <div class="kv"><span class="k">routedToFB</span><span class="v">${fmt(fl.metrics?.routedToFallback)}</span></div>
+    <div class="kv"><span class="k">errors</span><span class="v ${fl.metrics?.errors ? 'warn' : ''}">${fmt(fl.metrics?.errors)}</span></div>
+    <div class="kv"><span class="k">bind</span><span class="v">${fmt(fl.bind)}</span></div>
+  `;
+
+  // ─── proxy ───
+  const px = j.proxy || {};
+  setDot('proxy', !!px.ok);
+  el('t-proxy').textContent = px.ok ? ('v' + (px.version || '?')) : 'err';
+
+  // ─── VM ───
+  const vm = j.vm_omni;
+  setDot('vm', !!vm);
+  el('t-vm').textContent = vm ? vm.sid.slice(0, 13) + '…' : 'absent';
+  el('b-vm').textContent = vm ? '1' : '0';
+  el('s-vm').innerHTML = vm ? `
+    <div class="kv"><span class="k">sid</span><span class="v">${vm.sid.slice(0, 30)}…</span></div>
+    <div class="kv"><span class="k">omni</span><span class="v" style="font-size:10px">${vm.url.split('@')[1]?.slice(0, 30) || vm.url.slice(0, 30)}…</span></div>
+    <div class="kv"><span class="k">pool keys</span><span class="v ok">${fmt(px.pool?.total)}</span></div>
+    <div class="kv"><span class="k">ws-pool</span><span class="v ok">${fmt(px.windsurf?.keys)}</span></div>
+  ` : '<span class="err">无 alive VM (起 vm_omni.js 先)</span>';
+
+  // ─── SP ───
+  const sp = j.sp || {};
+  STATE.sp = sp;
+  el('b-sp').textContent = sp.strategy || '?';
+  el('sp-tag').textContent = sp.strategy || '?';
+  document.querySelectorAll('.sp-radio label').forEach((lbl) => {
+    const inp = lbl.querySelector('input');
+    if (inp.value === sp.strategy) { lbl.classList.add('active'); inp.checked = true; }
+    else lbl.classList.remove('active');
+  });
+  if (sp.customSp?.preview && !el('sp-custom').value) el('sp-custom').value = sp.customSp.preview;
+
+  // ─── 模型 ───
+  await loadModels();
+
+  // ─── WAM ───
+  await loadWam();
+}
+
+function setDot(name, ok) {
+  const e = el('dot-' + name);
+  if (!e) return;
+  e.className = 'dot ' + (ok ? 'ok' : 'err');
+}
+
+async function loadModels() {
+  const r = await api('/api/models');
+  if (!r.ok || !r.json) {
+    el('s-models').innerHTML = '<span class="err">取模失败</span>';
+    return;
+  }
+  STATE.models = r.json.data || [];
+  el('b-models').textContent = STATE.models.length;
+  // 主公关心: gpt-5-5 + 4.7
+  const focus = ['gpt-5-5', 'gpt-5', 'claude-sonnet-4-7', 'claude-3-7-sonnet', 'claude-4-7', 'gpt-4o', 'gpt-4-1'];
+  const sel = el('chat-model');
+  const cur = sel.value;
+  sel.innerHTML = '';
+  focus.forEach((id) => {
+    const m = STATE.models.find((mm) => mm.id === id);
+    if (m) {
+      const opt = document.createElement('option');
+      opt.value = m.id; opt.textContent = m.id;
+      sel.appendChild(opt);
+    }
+  });
+  // 加其它
+  const optg = document.createElement('optgroup');
+  optg.label = '— 其他 (' + STATE.models.length + ') —';
+  STATE.models.forEach((m) => {
+    if (focus.includes(m.id)) return;
+    const opt = document.createElement('option');
+    opt.value = m.id; opt.textContent = m.id;
+    optg.appendChild(opt);
+  });
+  sel.appendChild(optg);
+  if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
+
+  // 渲染列 (focus 模显)
+  el('s-models').innerHTML = focus.map((id) => {
+    const m = STATE.models.find((mm) => mm.id === id);
+    return m ? `<div class="kv"><span class="k">${id}</span><span class="v ok">✓</span></div>` : `<div class="kv"><span class="k muted">${id}</span><span class="v err">✗</span></div>`;
+  }).join('');
+}
+
+async function loadWam() {
+  const r = await api('/api/wam/list');
+  if (!r.ok || !r.json) {
+    el('wam-list').innerHTML = '<div class="empty err">取 ~/.wam 失败 · ' + (r.json?.error || 'err') + '</div>';
+    return;
+  }
+  const data = r.json;
+  STATE.wam = data;
+  const items = data.items || [];
+  el('wam-count').textContent = items.length + ' 件 (主公 ~/.wam)';
+
+  // active: 印 162 · dao_proxy /admin/wam/local 返之 state.activeAccount?.email
+  //   或第一笔 usable=true 作 active 标 (后续 印 163 真接 wam-state.json activeAccountIndex)
+  const active = data.state?.activeAccount?.email || data.state?.account?.email || items.find((i) => i.usable)?.email || '(无)';
+  el('wam-active-email').textContent = active;
+  const activeItem = items.find((i) => i.email === active);
+  if (activeItem?.health) {
+    const h = activeItem.health;
+    el('wam-active-stats').textContent = `${h.plan || '?'} · D${h.daily || 0}% W${h.weekly || 0}% · ${h.daysLeft || 0} 天剩`;
+  } else {
+    el('wam-active-stats').textContent = `${items.filter((i) => i.usable).length} 可用 / ${items.length} 总`;
+  }
+
+  // 列
+  if (items.length === 0) {
+    el('wam-list').innerHTML = '<div class="empty">无件</div>';
+    return;
+  }
+  el('wam-list').innerHTML = items.slice(0, 100).map((it, i) => {
+    const isActive = it.email === active;
+    const h = it.health || {};
+    const d = h.daily != null ? h.daily + '%' : '?';
+    const w = h.weekly != null ? h.weekly + '%' : '?';
+    const sumH = (h.daily || 0) + (h.weekly || 0);
+    const hClass = sumH > 100 ? 'ok' : sumH > 40 ? 'warn' : 'err';
+    const planTag = h.plan === 'Trial' ? '<span class="muted" style="font-size:9px;">T</span>' : (h.plan === 'Pro' ? '<span class="ok" style="font-size:9px;">P</span>' : '');
+    const usable = it.usable ? '' : ' style="opacity:0.5"';
+    return `<div class="wam-row ${isActive ? 'active' : ''}"${usable} onclick="wamUse('${it.email}')" title="${it.email} · ${h.plan || '?'} · daysLeft=${h.daysLeft || 0}">
+      <span class="em">${it.emailMasked || it.email}</span>${planTag}
+      <span class="h ${hClass}">D${d} W${w}</span>
+    </div>`;
+  }).join('');
+}
+
+async function wamUse(email) {
+  if (!confirm(`切换 active 至 ${email}? (主公真号变)`)) return;
+  el('vm-status').textContent = '切换中...';
+  const r = await api('/api/wam/use', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, mode: 'auto' }),
+  });
+  if (r.ok && r.json?.ok) {
+    alert('切换成: ' + email);
+    setTimeout(reloadAll, 500);
+  } else {
+    alert('切换失: ' + (r.json?.error || 'err'));
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// § SP 七态
+// ════════════════════════════════════════════════════════════════════
+async function spApply() {
+  const strategy = document.querySelector('.sp-radio input:checked')?.value || 'bypass';
+  const customSp = el('sp-custom').value;
+  el('sp-status').textContent = '应用中...';
+  const r = await api('/api/sp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ strategy, customSp }),
+  });
+  if (r.ok && r.json?.ok) {
+    el('sp-status').innerHTML = '<span class="ok">✓ 已应用 ' + strategy + '</span>';
+    setTimeout(() => { el('sp-status').textContent = ''; reloadAll(); }, 1500);
+  } else {
+    el('sp-status').innerHTML = '<span class="err">✗ ' + (r.json?.error || 'err') + '</span>';
+  }
+}
+
+document.querySelectorAll('.sp-radio label').forEach((lbl) => {
+  lbl.addEventListener('click', () => {
+    document.querySelectorAll('.sp-radio label').forEach((l) => l.classList.remove('active'));
+    lbl.classList.add('active');
+    lbl.querySelector('input').checked = true;
+  });
+});
+
+async function spObserve() {
+  const r = await api('/api/sp/observe');
+  if (r.ok && r.json) {
+    const list = Array.isArray(r.json) ? r.json : [];
+    const txt = list.slice(0, 5).map((o, i) =>
+      `[${i}] ts=${new Date(o.ts).toLocaleTimeString()} strategy=${o.strategy} client=${o.clientSpLen}B → daemon=${o.daemonSpLen}B → final=${o.finalSpLen}B`
+    ).join('\n');
+    alert('近 5 笔 SP 注入观察:\n\n' + (txt || '(空)'));
+  } else {
+    alert('取失: ' + (r.json?.error || 'err'));
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// § VM 原汤化原食
+// ════════════════════════════════════════════════════════════════════
+async function vmRun() {
+  const cmd = el('vm-cmd').value.trim();
+  if (!cmd) return;
+  el('vm-status').textContent = '执于 VM...';
+  el('vm-out').textContent = '';
+  const t0 = Date.now();
+  const r = await api('/api/vm/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cmd, timeout: 30000 }),
+  });
+  const ms = Date.now() - t0;
+  el('vm-status').textContent = (r.json?.ok ? '✓ ' : '✗ ') + fmtMs(ms);
+  if (r.json?.result) {
+    const rr = r.json.result;
+    el('vm-out').textContent = `[exit=${rr.code || 0}]\n=== stdout ===\n${rr.stdout || '(空)'}\n=== stderr ===\n${rr.stderr || '(空)'}`;
+  } else {
+    el('vm-out').textContent = '✗ ' + (r.json?.err || r.json?.error || 'err') + '\n' + (r.json?.raw || '');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// § chat (流式 SSE + 多轮)
+// ════════════════════════════════════════════════════════════════════
+function quickAsk(text) {
+  el('chat-input').value = text;
+  sendChat();
+}
+
+async function sendChat() {
+  const inp = el('chat-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  const model = el('chat-model').value;
+  const maxTokens = Number(el('chat-max').value);
+  inp.value = '';
+  el('btn-send').disabled = true;
+
+  // 首笔时清空 empty
+  if (STATE.messages.length === 0) el('chat-body').innerHTML = '';
+
+  // 加 user msg
+  STATE.messages.push({ role: 'user', content: text });
+  renderMsg('user', text, { model });
+
+  // 加 streaming asst msg
+  const asstEl = renderMsg('asst', '', { model, streaming: true });
+  const textEl = asstEl.querySelector('.text');
+  const metaEl = asstEl.querySelector('.meta');
+
+  try {
+    const resp = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: STATE.messages, model, max_tokens: maxTokens }),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let acc = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      let event = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) event = line.slice(7).trim();
+        else if (line.startsWith('data: ')) {
+          try {
+            const obj = JSON.parse(line.slice(6));
+            if (event === 'delta') { acc += obj.piece; textEl.textContent = acc; el('chat-body').scrollTop = el('chat-body').scrollHeight; }
+            else if (event === 'meta') {
+              metaEl.innerHTML = `<span class="model">${obj.model}</span><span class="routed">${obj.routed}</span><span class="muted">${obj.totalChars} 字 · ${fmtMs(obj.ms)} 首字</span>`;
+              el('chat-routed').textContent = obj.routed;
+              el('rt-tag').textContent = obj.routed;
+            }
+            else if (event === 'done') {
+              metaEl.innerHTML += ` <span class="ok">✓ 完 ${fmtMs(obj.totalMs)}</span>`;
+              STATE.totalTokens += obj.usage?.total_tokens || 0;
+              el('tok-tag').textContent = STATE.totalTokens;
+            }
+            else if (event === 'error') {
+              textEl.innerHTML = '<span class="err">✗ ' + obj.error + '</span>';
+              return;
+            }
+          } catch (e) { /* skip bad json */ }
+        }
+      }
+    }
+    // 全成 · 加入 history
+    STATE.messages.push({ role: 'assistant', content: acc });
+    asstEl.classList.remove('streaming');
+  } catch (e) {
+    textEl.innerHTML = '<span class="err">✗ ' + e.message + '</span>';
+  } finally {
+    el('btn-send').disabled = false;
+  }
+}
+
+function renderMsg(role, text, opts = {}) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role + (opts.streaming ? ' streaming' : '');
+  const avatar = role === 'user' ? '我' : (role === 'asst' ? 'AI' : 'sys');
+  div.innerHTML = `
+    <div class="avatar">${avatar}</div>
+    <div class="ct">
+      <div class="meta">${opts.model ? `<span class="model">${opts.model}</span>` : ''}</div>
+      <div class="text">${text || ''}</div>
+    </div>
+  `;
+  el('chat-body').appendChild(div);
+  el('chat-body').scrollTop = el('chat-body').scrollHeight;
+  return div;
+}
+
+function clearChat() {
+  STATE.messages = [];
+  STATE.totalTokens = 0;
+  el('tok-tag').textContent = '0';
+  el('chat-body').innerHTML = `<div class="empty">
+    <div>道·一气化三清 · chat 等待主公旨令</div>
+    <div class="seal">「上士闻道·堇而行之」(帛书四十一)</div>
+  </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// § init
+// ════════════════════════════════════════════════════════════════════
+reloadAll();
+setInterval(reloadAll, 30000); // 30s 自刷
+</script>
+</body>
+</html>

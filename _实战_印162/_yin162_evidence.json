@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-05-19T03:08:39.749Z",
+  "seal": "印 162 · 一气化三清 全实证",
+  "summary": {
+    "passed": 13,
+    "failed": 0,
+    "total": 13,
+    "rate": 100
+  },
+  "details": [
+    {
+      "label": ":3001 /api/health",
+      "ok": true,
+      "ms": 8,
+      "extra": "fleet 0/1 · proxy v0.4.3"
+    },
+    {
+      "label": ":3001 /api/state",
+      "ok": true,
+      "ms": 4,
+      "extra": "sp=bypass vm_omni=present"
+    },
+    {
+      "label": ":3001 /api/wam/list",
+      "ok": true,
+      "ms": 8,
+      "extra": "items=178 usable=177"
+    },
+    {
+      "label": ":3001 /api/models",
+      "ok": true,
+      "ms": 5,
+      "extra": "48 模"
+    },
+    {
+      "label": "GET /api/sp",
+      "ok": true,
+      "ms": 2,
+      "extra": "bypass"
+    },
+    {
+      "label": "POST /api/sp custom",
+      "ok": true,
+      "ms": 3,
+      "extra": "→ custom"
+    },
+    {
+      "label": "POST /api/sp 还原 bypass",
+      "ok": true,
+      "ms": 2,
+      "extra": "✓"
+    },
+    {
+      "label": "GET /api/sp/observe",
+      "ok": true,
+      "ms": 1,
+      "extra": "16 笔观察"
+    },
+    {
+      "label": "POST /api/chat · gpt-5-5",
+      "ok": true,
+      "ms": 18783,
+      "extra": "routed=fallback http://127.0.0.1:7780 · 请问您想让我回答什么问题？目前没有看到具体的问题内容。请问您"
+    },
+    {
+      "label": "POST /api/chat · claude-sonnet-4-7",
+      "ok": true,
+      "ms": 21870,
+      "extra": "routed=fallback http://127.0.0.1:7780 · 您还没有提出问题——请问您想让我用一个字回答什么？您还没有提"
+    },
+    {
+      "label": "SSE /api/chat/stream · gpt-5-5",
+      "ok": true,
+      "ms": 21065,
+      "extra": "delta=13 · meta.routed=fallback http://127.0.0.1:7780 · 帛书《道德经》第一章首句为：\"道可道也，非恒道也。\"帛书《道德经》第一章首句为："
+    },
+    {
+      "label": "SSE /api/chat/stream · claude-sonnet-4-7",
+      "ok": true,
+      "ms": 19707,
+      "extra": "delta=5 · meta.routed=fallback http://127.0.0.1:7780 · 道可道也，非恒道也。道可道也，非恒道也。"
+    },
+    {
+      "label": "公网 cf · gpt-5-5",
+      "ok": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "您好！您的消息\"印 162 真活验\"我不太确定具体含义。能否请您详细说明一下您需要什么帮助？例如：\n- 是否与某个 PR #162 相关？\n- 是否需要验证某个页面或功能？\n- 或者是其他任务？\n\n请提供更多上下文，我会尽快帮您处理。您好！您的消息\"印 162 真活验\"我不太确定具体含义。能否请您详细说明一下您需要什么帮助？例如：\n- 是否与某个 PR #162 相关？\n- 是否需要验证某个页面或功能？\n- 或者是其他任务？\n\n请提供更多上下文，我会尽快帮您处理。"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "ms": 22997,
+      "extra": "routed=fallback http://127.0.0.1:7780"
+    }
+  ],
+  "elapsedMs": 104469
+}
