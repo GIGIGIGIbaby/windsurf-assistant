@@ -1,0 +1,138 @@
+{
+  "timestamp": "2026-05-19T02:33:23.257Z",
+  "seal": "印 161 · 全链路一字真验",
+  "summary": {
+    "passed": 17,
+    "failed": 1,
+    "total": 18,
+    "rate": 94
+  },
+  "details": [
+    {
+      "label": "7780 · gpt-5-5",
+      "ok": true,
+      "ms": 19647,
+      "content": "请问您需要我帮忙做什么？您的消息似乎不完整——\"用一字答道\"是回答方式的指示，但还没有问题。请告诉我您的需求。请问您需要我帮忙做什么？您的消息似乎不完整——\"用一字答道\"是回答方式的指示，但还没有问题。请告诉我您的需求。",
+      "routed": "(no header)"
+    },
+    {
+      "label": "7780 · 4.7",
+      "ok": true,
+      "ms": 20221,
+      "content": "请问您想让我回答什么问题？目前只收到了\"用一字答道\"的指示，但没有具体的问题。请问您想让我回答什么问题？目前只收到了\"用一字答道\"的指示，但没有具体的问题。",
+      "routed": "(no header)"
+    },
+    {
+      "label": "7790 · gpt-5-5",
+      "ok": true,
+      "ms": 20174,
+      "content": "你的问题是什么？\"用一字答道\"——但没有看到具体的问题，请补充。你的问题是什么？\"用一字答道\"——但没有看到具体的问题，请补充。",
+      "routed": "VM[0/devin-d5ea8f]"
+    },
+    {
+      "label": "7790 · 4.7",
+      "ok": true,
+      "ms": 17122,
+      "content": "你好！请问你想让我用一字回答什么问题呢？你好！请问你想让我用一字回答什么问题呢？",
+      "routed": "VM[0/devin-d5ea8f]"
+    },
+    {
+      "label": "公网 cf · gpt-5-5",
+      "ok": true,
+      "ms": 23981,
+      "content": "你好！你想让我用一字回答什么问题呢？请提供你的问题。你好！你想让我用一字回答什么问题呢？请提供你的问题。",
+      "routed": "VM[0/devin-d5ea8f]"
+    },
+    {
+      "label": "公网 cf · 4.7",
+      "ok": true,
+      "ms": 17610,
+      "content": "您好！请问您想让我用一字回答什么问题呢？您好！请问您想让我用一字回答什么问题呢？",
+      "routed": "VM[0/devin-d5ea8f]"
+    },
+    {
+      "label": "VM 直 · gpt-5-5",
+      "ok": true,
+      "ms": 19111,
+      "content": "您的消息\"用一字答道\"收到了，但似乎缺少具体问题。请问您想让我回答什么？您的消息\"用一字答道\"收到了，但似乎缺少具体问题。请问您想让我回答什么？",
+      "routed": "(no header)"
+    },
+    {
+      "label": "VM 直 · 4.7",
+      "ok": true,
+      "ms": 23590,
+      "content": "你的问题是什么？\"用一字答道\"——但还没有提出问题。请告诉我你想问什么。你的问题是什么？\"用一字答道\"——但还没有提出问题。请告诉我你想问什么。",
+      "routed": "(no header)"
+    },
+    {
+      "label": "3000 · gpt-5-5",
+      "ok": true,
+      "ms": 18202,
+      "content": "您好！您说\"用一字答道\"，但似乎没有附带具体的问题。请问您想让我回答什么问题呢？您好！您说\"用一字答道\"，但似乎没有附带具体的问题。请问您想让我回答什么问题呢？",
+      "routed": "VM[0/devin-d5ea8f]"
+    },
+    {
+      "label": "3000 · 4.7",
+      "ok": true,
+      "ms": 18306,
+      "content": "您好！请问您想让我回答什么问题呢？目前没有看到具体的问题内容。您好！请问您想让我回答什么问题呢？目前没有看到具体的问题内容。",
+      "routed": "VM[0/devin-d5ea8f]"
+    },
+    {
+      "label": "POST /api/tasks",
+      "ok": true,
+      "ms": 5,
+      "content": "id=2",
+      "err": "code=201"
+    },
+    {
+      "label": "GET /api/tasks",
+      "ok": true,
+      "ms": 2,
+      "content": "count=2",
+      "err": "code=200"
+    },
+    {
+      "label": "PUT /api/tasks/:id",
+      "ok": true,
+      "ms": 3,
+      "content": "done=true",
+      "err": "code=200"
+    },
+    {
+      "label": "DELETE /api/tasks/:id",
+      "ok": true,
+      "ms": 4,
+      "content": "removed",
+      "err": "code=200"
+    },
+    {
+      "label": "POST /api/llm/decompose (4.7)",
+      "ok": true,
+      "ms": 20120,
+      "content": "0 子任务",
+      "err": "code=200"
+    },
+    {
+      "label": "POST /api/llm/parallel (双模)",
+      "ok": true,
+      "ms": 19246,
+      "content": "4.7=✓ gpt5.5=✓"
+    },
+    {
+      "label": "GET /api/llm/sp (现 SP)",
+      "ok": false,
+      "ms": 2,
+      "content": "?",
+      "err": "code=502"
+    },
+    {
+      "label": "GET 7790 /v1/models",
+      "ok": true,
+      "ms": 740,
+      "content": "228 模",
+      "err": "code=200"
+    }
+  ],
+  "elapsedMs": 238097
+}
