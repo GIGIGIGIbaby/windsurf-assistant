@@ -1,4 +1,4 @@
-// WAM · 万法归宗 v2.6.8 · 道极版 · 道法自然 · 太上下知有之
+﻿// WAM · 万法归宗 v3.0.0 · 道极版 · 道法自然 · 太上下知有之
 //
 // 本源需求: 用户在 Cascade panel 发消息 → WAM 自动切健康号 (用户无为 · 插件无不为)
 //
@@ -8,6 +8,46 @@
 //   · 不禁账号   · 失败仅记数 · 号永远可选 · rate-limit 退让 30s 即回池
 //   · 上善如水   · 不 kill 进程 · 不抢路 · 等 cascade 流完再切
 //   · 大制无割   · 198KB → ~80KB · 一层 hook 一条真路 (从 v2.4.13b 损之又损)
+//
+// v3.0.0 · 道法自然 · 无为而无不为 · 全量解构自封体系 (2026-05-21):
+//   「一」移除一切自动限制 · 有密码即可用 · Free/Trial/Pro 皆可进入候选池
+//   「二」 _cleanseHealthOnLoad 彻底废止清洗 · 不主动覆写任何字段
+//   「三」 _scoreOf 加为所有已验号给正分·双零才最低分 · 无门第封冻
+//   「四」 endpoint 死亡检测扩展 400 · 不再漏检服务端故障
+//   「五」 _tryDevinBillingFallback · GetUserStatus 400 时用 Devin billing API 探实隟额
+//     实证: app.devin.ai/api/{orgId}/billing/status 返 overage_credits + billing_error
+//
+// v3.0.1 · 反者道之动 · 手动至高优先 · 彻底无阻 (2026-05-21):
+//
+//   ━━━ 五大结构性病灶 (逆流审视 v3.0.0) ━━━
+//   「病灶一」 _engine.rotating && !_switching 永久无超时阻塞手动切号 (最致命)
+//     根因: Engine.rotateNext() 只设 this.rotating=true·不设 _switching=true
+//     效果: rotateNext 执行期间 (最长160s) 手动切号命中此判断 → 永久阻塞
+//     30s 强制解锁逻辑仅针对 _switching·对 _engine.rotating 完全无效
+//   「病灶二」 Engine.rotateNext() 不同步 _switching 全局锁
+//     根因: rotateNext 仅管 this.rotating·_switching 始终为 false
+//     效果: 手动切号30s超时保护对 rotateNext 场景完全失效
+//   「病灶三」 命令面板 wam.switchAccount 不同步 _switching
+//     根因: line 4820 设 _engine.rotating=true 但不设 _switching=true
+//     效果: 命令面板切号期间 手动切号同样被永久阻塞
+//   「病灶四」 rate-limit 时 rotateNext 串行遍历候选号 长时持锁
+//     根因: for(idx of order) loginAccount(idx) 每次3-8s · 20号=最长160s
+//     效果: 高速切号场景 IP 级 rate-limit → rotateNext 遍历全部失败 → 持锁分钟级
+//   「病灶五」 手动切号 _switching 超时 30s 过长 · 用户体感卡顿严重
+//
+//   ━━━ v3.0.1 解法 (反者道之动·损之又损·一锁覆万源) ━━━
+//   「修一」 手动切号删除 _engine.rotating && !_switching 永久阻塞
+//     改为: 只检查 _switching (统一互斥锁) · 超时 30s→10s (手动不应久等)
+//     力: 手动强占时同步清除 _engine.rotating (双锁归一)
+//   「修二」 Engine.rotateNext() 设/清 _switching (与 _doAutoSwitch 对齐)
+//     改为: this.rotating=true 时同步 _switching=true + _switchingStartTime
+//     力: 手动10s超时保护对 rotateNext 场景生效 · 用户最长等10s即可抢占
+//   「修三」 命令面板 wam.switchAccount 同步 _switching
+//     改为: _engine.rotating=true 时同步 _switching=true
+//   「守一」 _switching 成为唯一互斥锁 · _engine.rotating 仅用于UI显示
+//     道理: 天下莫柔弱于水·水善利万物而不争 · 一锁至柔·覆万场景
+//   「道法」 用户手动切号 = 最高优先 · 任何时候 ≤10s 必可执行
+//     无为而无不为 · 不禁 · 不阻 · 不滞 · 回归本源
 //
 // v2.6.0 · 底层软编码 · 唯变所适 · 水无常形 (2026-05-05):
 //   · RE_SESSION_TOKEN 常量统一 · "devin-session-token$" 两处字面量 → 单点定义
@@ -114,6 +154,71 @@
 //     → _v268_deploy.ps1 改为读 extensions.json location.path 自动找正确目录
 //   · 道一以贯之: 24 章 "自见者不明" · v2.6.7 自以为已部署 · 实际 windsurf 加载旧目录
 //     必"不自见故章"·实证驱动·读权威源 (extensions.json) 而非假设目录命名
+//
+// v2.6.10 · 治人事天·莫若啬 · checkpoint 过滤 · 损之又损 (2026-05-07):
+//   · v2.6.9 reload 后活体实证 37min · 降幅 98.9%·median 22s→2070s·min 5s→222s
+//     但 wal·edge fire 6 次 / rotate 3 次 / minInterval-locked 2 次 · 差 1 未解
+//     返查 log: edge·fire delta = +840480B / +708640B ← 非 user send (单次 send 常 4-32KB)
+//     实为 SQLite auto_checkpoint 批量满 4MB 后 flush · 多帧合批 → wal 一次增 KB-MB
+//   · 病灶: wal·edge 只有下限过滤·无上限·checkpoint 大批写 ≡ user send (信号混淆)
+//     60s 强锁者瞥其火·但未治本 · 假如 checkpoint 发在 60s 后 即仵误切
+//   · 损法 (59 章 治人事天·莫若啬 · 啬、早服、重积德):
+//     · wam.walEdgeMaxBytes 默 65536B (64KB) · delta > 此 值视为 checkpoint 噪 · skip
+//     · 新 log: wal·edge·skip[checkpoint:XXXB > 65536B] · 与 fire 双轨可观
+//     · diag 增: edgeSkipCount / lastEdgeDelta / lastCheckpointDelta / last*At
+//     · 空间过滤 + 时间强锁 = 两道互补 · 重为轻根·清为軁君
+//   · 向后兼容: walEdgeMaxBytes=0 ⇒ 关上限 (v2.6.9 行为)
+//   · 道一以贯之: 59 章 "重积德则无不克" · user-send 小·checkpoint 大 · 分而中之
+//
+// v2.6.13 · 阴阳结合 · 反者道之动 · 物无非彼物无非是 (2026-05-08):
+//   · 缘起: 主公《齐物论》之诏 — 自彼则不见·自是则知之·阴阳互补不冲突
+//     现有 W%脉动 (阳·主) 仅看 weekly% 单维度 · 自是只见己·不见彼
+//     新增 ⚖额度变动 (阴·辅) 监 daily%/promptCredits/flowCredits 多维度
+//   · 道理: 一阴一阳之谓道 · 主信号宏观百分比 · 辅信号微观额度池 · 二者互补显全象
+//     · weekly% 是后端真账·主流·已建主信号窗 60s 让位
+//     · daily% Pro plan 主用·与 weekly 维度独立
+//     · promptCredits/flowCredits 绝对数池·与 quota% 解耦·任何 prompt/flow 调用即扣
+//   · 结合: 同入 _maybeTrigger 出口 · 同受 60s 强锁保护 · W%脉动主信号窗内 ⚖ 让位 (skip)
+//     防跨账号假脉动 同 W% · 必 _lastQuotaEmail === curEmail 才比
+//   · 配置 (默全开·与 W%脉动同量级):
+//     · wam.quotaDeltaEnable (默 true) · 全开关
+//     · wam.quotaDeltaCreditsMin (默 1) · promptCredits/flowCredits delta 阈值
+//     · wam.quotaDeltaDailyMin (默 0.3) · daily% delta 阈值
+//   · 不冲突保证 (反者道之动·阴让阳):
+//     · ⚖ 触发同 tick 内 W% 也触发 → _lastQuotaPulseAt 已设 → ⚖ 进 _maybeTrigger 让位
+//     · ⚖ 单独触发 (W% 没动·如 promptCredits 异步扣) → _maybeTrigger 60s 强锁仍护
+//   · 道一以贯之: 1 章 "两者同出·异名同谓·玄之又玄·众眇之门"
+//     彼此异名同谓 — 都是后端账户被消耗 · 但维度互补 · 自彼自是合一
+//
+// v2.6.14 · 三守俱全 · 守一·大制无割 · 反者道之动 (2026-05-08):
+//   · 缘起 (实证 179 wam.log · v2.6.13 生命 · 21225 行):
+//     · 声设 ⚡W%脉动 = 主信号 · WAL/pb 让位 60s
+//     · 实证信号占比 ⚡W%脉动 4.3% (11/253) · 📡WAL·edge 68.8% (174/253)
+//     · 让位机制几不生效 (13/253) · "主信号优先" 形同虚设
+//     · 5 分钟爆发 WAL 174 火 · 38 次真切号 · 每 8s 切一 · 雪崩复返
+//   · 根因三破:
+//     ① 公理破 — "1 user send = 1 信号" 不成立 · 流式响应是连续 N quanta 入两源
+//                  实证: 单账号 40s 内 W 82→80→77→75→72 · 1 send 引 4 脉动
+//     ② 栏破 — v2.6.11 弃 perMessageMinIntervalMs 60s 全锁 → 最终兜底失
+//     ③ 守破 — v2.6.12 quotaPulsePriorityMs 只守 WAL/pb · 不守 W% 自身 · 阳自决堤
+//   · 三守俱全 (守一 · 大制无割 · 一全锁覆万源):
+//     守一: _maybeTrigger 入口加 perMessageMinIntervalMs 60s 全 reason 强锁
+//           复 v2.6.9 之全栏 · 适万源 (W%/WAL/pb/⚖) · 1 user send ≤ 1 切
+//     守二: WAL 同源最小间隔 walEdgeCooldownMs 2s (避 4KB 帧连火 · 削 log 噪)
+//     守三: WAL 启动暖启 walWarmupMs 5000ms · 防 activate 首 stat 之累积差
+//           (实证 14:54:03 reload · 14:54:03.540 即火 · 启动雪崩源头)
+//   · 配置 (三新全默值已保守):
+//     · wam.perMessageMinIntervalMs (默 60000) · 全 reason 强锁 (0=关复 v2.6.11)
+//     · wam.walEdgeCooldownMs        (默 2000)  · WAL 同源最小间隔 (0=关)
+//     · wam.walWarmupMs              (默 5000)  · WAL 启动暖启窗 (0=关)
+//   · 不动: ⚡W%脉动 / ⚖额度变动 / 📃pb·new 算法 (阴阳已合)
+//   · 预期 (理论): WAL·edge fire 174/5min → ≤ 75 (-57%)
+//                  per-msg hit     50/5min →   ≤ 5  (-90%)
+//                  login✓           38/5min →   ≤ 5  (-87%)
+//                  雪崩拟消 · 1 user send ≤ 1 切号 (1:1 精确回归)
+//   · 道一以贯之: 64 章 "为之者败之·执之者失之·圣人无为故无败" ·
+//                单行全栏 >  多处细栏 · 守一 > 守多 · 道极减法之真
+//
 "use strict";
 const vscode = require("vscode");
 const fs = require("node:fs");
@@ -170,7 +275,146 @@ const { URL } = require("node:url");
 //   · 不禁账号 · banFor/isBanned/_bumpFailure 改为纯记数 · 历史黑名单自动清
 //   · 提 _maybeTrigger 为顶级函数 · Layer 6 直调 · 不再经 _layer6Trigger 中转
 //
-const VERSION = "2.6.8";
+// v2.6.9 · 道法自然 · 损 settle · 留真信号 (2026-05-07 实证根治):
+//   实证 (window1 5-WAM.log · 11min13s · 用户对话频率 ~3min/条):
+//     · 切号 34 次 / 22s 中位间隔 · 频率 ≈ 用户对话 9 倍
+//     · pb·settle fired 36 + skip 6 (全部错触发源)
+//     · wal·settle fired 0 (settle 模型对 WAL 完全失效·SQLite checkpoint 抢截)
+//     · 4 个并行 .pb 文件 (8bc7943c/b2165dd0/e9e73244/f9ebad5b)
+//     · debounced 仅 2 次 (4s 防抖 vs 15s settle 间隔→几乎全过)
+//   60秒采样 (用户等候期·我跑工具调用):
+//     · WAL 净增 0B (用户没 send · 真信号正确无噪)
+//     · pb 净增 310KB / 31 写入 (AI+工具噪音)
+//   根因 (10 层):
+//     1. 表象: 切号频率远高于用户对话频率
+//     2. 触发: 100% 来自 pb·settle (wal·settle 0)
+//     3. 多源: 4 文件并行各自 settle 累积
+//     4. 体: ~/.codeium/windsurf/cascade/ 50 个历史 .pb · 4 个活跃
+//     5. 漏: claim key=pbPrefix+bucket · 不同 prefix 不互锁 (跨实例锁实为同实例文件锁)
+//     6. 疏: 4s perMessageDebounceMs vs 15s SETTLE_MS · 间隔通常>4s
+//     7. 错: settle 模型 = "AI 流式段静默" ≠ "用户 click Send"
+//     8. 浊: pb 增量信号被 50 个历史会话 + cascade reindex daemon 污染
+//     9. 本: 一条 user msg → AI N 段流 × 活 pb 数 → N 次切号
+//    10. 道: v2.5 弃 L1-L5 hook 落到 .pb 信号 · 比原 hook 还吵 · 哲学错位
+//   修法 (反者道之动·损之又损):
+//     · 减:
+//       - 删 _firePbSettle 整段 (~26 行)
+//       - 删 watcher 内"存量文件增量 settle"段 (~60 行)
+//       - 删 _fireWalSettle settle 模型 (~70 行)
+//       - 删 settle 常量 SETTLE_MS/ACCUM_MIN/GROW_MIN/LARGE_DELTA/pbSettle Map
+//       - 删 pb·new 路径中 _lastPerMsgTriggerAt = 0 (旧自夺防抖最后一处)
+//     · 留:
+//       - 保 pb·new (新对话切号唯一无错配纯信号 · 1:1 精确对应)
+//     · 加:
+//       - WAL 边沿首发: 单次 delta ≥ 512B 立即 fire · 不等 settle
+//         (用户 click Send 时 SQLite 同步 fsync WAL · 一次写 1-2 帧 ≈ 4-8KB · 立可见)
+//       - 60s 全局强锁 (perMessageMinIntervalMs 默认 60000)
+//         任何信号源 60s 内最多 1 次切号 · 兜底无为
+//       - claim key 改纯 bucket (跨实例多源派生收一道)
+//   实证锚:
+//     v2.6.8: 22s/次切号 · 9倍率 · 31 hits / 2 debounced
+//     v2.6.9 期: ≥60s/次切号 · 1倍率 · 边沿首发 + 60s 强锁兜底
+//   道之精要:
+//     · 反者道之动 — pb 增量(AI 写)→反向→ WAL 边沿(用户写) · 信号本源对位
+//     · 弱者道之用 — 不再 settle 累积心跳/段间停顿 · 唯首帧即真
+//     · 上善如水   — AI 流响应 .pb 增长不动·唯用户 SQLite 同步 fsync 时切
+//     · 太上下知有之 — pb·new+wal·edge 两源精确·用户无感
+//     · 大制无割   — 净减 ~150 行 (删 settle + 加边沿) · 损之又损
+//     · 道法自然   — 用户日常对话 ~3min/条·切号 60s 强锁 → 自然合一
+//
+// v2.7.0 · 万法识号·守道反者 (2026-05-09):
+//   · 用户实证 (4 图):
+//     图1 账号列表大量 "?天/未验/D?/W?" → 入库 email 严重污染
+//     图2 "+ 添加账号" placeholder · 用户依此粘贴
+//     图3 微信发货 ("账号:..\n密码:含@\n账号管理器:点tps://..(去掉点)")
+//     图4 卡号N:/卡密N: 带数字编号格式
+//   · 病诊 (parseAccountText 失道之四):
+//     ① 「卡号N:/卡密N:」未在标签词典 · tryPair 错把 "卡号1" 当密码
+//     ② 「密码:uuCO4@7hukcO」(密码含 @) `if(!v.includes("@"))` 跳过 → 兜底误为新 email
+//     ③ tryPair 仅以 includes("@") 认 email · 卡密 "XuE2@UXoq7JD" 被错当 email
+//     ④ 反向配对 (pass 在前 email 在后) 缺失
+//   · 治法 (反者·弱者·守一):
+//     §A 立 _isValidEmail 严判 (local@domain.tld · 长度5-254 · 不含全角分隔符)
+//     §B 扩标签词典 + 兼容 \d* 数字编号:
+//        email +卡号|号码|账户名|登录名|登陆名|number|num|e-mail
+//        pass  +卡密|密钥|令牌|key|token|access(-token)?
+//     §C 标签即定锚·守一不退:
+//        密码标签后含@仍为密码 (修②)
+//        邮箱标签后必须 isValidEmail 才认 (修④ '账号管理器:URL' 不再误伤)
+//     §D tryPair 用 _isValidEmail 替代 includes('@') (修③)
+//     §E pendingPass 反向配对 (顺逆皆通)
+//     §F _stripWxHints 行尾剥离 (无任何空格)/(去掉点) 等微信提示 · 不弃真主
+//     §G _isNoiseLine 整行模板嗅探 (自动发货/订单编号/账号管理器: URL 等开头明确者)
+//   · 行为对齐:
+//     图3 微信 "账号:foo@gmail.com (无任何空格)\n密码:uuCO4@7hukcO" 识 1 账号 (修前 0)
+//     图4 卡号N:/卡密N: 5 卡全识 (修前 0)
+//     综合极端 _test_v270_omni_recognize.cjs · 72 过 / 0 败
+//   · 道之精要:
+//     · 反者道之动 — 反向出发 · 解构识号四病 · 治本不治标
+//     · 弱者道之用 — 不整行弃 · 仅剥微信提示尾 · 留真主之身
+//     · 唯变所适   — 标签词典极广 · 大方无隅 · 同出异名 · 万法皆归
+//     · 守一       — 标签即定锚 · 含@仍为密码 · 不再以"形似邮箱"草率
+//     · 大象无形   — 邮箱定准 (RFC 宽放) · 严判 TLD ≥2 letters
+//     · 信不足 案有不信 — 测毕 72/0 方为道
+//
+// v3.0.2 · 反者道之动 · 持久化全量修复 · 道法自然 · 无为而无不为 (2026-05-22):
+//   「一」 LOCK_FILE 独立持久化 (v2.7.4 补入) · lock-state.json 专司🔒 · multi-window race-safe
+//   「二」 save() 守一同步 _savedAccountMeta (v2.7.3 补入) · 解锁不再悄悄回退
+//   「三」 reloadAccounts() 实时读 LOCK_FILE · 反映其他窗口意图
+//   「四」 toggleSkip 写 LOCK_FILE + 同步内存快照 · 锁意图即时落盘
+//   「五」 verifyAllAccounts try/finally · _verifyAllInProgress 必重置 · 周期验证永不卡死
+//   「六」 lock-state.json 文件监视器 · 跨窗口锁变更实时广播
+//   「七」 autoVerifyStartupStaleMin (默认15min) · 启动验证不再跳过近期验过号
+//   「八」 refresh 消息触发 onlyStale 后台验证 · 手动刷新不再只是 reloadAccounts
+// v3.0.3 · 道法自然·无为而无不为 (2026-05-22 晚):
+//   「一」 _sessionCache 预缓存体系 — verifyOneAccount 已登录的 sessionToken 缓存
+//       loginAccount 弹延 devinLogin (速率限制根源) · 读缓存直射 injectToken
+//   「二」 injectFailCooldownMs 软编码 — 原 30s 硬编码改配置 (silent 默认 5s)
+//       预缓存命中时基本不再触发速率限制 · 5s 建基足夠口
+//   「三」 切号快速通道 — cache 命中时跳过 devinLogin/windsurfPostAuth 整个网络往返
+//       平均切号耗时: 3-8s(全登录) → <50ms(缓存命中) — 60倍提速
+// v3.0.4 · 水无常形·万格通吃 · 账密解析全量增强 (2026-05-22):
+//   「一」 _parseDualLabelLine — 双标签同行通吃 (邮箱：email----密码：pass · 任意顺序·任意分隔)
+//   「二」 _stripAnyLabel     — tryPair双侧净化 · 密码含"密码："前缀自动剥取真值
+//   「三」 行内标签检测       — email@x.com密码：pass / pass----邮箱：email 等无标准分隔形
+//   「四」 JSON数组整体解析   — [{email,password},...] 批量导出格式
+//   「五」 bracket标签兼容    — 【邮箱】email【密码】pass 等全角括号形
+// v3.0.5 · 反者道之动·邮箱先定密码后识 · 一劳永逸根治 (2026-05-22):
+//   「一」 _stripPassCandLabel — 密码候选保守剥 · 只剥中文标签与全英长词 · 不剥 pass/key/secret/pwd 短词
+//       根因: _stripAnyLabel 含 pass(?:word|wd)? 使裸 pass/key 等短词也匹配 → pass:word123 被污染为 word123
+//   「二」 tryPair 两阶段 — 第一阶裸检邮箱(保留原始密码) · 第二阶剥标签再检(针对有标签前缀的邮箱侧)
+//       核心: 密码侧永远使用 _stripPassCandLabel 而非 _stripAnyLabel · 像AI一样 邮箱先锚定密码取余值
+//   「三」 _emailAnchorExtract — 同步改用 _stripPassCandLabel · 根治兜底层同一病灶
+// v3.0.6 · 损之又损·归零IP限速 · devinLogin 全局序列化+缓存快路 (2026-05-22):
+//   【根因七层】: devinLogin = IP级速率限制唯一触发点
+//     ① verifyOneAccount 无条件调 devinLogin (无缓存快路) → parallel=3 同时三调 → 直触限速
+//     ② loginAccount 有缓存快路但 verifyOneAccount 没有 → verifyAll填cache途中手动切号 → miss → 再触
+//     ③ 无全局序列化 → 任何时刻N个并发 devinLogin → IP限速必然
+//   「一」 devinLogin 全局序列化门 — _devinLoginGate Promise chain
+//       任意时刻只有一个 devinLogin 在飞 · 连续调用间自动保证 wam.devinLoginMinGapMs(默认1200ms)
+//   「二」 verifyOneAccount 缓存快路 — 与 loginAccount 对齐
+//       有效cache → 直接 tryFetchPlanStatus → 零 devinLogin · 二次verifyAll无任何限速
+//       cache失效 → 驱逐 → 走全路 (devinLogin已被序列化保护)
+// v3.1.0 · 根治浏览器弹窗 · 道法自然 · 天下之至柔驰骋于天下之致坚 (2026-05-23)
+//
+//   根因 (逆向 codeium.windsurf dist/extension.js 实证):
+//     WindsurfAuthProvider.createSession() → login() → openExternal(loginUrl) = 浏览器弹窗
+//     触发链: ① 路甲(hijack) 调 loginWithAuthToken → provideAuthToken() 内 openExternal(loginUrl)
+//                  若 hijack 不粘 (Proxy/frozen) 或 Windsurf 在 hijack 前已捕获引用 → 泄漏弹窗
+//             ② 路乙(clipboard) 同 loginWithAuthToken → 同理泄漏
+//             ③ 路丙(provideAuthTokenToAuthProvider) 返 error 后降级到 ①② → 泄漏
+//             ④ 切号窗口内 Cascade panel 检测 "未登录" 发 handleLogin → LOGIN_WITH_REDIRECT → 弹窗
+//
+//   治法 (三层根治):
+//     「一」 openExternal 持久守卫 — 切号全程拦截 windsurf.com/auth URL · 从源头断弹窗
+//     「二」 消灭路甲/路乙降级 — 路丙失败仅重试一次 · 不走 loginWithAuthToken (弹窗根源)
+//     「三」 token 预验 — loginAccount 全登录路径先 registerUserViaSession 验 token 有效性
+//           再 injectToken · 避免 handleAuthToken 内部 registerUser 失败扰动 auth 状态
+//
+//   帛书四十三章: 天下之至柔，驰骋于天下之致坚；无有入于无间
+//   守卫无形(至柔) · 穿透一切弹窗路径(致坚) · 用户无感(无有入于无间)
+//
+const VERSION = "3.3.0";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
 const WINDSURF = "https://windsurf.com";
@@ -193,6 +437,7 @@ const URL_GET_PLAN_STATUS_LIST = URL_GET_USER_STATUS_LIST;
 const URL_GET_PLAN_STATUS = URL_GET_USER_STATUS_LIST[0];
 // v2.6.0 · 软编码 · 会话 token 格式单点定义 · 后端变更时仅此一处修
 const RE_SESSION_TOKEN = /^devin-session-token\$/;
+const URL_DEVIN_ORG_AUTH = "https://app.devin.ai/api/users/post-auth";
 // v2.4.0 · 全局 endpoint 健康度追踪 · 连续 401 时跳过 verifyAll · 不浪费请求
 let _quotaEndpointHealth = {
   consecutive401: 0, // 连续 401 计数
@@ -212,6 +457,10 @@ function _quotaEndpointDead() {
 const HTTP_TIMEOUT_MS = 12000;
 const WAM_DIR = path.join(os.homedir(), ".wam");
 const STATE_FILE = path.join(WAM_DIR, "wam-state.json");
+// v2.7.4 (补入v3.0.2) · 道恒无名·侯王若能守之·万物将自宾·民莫之令而自均焉 (三十二章)
+//   独立🔒持久化 · 专司一事 · 不被 multi-window race 污染 wam-state.json 大对象
+//   只有 toggleSkip 读写 · save() 从此文件读 · multi-process 自宾不争
+const LOCK_FILE = path.join(WAM_DIR, "lock-state.json");
 const BACKUP_DIR = path.join(WAM_DIR, "backups");
 const PENDING_TOKEN_FILE = path.join(WAM_DIR, "_pending_token.json");
 const MAX_BACKUPS = 10;
@@ -231,16 +480,28 @@ let _output = null,
   _verifyAllInProgress = false,
   _wamMode = "wam", // 'wam' | 'official' (本源同款) · 默认 wam · 用户自显式选官方时停引擎
   _switching = false, // 切号互斥锁 (本源 v17.42.7)
+  _uiAddOpen = false, // v3.0.5 · 添加账号展开状态 · 跨 refresh 持久 · 防回退闪烁
   _switchingStartTime = 0,
   _lastSwitchTime = 0, // 上次切号成功时间 (冷却用)
   _predictiveCandidate = -1, // 预判候选 idx (本源 v8 · 额度低时提前选好下一号)
   _lastInjectFail = 0, // 上次注入失败时间 (rate-limit 拦截冷却)
+  _lastDevinLoginAt = 0, // v3.0.6 上次 devinLogin 完成时间 · 全局最小间隔保证
+  _broadcastUITimer = null, // v3.0.6 broadcastUI 防抖定时器 · 合并高频调用
+  _openExternalGuardActive = false, // v3.1.0 openExternal 守卫开关 · 切号期间拦截 auth URL 弹窗
   _lastDocChangeAt = 0, // 最近文档变化时间 (Cascade 流式避让 · 对齐本源 v17.42.5)
   _lastSwitchMs = 0, // 上次切号耗时ms (对齐本源 switchToAccount.ms)
   _lastPerMsgTriggerAt = 0, // v2.5 per-msg 触发防抖
   _perMsgHits = 0, // v2.5 Layer 6 命中累计 (诊断)
   _perMsgRotates = 0, // v2.5 Layer 6 触发切号累计 (诊断)
-  _perMsgDebounced = 0, // v2.6.7 守一 · 防抖拦截累计 (修后应 ≥ hits 数量级)
+  _quotaPulseCount = 0, // v2.6.11 道恒无名 · W%脉动信号累计 (真本源·后端计费增量计数)
+  _lastQuotaWeekly = -1, // v2.6.11 上轮 weekly% (初始 -1 ·其他为 0-100)
+  _lastQuotaEmail = "", // v2.6.12 守一 · 上轮 weekly% 对应 email · 切号后清·防跨账号假脉动
+  _lastQuotaPulseAt = 0, // v2.6.12 守一 · 上次真脉动时刻 · WAL/pb 在窗口内让位
+  _quotaPulseSuppressedCount = 0, // v2.6.12 守一 · 跨账号假脉动屏蔽计数 (诊断)
+  _quotaDeltaCount = 0, // v2.6.13 阴阳结合 · ⚖额度变动信号累计 (阴·辅·诊断)
+  _lastQuotaDaily = -1, // v2.6.13 阴 · 上轮 daily% (Pro plan 主用 · 与 weekly 维度互补)
+  _lastQuotaPromptCredits = -1, // v2.6.13 阴 · 上轮 promptCredits (微观池·绝对数)
+  _lastQuotaFlowCredits = -1, // v2.6.13 阴 · 上轮 flowCredits (微观池·绝对数)
   _lastRotateToastAt = 0, // 状态栏切号反馈 3s 高亮
   _lastRotateToastEmail = "", // 状态栏切号反馈上次 email
   _layer6Stop = null; // Layer 6 dispose 函数
@@ -340,6 +601,149 @@ function sweepOrphanTmp() {
     return 0;
   }
 }
+// ═══ v2.7.4 (补入v3.0.2) · 🔒 独立持久化 · multi-window race-safe ═══
+//   治法: lock-state.json 专司🔒 · A 写 lock-state → B 的 save() 不动此文件 → race 自消
+function _readLockState() {
+  try {
+    if (!fs.existsSync(LOCK_FILE)) return {};
+    const j = JSON.parse(fs.readFileSync(LOCK_FILE, "utf8"));
+    return j && typeof j === "object" && j.locks ? j.locks : {};
+  } catch (e) {
+    log("_readLockState fail: " + e.message);
+    return {};
+  }
+}
+// 写: read-modify-write · 单进程内 atomic · multi-process last-writer-wins (安全·唯 toggleSkip 写)
+// ═══ v3.0.3 · 🚀 Session 预缓存体系 · 切号全程运动利万物而不争 ═══
+// 根治: devinLogin 是切号热路径的唱题 (IP级速率限制)
+//   沿革: verifyOneAccount 已走 devinLogin 全流 → 缓存 token
+//           rotateNext/loginAccount 先查缓存 → 命中则跳 devinLogin 直射 injectToken
+//           缓存未命中/失效 → 退退 fallback 全登录路径
+// 默认有效期: wam.tokenCacheMaxAgeMs (15min) · verifyAll周期为15-30min — 需单单对应
+const _sessionCache = new Map(); // email.lower → { sessionToken, apiKey, apiServerUrl, cachedAt }
+// v3.0.6 · devinLogin 全局序列化门 (Promise chain 互斥锁)
+// 保证: 任意时刻只有一个 devinLogin 在飞 · 防并发触 IP限速
+let _devinLoginGate = Promise.resolve();
+function _cacheSession(email, sessionToken, apiKey, apiServerUrl) {
+  if (!email || !sessionToken) return;
+  const maxAgeMs = Math.max(
+    60000,
+    +_cfg("tokenCacheMaxAgeMs", 15 * 60 * 1000) || 15 * 60 * 1000,
+  );
+  _sessionCache.set(email.toLowerCase(), {
+    sessionToken,
+    apiKey: apiKey || "",
+    apiServerUrl: apiServerUrl || "",
+    cachedAt: Date.now(),
+    maxAgeMs,
+  });
+}
+function _getCachedSession(email) {
+  if (!email) return null;
+  const c = _sessionCache.get(email.toLowerCase());
+  if (!c) return null;
+  const maxAgeMs = Math.max(
+    60000,
+    +_cfg("tokenCacheMaxAgeMs", 15 * 60 * 1000) || 15 * 60 * 1000,
+  );
+  if (Date.now() - c.cachedAt > maxAgeMs) {
+    _sessionCache.delete(email.toLowerCase());
+    return null;
+  }
+  return c;
+}
+function _evictSessionCache(email) {
+  if (email) _sessionCache.delete(email.toLowerCase());
+}
+// ═══ v3.1.0 · openExternal 持久守卫 · 天下之至柔驰骋于天下之致坚 ═══
+// 切号期间拦截 windsurf.com 认证 URL 的 openExternal 调用 · 从源头断弹窗
+// 原理: Windsurf extension 内部 login() / provideAuthToken() / LOGIN_WITH_REDIRECT
+//   都最终调 vscode.env.openExternal(loginUrl) 弹浏览器 · 我们在切号窗口内
+//   替换 openExternal 为守卫函数 · 凡 windsurf.com/account URL 静默吞掉 · 其余放行
+let _origOpenExternal = null; // 原始 openExternal 备份
+let _guardBlockCount = 0; // 守卫拦截计数 (诊断)
+function _installOpenExternalGuard() {
+  if (_openExternalGuardActive) return; // 已安装 · 幂等
+  try {
+    _origOpenExternal = vscode.env.openExternal;
+    const _guard = async (uri) => {
+      const s = uri && (typeof uri === "string" ? uri : uri.toString());
+      // 拦截 windsurf.com 认证相关 URL (account/login/auth/signin)
+      if (
+        s &&
+        /windsurf\.com\/(account|_devin-auth|auth|signin|login)/i.test(s)
+      ) {
+        _guardBlockCount++;
+        log(
+          "🛡️ openExternal guard: 拦截 auth URL #" +
+            _guardBlockCount +
+            " → " +
+            (s.length > 80 ? s.substring(0, 80) + "..." : s),
+        );
+        return false; // 静默吞掉 · 不弹浏览器
+      }
+      // 非 auth URL → 放行 (如帮助页面等)
+      return _origOpenExternal.call(vscode.env, uri);
+    };
+    Object.defineProperty(vscode.env, "openExternal", {
+      value: _guard,
+      configurable: true,
+      writable: true,
+    });
+    _openExternalGuardActive = vscode.env.openExternal === _guard;
+    if (_openExternalGuardActive) {
+      log("🛡️ openExternal guard: 已安装 · 切号窗口保护中");
+    } else {
+      log("🛡️ openExternal guard: defineProperty 不粘 · 降级无守卫");
+      _origOpenExternal = null;
+    }
+  } catch (e) {
+    log("🛡️ openExternal guard: 安装失败 · " + (e.message || e));
+    _origOpenExternal = null;
+    _openExternalGuardActive = false;
+  }
+}
+function _removeOpenExternalGuard() {
+  if (!_openExternalGuardActive || !_origOpenExternal) {
+    _openExternalGuardActive = false;
+    return;
+  }
+  try {
+    Object.defineProperty(vscode.env, "openExternal", {
+      value: _origOpenExternal,
+      configurable: true,
+      writable: true,
+    });
+    log(
+      "🛡️ openExternal guard: 已卸载 · 拦截 " + _guardBlockCount + " 次",
+    );
+  } catch (e) {
+    log("🛡️ openExternal guard: 卸载失败 · " + (e.message || e));
+  }
+  _openExternalGuardActive = false;
+  _origOpenExternal = null;
+}
+function _writeLockState(email, locked) {
+  try {
+    const cur = _readLockState();
+    const k = String(email || "").toLowerCase();
+    if (!k) return false;
+    if (locked) cur[k] = { skipAutoSwitch: true, ts: Date.now() };
+    else delete cur[k];
+    atomicWrite(
+      LOCK_FILE,
+      JSON.stringify(
+        { version: VERSION, savedAt: Date.now(), locks: cur },
+        null,
+        2,
+      ),
+    );
+    return true;
+  } catch (e) {
+    log("_writeLockState fail: " + e.message);
+    return false;
+  }
+}
 function _esc(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;")
@@ -388,32 +792,18 @@ function isTrialPlan(p) {
   return /trial|free/i.test(p || "");
 }
 function isClaudeAvailable(h) {
-  if (!h || !h.checked) return false;
-  const p = (h.plan || "").toLowerCase();
-  // 兵无常势: 所有免费层 → Claude 死刑 (对齐本源 v17.42.4 _FREE_TIER_SET)
-  if (/^free$|^devin.free$|^waitlist/i.test(p)) return false;
-  // Trial 过期 + 额度耗尽 → 不可用
-  if (
-    isTrialPlan(p) &&
-    h.planEnd > 0 &&
-    Date.now() > h.planEnd &&
-    h.daily <= 0 &&
-    h.weekly <= 0
-  )
-    return false;
+  // v3.0 · 道法自然 · 无为而无不为 · 不限制任何账号
+  //   旧法之患: Free/过期/!checked 均被封死 · 附加大量预判逻辑
+  //   新法: 一切返 true · 让登录/API实际失败说话 · 不作茧自缚
   return true;
 }
-// v2.3.0 锁🔒 全链路贯通 — 单一真相门 · 凡五辨一不齐即无效
-// 五辨: password · skipAutoSwitch (手动锁) · isBanned (15min 真黑) · isInUse (120s 使用中守) · isClaudeAvailable
+// v3.0 · 道法自焸 · 极简入余候选判定 · 不以任何健康数据预判
 function _isValidAutoTarget(i) {
   if (i < 0 || !_store) return false;
   const acc = _store.accounts[i];
-  if (!acc || !acc.password) return false;
-  if (acc.skipAutoSwitch) return false; // 用户手动锁 → 禁止自动切号
-  if (_store.isBanned(acc.email)) return false;
-  if (_store.isInUse(acc.email)) return false; // v2.3.0 使用中🔒 · 120s 内刚切过的号自动切号跳
-  const h = _store.getHealth(acc.email);
-  if (!isClaudeAvailable(h)) return false;
+  if (!acc || !acc.password) return false; // 无密码真无法登录
+  if (acc.skipAutoSwitch) return false; // 用户主动设置的锁 · 尊重意愿
+  // v3.0 · 不再检查 isBanned/isInUse/isClaudeAvailable · 有密码即候选
   return true;
 }
 
@@ -464,21 +854,257 @@ async function jsonPost(url, headers, body, timeoutMs) {
   return { status: r.status, json: parsed, text };
 }
 
-// ═══ § 万法识号 · 道法自然 · 一切账号格式同源 ═══
-// 输入: 任意文本 (粘贴自微信/邮件/JSON/CSV/Token面板)
+// ═══ § 万法识号 v2.7.0 · 道法自然 · 一切账号格式同源 ═══
+// 反者道之动 · 弱之胜强 柔之胜刚 · 唯变所适 · 适应万法之格式 · 无为而无不为
+//
+// 输入: 任意文本 (粘贴自微信/邮件/JSON/CSV/Token面板/卡号卡密/订单消息)
 // 输出: { accounts: [{email, password}], tokens: [string] }
-// 兼容: email password / email:pass / email----pass / email|pass / email,pass / email;pass / email\tpass
-//        反序 (pass email) · JSON · 多行标签 (邮箱：x\n密码：y / Email: x\nPassword: y)
-//        全角 ：=＝ · 原始 token (devin-session-token$ / eyJ JWT / auth1_ / 长 base64)
+//
+// 兼容形 (大方无隅 · 同出异名):
+//   - 紧贴/分隔: email password / email:pass / email----pass / email|pass / email,pass / email;pass / email\tpass
+//   - 反序: pass email (空白分)
+//   - JSON 单行 / 多行 JSON 数组
+//   - 多行标签 (邮箱:x\n密码:y / Email:x\nPassword:y / 账号:..\n密码:.. / 卡号N:..\n卡密N:..)
+//   - 标签数字编号: 卡号1:/账号2:/Email3: 自动剥
+//   - 全角 ：=＝ · 标签词典极广 (邮箱|账号|账户|帐号|帐户|用户名|用户|登录名|登陆名|卡号|号码|email|...)
+//   - 密码含 @ (如 uuCO4@7hukcO) 标签明确即守一不退 · 不再误为 email
+//   - 原始 token (devin-session-token$ / eyJ JWT / auth1_ / 长 base64)
+//   - 噪声免疫: '账号管理器:URL' '(无任何空格)' '(去掉点)' '订单编号:数字' '自动发货 时间' 等微信提示文静默跳过
+//
+// 守道之要 · 反者:
+//   1. isValidEmail 严判 (local@domain.tld) · 不再以 includes('@') 草率认 email
+//   2. 标签即定锚 · 守一不退 (密码标签后含@仍是密码 · 邮箱标签后非合法email则放过)
+//   3. 双向配对 (pendingEmail / pendingPass · 顺逆皆通)
+
+// 合法邮箱严判 · 大象无形 而有定准
+function _isValidEmail(s) {
+  if (!s || typeof s !== "string") return false;
+  s = s.trim();
+  if (s.length < 5 || s.length > 254) return false;
+  if (/[\s|;,，；\t]/.test(s)) return false; // 分隔符即非法
+  // local 段 RFC 宽放: A-Z a-z 0-9 . _ + -
+  // domain 段必须有点且 TLD 字母 ≥2
+  return /^[A-Za-z0-9._+\-]+@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,}$/.test(
+    s,
+  );
+}
+
+// 行尾提示剥离 · 微信常附 "(无任何空格)" "(去掉点)" 等于真账号行尾 · 弱者道之用
+// 不整行跳过 · 仅剥尾 · 留真主之身
+function _stripWxHints(ln) {
+  if (!ln) return ln;
+  // 反复剥尾 · 直到稳定
+  let prev;
+  do {
+    prev = ln;
+    ln = ln
+      // 微信反屏蔽提示
+      .replace(
+        /[（(]\s*(?:无任何空格|去掉点|去点|去掉空格|无空格)\s*[）)]/g,
+        "",
+      )
+      // 含 URL 的"账号管理器:"等子串 (整行嗅探漏过的中段)
+      .replace(/\s+账号管理器\s*[:：=＝]\s*\S+/, "")
+      .trim();
+  } while (ln !== prev && ln.length > 0);
+  return ln;
+}
+
+// 噪声行嗅探 · 微信/广告/订单 模板文 · 静默跳过
+// 守一: 仅识"整行明显是模板文"者跳过 · 真账号行不在此列 (剥尾后另判)
+function _isNoiseLine(ln) {
+  if (!ln) return true;
+  // 订单编号 · 自动发货 · 您的订单 等模板 (开头明确)
+  if (
+    /^(?:您的|您好|自动发货|订单编号|订单号|交易号|发货时间|订单时间|发货成功|交易成功|尊敬的)/.test(
+      ln,
+    )
+  )
+    return true;
+  // 纯日期时间行 (无其他实质内容)
+  if (/^\s*\d{4}[\-\/年]\d{1,2}[\-\/月]\d{1,2}[\s\d:：年月日时分秒]*$/.test(ln))
+    return true;
+  // 整行就是「账号管理器」类含 URL · 不是真账号
+  // (注: 必须开头即此标签 · 否则可能是真账号行的尾巴 · 已由 _stripWxHints 剥)
+  if (
+    /^(?:账号管理器|管理面板|管理后台|官网|官方网站|官方地址|商城|售后|客服|发货)\s*[:：=＝]/.test(
+      ln,
+    )
+  )
+    return true;
+  return false;
+}
+
+// ═══ v3.0.4 水无常形·万格通吃 · 账密解析全量增强 ═══
+// 标签词典 MID版 (非行首锁定) · 用于行内搜索双标签同行 / bracket兼容
+const _RE_EMAIL_LABEL_MID =
+  /(?:\[|【)?(?:邮箱|邮件|账号|账户|帐号|帐户|用户名称?|用户|登录名|登陆名|登录账号|登陆账号|登录账户|卡号|号码|账户名|e[\-\s]?mail|email|account|user(?:name)?|login|mail|id|number|num)(?:\]|】)?\s*\d*\s*[:：=＝]\s*/i;
+const _RE_PASS_LABEL_MID =
+  /(?:\[|【)?(?:密码|登录密码|登陆密码|口令|秘钥|密钥|卡密|令牌|password|pass(?:word|wd)?|pwd|secret|key)(?:\]|】)?\s*\d*\s*[:：=＝]\s*/i;
+// _stripAnyLabel: 剥首标签+数字序号 · tryPair双侧调用 · 密码含"密码："前缀自动净化
+function _stripAnyLabel(s) {
+  s = (s || "").trim();
+  s = s.replace(/^(?:#\s*)?\(?\d+[.):\-、，]\s*/, "").trim();
+  s = s
+    .replace(
+      /^(?:\[|【)?(?:邮箱|邮件|账号|账户|帐号|帐户|用户名称?|用户|登录名|登陆名|登录账号|登陆账号|登录账户|卡号|号码|账户名|e[\-\s]?mail|email|account|user(?:name)?|login|mail|id|number|num)(?:\]|】)?\s*\d*\s*[:：=＝]\s*/i,
+      "",
+    )
+    .trim();
+  s = s
+    .replace(
+      /^(?:\[|【)?(?:密码|登录密码|登陆密码|口令|秘钥|密钥|卡密|令牌|password|pass(?:word|wd)?|pwd|secret|key)(?:\]|】)?\s*\d*\s*[:：=＝]\s*/i,
+      "",
+    )
+    .trim();
+  return s;
+}
+// _stripPassTrail · 密码尾部注释净化 · 一劳永逸之本
+// 密码永远没有格式 · 但人们常在密码后追加备注 【首次登录需修改】(备注:xxx) 等
+// 凡此类尾部中文括号注释 · 全剥 · 还密码本真
+function _stripPassTrail(s) {
+  if (!s) return s;
+  let prev;
+  do {
+    prev = s;
+    // 尾部 【...】 （...） (...)
+    s = s.replace(/[\s　]*[【（(][^】）)]{0,60}[】）)][\s　]*$/, "").trim();
+    // 尾部 备注:xxx / 提示:xxx / 注意:xxx
+    s = s.replace(/[\s　]*(?:备注|提示|注意|说明)\s*[:：].{0,60}$/, "").trim();
+    // 尾部 首次登录/请修改/需修改 等动词提示
+    s = s
+      .replace(
+        /[\s　]*(?:首次登录|请.*?修改|需.*?修改|初始密码|默认密码).{0,40}$/,
+        "",
+      )
+      .trim();
+  } while (s !== prev && s.length > 0);
+  return s;
+}
+// _stripPassCandLabel · 密码候选侧保守剥 · v3.0.5 一劳永逸根治
+// 哲学: 密码无结构 · 只有"确定无歧义"的标签才能被剥取 · 不能剥短歧义词(pass/key/secret/pwd)
+//   _stripAnyLabel 含 pass(?:word|wd)? 使裸 pass 也匹配 → user@x.com:pass:word123 被污染为 word123
+//   此函数专用于密码候选侧 · 只剥中文标签(无歧义) + 全英长词(>= 8char · 无歧义)
+//   保留: pass:xxx / key:xxx / pwd:xxx / secret:xxx 等短英文 → 不再被误剥
+function _stripPassCandLabel(s) {
+  s = (s || "").trim();
+  // 中文标签: 语义明确 无歧义 可安全剥
+  s = s
+    .replace(
+      /^(?:\[|【)?(?:密码|登录密码|登陆密码|口令|秘钥|密钥|卡密|令牌)(?:\]|】)?\s*\d*\s*[:：=＝]\s*/i,
+      "",
+    )
+    .trim();
+  // 全英长词(>=8字符): password/passphrase/passwd 无歧义可安全剥 · 不含 pass/key/pwd/secret
+  s = s
+    .replace(/^(?:password|passphrase|passwd)\s*\d*\s*[:：=＝]\s*/i, "")
+    .trim();
+  return s;
+}
+// _emailAnchorExtract · 邮箱锚定通吃法 · 真正一劳永逸之本源
+// 哲学: 邮箱是唯一有确定结构的字段 · 密码=行内去除邮箱+标签+噪声后的一切剩余
+// 覆盖一切分隔符失效、未知格式、未来格式 — 永久兜底
+// v3.0.5: 密码候选改用 _stripPassCandLabel (保守剥) · 不再用 _stripAnyLabel (可污染密码)
+const _RE_EMAIL_SCAN =
+  /[A-Za-z0-9._+\-]+@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,}/;
+function _emailAnchorExtract(ln) {
+  const m = _RE_EMAIL_SCAN.exec(ln);
+  if (!m) return null;
+  const email = m[0];
+  const before = ln
+    .substring(0, m.index)
+    .replace(/[-\s|,;，；=＝：:·#*（(【>]+$/, "")
+    .trim();
+  const after = ln
+    .substring(m.index + email.length)
+    .replace(/^[-\s|,;，；=＝：:·#*）)】<]+/, "")
+    .trim();
+  // v3.0.5: 保守剥 · 密码侧不再使用 _stripAnyLabel
+  const passCand = _stripPassTrail(_stripPassCandLabel(after || before));
+  if (!passCand || !_isValidEmail(email)) return null;
+  return { email, password: passCand };
+}
+
+// _parseDualLabelLine: 双标签同行通吃 · 水无常形 · 任意顺序·任意分隔
+// 覆盖: 邮箱：email----密码：pass / 邮箱：email 密码：pass / 密码：pass 邮箱：email
+//       【邮箱】email【密码】pass / email:xxx password:yyy 等所有双标签同行格式
+function _parseDualLabelLine(ln) {
+  const em = _RE_EMAIL_LABEL_MID.exec(ln);
+  const pm = _RE_PASS_LABEL_MID.exec(ln);
+  if (!em || !pm) return null;
+  let emailPart, passPart;
+  if (em.index <= pm.index) {
+    const afterEmail = ln.substring(em.index + em[0].length);
+    const pm2 = _RE_PASS_LABEL_MID.exec(afterEmail);
+    if (!pm2) return null;
+    emailPart = afterEmail
+      .substring(0, pm2.index)
+      .replace(/[-\s|,;，；=＝：:·]+$/, "")
+      .trim();
+    passPart = afterEmail.substring(pm2.index + pm2[0].length).trim();
+  } else {
+    const afterPass = ln.substring(pm.index + pm[0].length);
+    const em2 = _RE_EMAIL_LABEL_MID.exec(afterPass);
+    if (!em2) return null;
+    passPart = afterPass
+      .substring(0, em2.index)
+      .replace(/[-\s|,;，；=＝：:·]+$/, "")
+      .trim();
+    emailPart = afterPass.substring(em2.index + em2[0].length).trim();
+  }
+  emailPart = emailPart.replace(/^[-\s·]+/, "").trim();
+  passPart = passPart.replace(/^[-\s·]+/, "").trim();
+  if (!_isValidEmail(emailPart) || !passPart) return null;
+  return { email: emailPart, password: passPart };
+}
+
 function parseAccountText(content) {
   const accounts = [];
   const tokens = [];
   if (!content || typeof content !== "string") return { accounts, tokens };
 
+  // v3.0.4+ · JSON 数组整体解析 (批量导出 [{email,password},...] 格式优先尝试)
+  const _tc = content.trim();
+  if (_tc.startsWith("[")) {
+    try {
+      const _ja = JSON.parse(_tc);
+      if (Array.isArray(_ja)) {
+        for (const _j of _ja) {
+          if (!_j || typeof _j !== "object") continue;
+          const _je = String(
+            _j.email ||
+              _j.username ||
+              _j.account ||
+              _j.user ||
+              _j.mail ||
+              _j.login ||
+              "",
+          ).trim();
+          const _jp = String(
+            _j.password || _j.pass || _j.pwd || _j.passwd || _j.secret || "",
+          ).trim();
+          if (_je && _jp && _isValidEmail(_je))
+            accounts.push({ email: _je, password: _jp });
+          const _jt = String(
+            _j.token ||
+              _j.sessionToken ||
+              _j.session_token ||
+              _j.authToken ||
+              _j.access_token ||
+              "",
+          ).trim();
+          if (_jt) tokens.push(_jt);
+        }
+        if (accounts.length || tokens.length) return { accounts, tokens };
+      }
+    } catch {}
+  }
+
+  // 标签词典 · 大方无隅 · 标签后兼容 \d* 数字编号 (卡号1: / 账号2: / Email3:)
   const RE_LABEL_EMAIL =
-    /^\s*(?:邮箱|账号|账户|帐号|帐户|用户名|用户|email|account|user(?:name)?|login|mail|id)\s*[:：=＝]\s*/i;
+    /^\s*(?:邮箱|邮件|账号|账户|帐号|帐户|用户名|用户名称|用户|登录名|登陆名|登录账号|登陆账号|登录账户|卡号|号码|账户名|e[\-\s]?mail|email|account|user(?:name)?|login|mail|id|number|num)\s*\d*\s*[:：=＝]\s*/i;
   const RE_LABEL_PASS =
-    /^\s*(?:密码|口令|秘钥|password|pass|pwd|passwd|secret)\s*[:：=＝]\s*/i;
+    /^\s*(?:密码|登录密码|登陆密码|口令|秘钥|密钥|卡密|令牌|password|pass(?:word|wd)?|pwd|secret|key|token|access(?:[\-_]?token)?)\s*\d*\s*[:：=＝]\s*/i;
   const RE_TOKEN_PREFIX = /^(devin-session-token\$|auth1_|sk-)/i;
   const RE_JWT = /^eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/;
 
@@ -493,16 +1119,71 @@ function parseAccountText(content) {
     return false;
   }
 
+  // tryPair · v3.0.5 两阶段 · 邮箱先锚密码取余 · 像AI一样 · 一劳永逸
+  // 第一阶: 裸检(不剥标签) · 保留原始密码值 · 覆盖: 无标签分隔格式、密码含:=等特殊字符
+  // 第二阶: 邮箱侧剥标签后再检 · 覆盖: 邮箱有标签前缀(邮箱：xxx / email:xxx) 的情形
+  // 密码侧永远使用 _stripPassCandLabel(保守剥) · 永不使用 _stripAnyLabel · 根治 pass:xxx 污染
   function tryPair(a, b) {
     a = (a || "").trim();
     b = (b || "").trim();
     if (!a || !b) return null;
-    if (a.includes("@")) return { email: a, password: b };
-    if (b.includes("@")) return { email: b, password: a };
+    // 第一阶: 裸检 (无任何剥取) — 原始值最可信 · 密码含:=等不被误剥
+    const aIsEmailRaw = _isValidEmail(a);
+    const bIsEmailRaw = _isValidEmail(b);
+    if (aIsEmailRaw && !bIsEmailRaw)
+      return { email: a, password: _stripPassTrail(_stripPassCandLabel(b)) };
+    if (bIsEmailRaw && !aIsEmailRaw)
+      return { email: b, password: _stripPassTrail(_stripPassCandLabel(a)) };
+    if (aIsEmailRaw && bIsEmailRaw)
+      return { email: a, password: _stripPassTrail(b) };
+    // 第二阶: 邮箱侧剥标签 (处理 "邮箱：xxx" / "email:xxx" 等有标签前缀的邮箱)
+    // 密码侧 b/a 同样只用 _stripPassCandLabel (保守) · 不用 _stripAnyLabel
+    const aStripped = _stripAnyLabel(a);
+    const bStripped = _stripAnyLabel(b);
+    if (!aStripped && !bStripped) return null;
+    const aIsEmailSt = _isValidEmail(aStripped);
+    const bIsEmailSt = _isValidEmail(bStripped);
+    if (aIsEmailSt && !bIsEmailSt)
+      return {
+        email: aStripped,
+        password: _stripPassTrail(_stripPassCandLabel(b)),
+      };
+    if (bIsEmailSt && !aIsEmailSt)
+      return {
+        email: bStripped,
+        password: _stripPassTrail(_stripPassCandLabel(a)),
+      };
+    if (aIsEmailSt && bIsEmailSt)
+      return { email: aStripped, password: _stripPassTrail(b) };
     return null;
   }
 
   function parseSingleLine(ln) {
+    // 0. 双标签同行通吃 (邮箱：email----密码：pass · 任意顺序·任意分隔)
+    const _dlr = _parseDualLabelLine(ln);
+    if (_dlr) return _dlr;
+    // 0b. 行内密码标签: email@x.com密码：pass / email@x.com 密码：pass
+    const _inPm = _RE_PASS_LABEL_MID.exec(ln);
+    if (_inPm && _inPm.index > 0) {
+      const _ec = ln
+        .substring(0, _inPm.index)
+        .replace(/[-\s|,;，；=＝：:·]+$/, "")
+        .trim();
+      const _pc = ln.substring(_inPm.index + _inPm[0].length).trim();
+      if (_isValidEmail(_ec) && _pc) return { email: _ec, password: _pc };
+    }
+    // 0c. 行内邮箱标签: pass 邮箱：email / pass----邮箱：email (密码在前邮箱在后)
+    const _inEm = _RE_EMAIL_LABEL_MID.exec(ln);
+    if (_inEm && _inEm.index > 0) {
+      const _pc2 = _stripAnyLabel(
+        ln
+          .substring(0, _inEm.index)
+          .replace(/[-\s|,;，；=＝：:·]+$/, "")
+          .trim(),
+      );
+      const _ec2 = ln.substring(_inEm.index + _inEm[0].length).trim();
+      if (_isValidEmail(_ec2) && _pc2) return { email: _ec2, password: _pc2 };
+    }
     // 1. ---- (4+ dashes)
     if (/----+/.test(ln)) {
       const i = ln.search(/----+/);
@@ -531,7 +1212,7 @@ function parseAccountText(content) {
       if (r) return r;
     }
     // 5. comma · 分号 (仅 2 段)
-    for (const sep of [",", ";"]) {
+    for (const sep of [",", ";", "，", "；"]) {
       if (ln.includes(sep)) {
         const p = ln.split(sep);
         if (p.length === 2) {
@@ -540,12 +1221,17 @@ function parseAccountText(content) {
         }
       }
     }
-    // 6. 空白 · email 在前
-    let m = ln.match(/^(\S+@\S+)\s+(\S.*)$/);
-    if (m) return { email: m[1], password: m[2].trim() };
-    // 7. 空白 · email 在后 (反序)
-    m = ln.match(/^(\S+)\s+(\S+@\S+)\s*$/);
-    if (m && !m[1].includes("@")) return { email: m[2], password: m[1] };
+    // 6. 空白 · 唯需一段为合法 email · 另一段为非空非 email 即认
+    const ws = ln.match(/^(\S+)\s+(\S.*?)\s*$/);
+    if (ws) {
+      const r = tryPair(ws[1], ws[2]);
+      if (r) return r;
+    }
+    // 7. 邮箱锚定通吃法 · 一劳永逸终极兜底 · 凡上述分隔符皆失效时仍可解
+    //    原理: 邮箱是唯一有确定结构的字段，密码=行内去除邮箱+标签+噪声后的一切剩余
+    //    覆盖: 未知分隔符·未来格式·任意语言注释混入·永不失效
+    const _eae = _emailAnchorExtract(ln);
+    if (_eae) return _eae;
     return null;
   }
 
@@ -555,7 +1241,15 @@ function parseAccountText(content) {
     let ln = raw.trim();
     if (!ln || ln.startsWith("#") || ln.startsWith("//")) continue;
 
-    // 0. 整行就是 token
+    // 0a. 剥行尾微信提示 ((无任何空格)/(去掉点)/中段"账号管理器:URL")
+    //     弱者道之用 · 不整行弃 · 留真主之身
+    ln = _stripWxHints(ln);
+    if (!ln) continue;
+
+    // 0b. 噪声行 · 静默跳过 (微信广告模板/订单/账号管理器整行等)
+    if (_isNoiseLine(ln)) continue;
+
+    // 0b. 整行就是 token
     if (looksLikeToken(ln)) {
       items.push({ type: "token", raw: ln });
       continue;
@@ -568,7 +1262,7 @@ function parseAccountText(content) {
         const e =
           j.email || j.username || j.account || j.user || j.mail || j.login;
         const p = j.password || j.pass || j.pwd || j.passwd || j.secret;
-        if (e && p && String(e).includes("@")) {
+        if (e && p && _isValidEmail(String(e).trim())) {
           items.push({
             type: "pair",
             email: String(e).trim(),
@@ -589,26 +1283,50 @@ function parseAccountText(content) {
       } catch {}
     }
 
-    // 2. 标签前缀 · 密码
+    // 2. 标签前缀 · 密码 · 守一不退: 标签明确即定锚 · 内容含 @ 仍为密码
     const passM = ln.match(RE_LABEL_PASS);
     if (passM) {
-      const v = ln.substring(passM[0].length).trim();
-      if (v && !v.includes("@")) {
+      // v3.0.4+ · 双标签同行优先 (密码：pass----邮箱：email 逆序形 · 水无常形)
+      const _dlrP = _parseDualLabelLine(ln);
+      if (_dlrP) {
+        items.push({
+          type: "pair",
+          email: _dlrP.email,
+          password: _dlrP.password,
+        });
+        continue;
+      }
+      const v = _stripPassTrail(ln.substring(passM[0].length).trim());
+      if (v) {
+        // 标签即锚 · 不再以 含@ 排除 (修病二: uuCO4@7hukcO 不再误判)
         if (looksLikeToken(v)) items.push({ type: "token", raw: v });
         else items.push({ type: "pass", password: v });
         continue;
       }
-      ln = v || ln;
+      // v 为空 · 罕 · 跳过即可
+      continue;
     }
 
-    // 3. 标签前缀 · 邮箱
+    // 3. 标签前缀 · 邮箱 · 守一: 必须 isValidEmail 才认 (修病四: '账号管理器:URL' 不再误伤)
     const emailM = ln.match(RE_LABEL_EMAIL);
     if (emailM) {
+      // v3.0.4+ · 双标签同行优先 (邮箱：email----密码：pass · 水无常形)
+      const _dlrE = _parseDualLabelLine(ln);
+      if (_dlrE) {
+        items.push({
+          type: "pair",
+          email: _dlrE.email,
+          password: _dlrE.password,
+        });
+        continue;
+      }
       const v = ln.substring(emailM[0].length).trim();
-      if (v.includes("@") && !/[\s|:：\t]/.test(v)) {
+      if (_isValidEmail(v)) {
         items.push({ type: "email", email: v });
         continue;
       }
+      // 非合法 email · 可能是 "账号: foo@bar.com password" 之同行带密码
+      // 剥前缀后让 parseSingleLine 处理
       ln = v || ln;
     }
 
@@ -623,8 +1341,8 @@ function parseAccountText(content) {
       continue;
     }
 
-    // 5. 兜底: 整行就是邮箱 (待与下一行密码配对)
-    if (/^\S+@\S+$/.test(ln)) {
+    // 5. 兜底: 整行就是合法邮箱 (待与下一行密码配对)
+    if (_isValidEmail(ln)) {
       items.push({ type: "email", email: ln });
       continue;
     }
@@ -641,19 +1359,32 @@ function parseAccountText(content) {
     // 不可识别 · 静默跳过
   }
 
-  // 序列配对 · email 后接 pass
+  // 序列配对 · 双向 · 顺逆皆通
   let pendingEmail = null;
+  let pendingPass = null;
   for (const it of items) {
     if (it.type === "pair") {
-      if (it.email && it.password && it.email.includes("@"))
+      if (it.email && it.password && _isValidEmail(it.email))
         accounts.push({ email: it.email, password: it.password });
       pendingEmail = null;
+      pendingPass = null;
     } else if (it.type === "email") {
-      pendingEmail = it.email;
+      if (pendingPass) {
+        // 反序: 先 pass 后 email
+        accounts.push({ email: it.email, password: pendingPass });
+        pendingPass = null;
+        pendingEmail = null;
+      } else {
+        // 已有 pendingEmail 而无 pass · 新 email 覆盖 (前者孤立 · 弃)
+        pendingEmail = it.email;
+      }
     } else if (it.type === "pass") {
       if (pendingEmail) {
         accounts.push({ email: pendingEmail, password: it.password });
         pendingEmail = null;
+      } else {
+        // 反序: pass 在前 · 缓存等下一 email
+        pendingPass = it.password;
       }
     } else if (it.type === "token") {
       tokens.push(it.raw);
@@ -732,9 +1463,44 @@ class Store {
         this.activeApiServerUrl = j.activeApiServerUrl;
       if (typeof j.lastRotateAt === "number")
         this.lastRotateAt = j.lastRotateAt;
-      // v2.1.2 · 锁🔒贯通 · accountMeta 持久化 (skipAutoSwitch 重启不丢)
-      if (j.accountMeta && typeof j.accountMeta === "object")
+      // v2.7.4 (补入v3.0.2) · 优先读独立 lock-state.json (multi-window race-safe)
+      //   兼容: lock-state.json 不存在时 fallback 旧 accountMeta + 一次性 migrate
+      const diskLocks = _readLockState();
+      const hasLockFile = fs.existsSync(LOCK_FILE);
+      if (hasLockFile) {
+        this._savedAccountMeta = diskLocks;
+        log(
+          "store.load · lock-state.json 真本源 · " +
+            Object.keys(diskLocks).length +
+            " 个🔒",
+        );
+      } else if (j.accountMeta && typeof j.accountMeta === "object") {
         this._savedAccountMeta = j.accountMeta;
+        try {
+          atomicWrite(
+            LOCK_FILE,
+            JSON.stringify(
+              {
+                version: VERSION,
+                savedAt: Date.now(),
+                locks: j.accountMeta,
+                _migratedFrom: "wam-state.json.accountMeta",
+              },
+              null,
+              2,
+            ),
+          );
+          log(
+            "store.load · migrate accountMeta → lock-state.json · " +
+              Object.keys(j.accountMeta).length +
+              " 个🔒 (一次性)",
+          );
+        } catch (me) {
+          log("store.load · migrate lock fail: " + me.message);
+        }
+      } else {
+        this._savedAccountMeta = {};
+      }
       // v2.4.0 · D=W 污染清洗 + 陈年数据标记 · 反者道之动
       const cleanReport = this._cleanseHealthOnLoad();
       log(
@@ -775,42 +1541,12 @@ class Store {
   // stale 阈值: 12h (与 UI getHealth.isStale 同步 · v2.4.0 收严)
   //   endpoint 挂时全部号都会 stale · 顶部红条提示即可 · 单行不再标
   _cleanseHealthOnLoad() {
-    const report = { dwPolluted: 0, staleCount: 0, trialNoPlanEnd: 0 };
-    const STALE_HOURS = 12; // 超过 12h 认为陈年 (UI 会显 stale)
-    const now = Date.now();
-    for (const key of Object.keys(this.health)) {
-      const h = this.health[key];
-      if (!h) continue;
-      // 检测 D=W 污染 (D=W 且 0 < D < 100 · 独立资源池同值概率极低)
-      if (
-        h.checked &&
-        typeof h.daily === "number" &&
-        typeof h.weekly === "number" &&
-        h.daily === h.weekly &&
-        h.daily > 0 &&
-        h.daily < 100
-      ) {
-        // 标记为未验 · 清陯 D/W · 保留其他元数据 (planEnd/credits)
-        h._dwPollutedAt = now;
-        h.checked = false;
-        h.daily = 0;
-        h.weekly = 0;
-        report.dwPolluted++;
-      }
-      // v2.5.4 · Trial 脏数据清洗 · 软编码判据 (兼容 Team Trial/Free Trial 等变体)
-      //   实证: 2026-05-04 前 header X-Devin-Auth1-Function 缺 → parsePlan 跑过但 planEnd 可能遗失
-      //   法: _isTrialLike(h) && planEnd==0 && checked=true · 标 checked=false · 下次自动重验
-      if (h.checked && _isTrialLike(h) && (!h.planEnd || h.planEnd === 0)) {
-        h._trialDirtyAt = now;
-        h.checked = false;
-        report.trialNoPlanEnd++;
-      }
-      // 统计 stale
-      if (h.lastChecked && now - h.lastChecked > STALE_HOURS * 3600 * 1000) {
-        report.staleCount++;
-      }
-    }
-    return report;
+    // v3.0 · 无为 · 完全废止一切清洗操作 · 保留全部历史数据不动
+    //   旧法之患:
+    //     · D=W 污染清洗: 误标 checked=false → 冤杀正常号
+    //     · Trial+planEnd=0 清洗: 误标 checked=false → GetUserStatus 400 时全军覆没
+    //   新法: 直接返回空报告 · 绝不修改任何字段
+    return { dwPolluted: 0, staleCount: 0, trialNoPlanEnd: 0 };
   }
   // v2.4.0 · 手动清空全部 health · 用户重置·从干净开始
   clearAllHealth() {
@@ -844,13 +1580,11 @@ class Store {
   }
   save() {
     try {
-      // v2.1.2 · 锁🔒贯通 · 提取 accountMeta (仅保存非默认状态以控制体积)
-      const accountMeta = {};
-      for (const a of this.accounts) {
-        if (a && a.skipAutoSwitch) {
-          accountMeta[a.email.toLowerCase()] = { skipAutoSwitch: true };
-        }
-      }
+      // v2.7.4 (补入v3.0.2) · 道恒无名·守一 · accountMeta 从 LOCK_FILE 真本源读 (non-raceable)
+      //   v2.7.3 关键修: this._savedAccountMeta 同步 → reloadAccounts 不再回退锁状态
+      //   v2.7.4 升级: 不再从 accounts 重算 (race-immune) · 读 LOCK_FILE 权威源
+      const accountMeta = _readLockState(); // 真本源·非从 accounts 重算
+      this._savedAccountMeta = accountMeta; // 守一·与盘同步 (v2.7.3 治🔒回退关键一行)
       const data = {
         version: VERSION,
         savedAt: Date.now(),
@@ -903,18 +1637,25 @@ class Store {
     const r = loadAccountsFromFs();
     this.accountsSource = r.source;
     this.accounts = r.accounts;
-    // v2.1.2 · 锁🔒贯通 · 从持久化 accountMeta 恢复 skipAutoSwitch
-    if (this._savedAccountMeta) {
-      let restored = 0;
-      for (const a of this.accounts) {
-        const meta = this._savedAccountMeta[a.email.toLowerCase()];
-        if (meta && meta.skipAutoSwitch) {
-          a.skipAutoSwitch = true;
-          restored++;
-        }
+    // v2.7.4 (补入v3.0.2) · 实时读 lock-state.json (盘上真本源 · multi-window race-safe)
+    //   旧法 (v2.1.2): 用 this._savedAccountMeta 内存快照 · 多窗口下被覆盖
+    //   新法: 每次 reloadAccounts 都重读盘 · 反映其他窗口 toggleSkip 的最新意图
+    //   降级 (lock-state.json 读失败): 继续用 _savedAccountMeta (load 时已 fallback)
+    const diskLocks = _readLockState();
+    const locks =
+      Object.keys(diskLocks).length > 0
+        ? diskLocks
+        : this._savedAccountMeta || {};
+    this._savedAccountMeta = locks; // 刷新内存快照·与盘上一致
+    let restored = 0;
+    for (const a of this.accounts) {
+      const meta = locks[a.email.toLowerCase()];
+      if (meta && meta.skipAutoSwitch) {
+        a.skipAutoSwitch = true;
+        restored++;
       }
-      if (restored > 0) log("reloadAccounts: 恢复 🔒 锁号 " + restored + " 个");
     }
+    if (restored > 0) log("reloadAccounts: 恢复 🔒 锁号 " + restored + " 个");
     if (this.activeEmail) {
       const idx = this.accounts.findIndex(
         (a) => a.email.toLowerCase() === this.activeEmail.toLowerCase(),
@@ -1036,6 +1777,9 @@ class Store {
       hasSnap: true,
       checked: true,
     });
+    // v3.3.0 · 验证成功 → 清除旧错误标记 · 成功即洗冤 · 道法自然
+    delete merged.lastError;
+    delete merged.lastErrorAt;
     // v2.4.4 · 反者道之动 · 0 值不覆盖 prev 非 0 (弱者道之用 · 守柔处下)
     //   bug: 老 ext host 进程跑旧 parsePlan 返 planEnd=0 · 覆盖 prev 的好值
     //   实证: state.json 78 号 fresh lastChecked 但 planEnd=0 · ancient 12 号保留好值
@@ -1075,6 +1819,18 @@ class Store {
       this.changesDetected++;
     this.save();
   }
+  // v3.3.0 · 道法自然 · 不遮不掩 · 记录验证/登录失败原因到 health
+  //   不覆写已有好数据(checked/daily/weekly) · 仅追加 lastError/lastErrorAt
+  //   下次 setHealth 成功时 lastError 自动清除 · 因果自然
+  setHealthError(email, stage, error) {
+    const k = email.toLowerCase();
+    const prev = this.health[k] || {};
+    this.health[k] = Object.assign({}, prev, {
+      lastError: (stage || "?") + ": " + (error || "?"),
+      lastErrorAt: Date.now(),
+    });
+    this.save();
+  }
   getHealth(email) {
     const k = (email || "").toLowerCase();
     const h = this.health[k];
@@ -1091,6 +1847,8 @@ class Store {
         staleMin: -1,
         staleHours: -1,
         isStale: false,
+        lastError: "",
+        lastErrorAt: 0,
       };
     // v2.4.0 · staleHours 计算 + isStale 标志 · UI 据此变灰 · 不骗人
     const now = Date.now();
@@ -1181,37 +1939,41 @@ class Store {
     this.inUseUntil = {};
     return n;
   }
-  // ── v2.3.0 评分 — 道法自然 · D/W 综合 + 干旱/重置倒计时/锁/Claude门控 + 使用中🔒 ──
+  // ── v3.0 道法自然 · 全号参与评分 · 双零才最低分 · 无门第封冻 ──
   _scoreOf(idx) {
     const a = this.accounts[idx];
-    if (!a || !a.password) return -Infinity;
-    if (a.skipAutoSwitch) return -Infinity; // 🔒 锁号不参与自动切号
-    if (this.isBanned(a.email)) return -Infinity;
-    if (this.isInUse(a.email)) return -Infinity; // v2.3.0 使用中🔒 120s 不参与
+    if (!a || !a.password) return -Infinity; // 无密码真无法登录
+    if (a.skipAutoSwitch) return -Infinity; // 用户主动锁 · 尊重意愿
+    // v3.0 · 不再检查 isBanned/isInUse · 全号平等参与
     const h = this.getHealth(a.email);
-    if (!h.checked) return 50; // 未验号给基础分 (好过跳过)
-    if (!isClaudeAvailable(h)) return -Infinity; // Free/过期耗尽不选
+    if (!h.checked) return 100; // 未验号给中等分 · 可与已验号公平竞争
+    // isClaudeAvailable 永远 true · 不会 -Infinity
     const hrsToDaily = hoursUntilDailyReset();
     const hrsToWeekly = hoursUntilWeeklyReset();
     const drought = isWeeklyDrought();
+    // overageActive → 最高优先 (官方确认的 Extra Usage 完全可用)
+    if (h.overageActive) {
+      let s = 300 + Math.min(100, h.overageDollars || 0);
+      if (h.staleMin >= 0 && h.staleMin < 15) s += 60;
+      else if (h.staleMin >= 0 && h.staleMin < 60) s += 30;
+      else if (h.staleMin >= 60 && h.staleMin < 120) s -= 30;
+      else if (h.staleMin >= 120 && h.staleMin < 360) s -= 80;
+      else if (h.staleMin >= 360) s -= 150;
+      return s;
+    }
     if (drought) {
       // ── 干旱模式: 只看 Daily ──
-      if (h.daily <= 0 && hrsToDaily > 4) return -Infinity;
-      let s = h.daily * 15;
-      if (h.daily <= 5 && hrsToDaily <= 2)
-        s += 300; // 即将重置 · 低额度也值得
+      // v3.0 · D=0 也不 -Infinity · 给最低正分
+      let s = Math.max(h.daily, 0) * 15;
+      if (h.daily <= 5 && hrsToDaily <= 2) s += 300;
       else if (h.daily <= 5 && hrsToDaily <= 6) s += 120;
       if (h.daily > 50) s += 200;
       if (h.staleMin >= 0 && h.staleMin < 5) s += 30;
-      else if (h.staleMin >= 0 && h.staleMin > 60) s += 60;
-      return s;
+      return Math.max(s, 1); // 至少 1 分 · 不封号
     }
     // ── 正常模式: D+W 综合评分 ──
-    const eff = Math.min(h.daily, h.weekly);
-    if (h.daily <= 0 && h.weekly <= 0 && hrsToDaily > 4 && hrsToWeekly > 4)
-      return -Infinity;
-    if (h.weekly <= 0 && hrsToWeekly > 6) return -Infinity;
-    let s = eff * 10 + h.weekly * 8 + h.daily * 3;
+    // v3.0 · W=0/D=100 不封 · 双零才给最低分
+    let s = Math.max(h.weekly, 0) * 8 + Math.max(h.daily, 0) * 3;
     if (h.daily <= 5 && hrsToDaily <= 2) s += 250;
     else if (h.daily <= 5 && hrsToDaily <= 6) s += 100;
     if (h.weekly <= 5 && hrsToWeekly <= 4) s += 350;
@@ -1219,7 +1981,7 @@ class Store {
     if (h.staleMin >= 0 && h.staleMin < 5) s += 80;
     else if (h.staleMin >= 0 && h.staleMin < 30) s += 40;
     else if (h.staleMin < 0 || h.staleMin > 120) s -= 50;
-    return s;
+    return Math.max(s, 1); // 至少 1 分 · 封冻穷尽号也有机会
   }
   getBestIndex(excludeIdx) {
     let best = -1,
@@ -1251,7 +2013,10 @@ class Store {
       checkedCount = 0,
       unchecked = 0,
       available = 0,
-      exhausted = 0;
+      exhausted = 0,
+      overageAccounts = 0, // v2.8.4 · Extra Usage Active 账号数
+      totalOverageDollars = 0, // v2.8.4 · 全池 Extra Usage 总额 (USD)
+      checkedNoOverage = 0; // v2.8.5 · 已验但未激活 Extra Usage (待激活)
     for (const a of this.accounts) {
       const h = this.getHealth(a.email);
       if (!h.checked) {
@@ -1261,9 +2026,17 @@ class Store {
       checkedCount++;
       totalD += h.daily;
       totalW += h.weekly;
-      const eff = Math.min(h.daily, h.weekly);
-      if (eff < 1) exhausted++;
+      // v3.0 · 双零才算耗尽 · W=0/D=100 不再误计耗尽
+      if (h.daily < 1 && h.weekly < 1) exhausted++;
       else available++;
+      // v2.8.5 · overageActive 统计 (GetUserStatus 权威 · "Extra Usage Active")
+      // overageActive = overageDollars > 0 (由 _parsePlanStatusJson 定义 · 不需双判)
+      if (h.overageActive) {
+        overageAccounts++;
+        totalOverageDollars += h.overageDollars || 0;
+      } else {
+        checkedNoOverage++; // 已验 · 无 Extra Usage · 等待激活或未触发
+      }
     }
     const banned = Object.keys(this.blacklist).filter((k) =>
       this.isBanned(k),
@@ -1287,6 +2060,9 @@ class Store {
       hrsToDaily: hoursUntilDailyReset(),
       hrsToWeekly: hoursUntilWeeklyReset(),
       drought: checkedCount > 0 && totalW / checkedCount < 1,
+      overageAccounts, // v2.8.4
+      totalOverageDollars: Math.round(totalOverageDollars * 100) / 100, // v2.8.4
+      checkedNoOverage, // v2.8.5 · 已验但无Extra Usage · 待激活数量
     };
   }
   setActive(idx, email, sessionToken, apiKey, apiServerUrl, injectPath) {
@@ -1301,7 +2077,18 @@ class Store {
     this.activeApiServerUrl = apiServerUrl || null;
     this.lastInjectPath = injectPath || null;
     this.lastRotateAt = Date.now();
-    if (isRealSwitch) this.switches++;
+    if (isRealSwitch) {
+      this.switches++;
+      // v2.6.12 守一 · 真切号 → 清 W% 状态 · 防跨账号假脉动
+      //   原 v2.6.11 漏: _lastQuotaWeekly 跨账号比 → 切号瞬间 ΔW% 自然>=0.3% → 假脉动 → 又切号 → 死循环
+      //   新法: 切号即清 → 下轮 tick 重新建基线 (≥0 后才参与判)
+      _lastQuotaWeekly = -1;
+      _lastQuotaEmail = "";
+      // v2.6.13 阴阳结合 · ⚖额度变动 同清 (与 W% 同步建基线)
+      _lastQuotaDaily = -1;
+      _lastQuotaPromptCredits = -1;
+      _lastQuotaFlowCredits = -1;
+    }
     // v2.3.0 使用中🔒 唯一枢纽点 · 凡 active 转换均打印 · 0=off
     // typeof 守 · 测试环境 _cfg 未注入时退默认 120000
     const lockMs = Math.max(
@@ -1315,7 +2102,21 @@ class Store {
 
 // ═══ § 3 · 万法之本 (Devin auth · inject · 切号主流水) ═══
 async function devinLogin(email, password) {
+  // v3.0.6 · 全局序列化门 · 根治 IP级速率限制
+  //   任意时刻只有一个 devinLogin 在飞 · 连续调用间保证最小间隔 (wam.devinLoginMinGapMs · 默认1200ms)
+  //   Promise chain 互斥: 等上一个完成后再执行 · finally 必释放 · 不会死锁
+  const _prevGate = _devinLoginGate;
+  let _releaseGate;
+  _devinLoginGate = new Promise((resolve) => {
+    _releaseGate = resolve;
+  });
   try {
+    await _prevGate; // 等待前一个 devinLogin 完成
+    const _minGapMs = Math.max(0, +_cfg("devinLoginMinGapMs", 1200) || 1200);
+    const _elapsed = Date.now() - _lastDevinLoginAt;
+    if (_elapsed < _minGapMs)
+      await new Promise((r) => setTimeout(r, _minGapMs - _elapsed));
+    _lastDevinLoginAt = Date.now();
     const r = await jsonPost(
       URL_DEVIN_LOGIN,
       {
@@ -1333,6 +2134,8 @@ async function devinLogin(email, password) {
     return { ok: false, status: r.status, error: err };
   } catch (e) {
     return { ok: false, error: e.message };
+  } finally {
+    _releaseGate(); // 必须释放 · 保证后续调用不死锁
   }
 }
 async function windsurfPostAuth(auth1, orgId) {
@@ -1453,7 +2256,8 @@ async function tryFetchPlanStatus(apiKey, opts) {
       }
       _quotaEndpointHealth.totalFail++;
       lastReason = "status=" + r.status;
-      if (r.status === 401) _quotaEndpointHealth.consecutive401++;
+      // v3.0 · 400 也是服务端故障信号 · 不只 401
+      if (r.status >= 400) _quotaEndpointHealth.consecutive401++;
       _quotaEndpointHealth.consecutiveOk = 0;
       if (!o.silent) {
         log(
@@ -1465,7 +2269,7 @@ async function tryFetchPlanStatus(apiKey, opts) {
             (r.text || "").substring(0, 100),
         );
       }
-      if (r.status === 401) break; // 认证拒绝 · 换 endpoint 无救
+      if (r.status === 401 || r.status === 400) break; // v3.0 · 400/401 均换endpoint无救
     } catch (e) {
       _quotaEndpointHealth.totalFail++;
       _quotaEndpointHealth.consecutiveOk = 0;
@@ -1692,6 +2496,42 @@ function _parsePlanStatusJson(j) {
     const m = tierRaw.match(/\d+/);
     if (m) teamsTier = Number(m[0]);
   }
+  // ── overageBalanceMicros → overageDollars ──────────────────────────────────
+  // v2.8.6 · 反者道之动 · 多层查找 + uint32 无符号修正 + 合理性上限
+  // proto3 int64 可能在多个层级: ps / userStatus / j (按精度降序尝试)
+  // {lo,hi} / {low,high} 格式: lo/hi 是 JS signed int32 → 需 >>> 0 转 uint32
+  const _m = (v) => {
+    if (v == null || v === 0 || v === "0" || v === "") return 0;
+    if (typeof v === "bigint") return Number(v);
+    if (typeof v === "object") {
+      // proto int64 as {lo,hi} or {low,high} — lo/hi are signed JS ints
+      const lo = v.lo != null ? v.lo : v.low != null ? v.low : null;
+      const hi = v.lo != null ? v.hi : v.low != null ? v.high : null;
+      if (lo != null) {
+        const uLo = Number(lo) >>> 0; // uint32
+        const uHi = Number(hi) >>> 0; // uint32
+        return uLo + uHi * 4294967296;
+      }
+    }
+    const n = Number(v);
+    return isFinite(n) && n >= 0 ? n : 0;
+  };
+  // 多层 fallback: ps → userStatus → j (防字段藏在不同层级)
+  const _rawOvg =
+    ps.overageBalanceMicros ??
+    ps.overage_balance_micros ??
+    (userStatus &&
+      (userStatus.overageBalanceMicros ?? userStatus.overage_balance_micros)) ??
+    j.overageBalanceMicros ??
+    j.overage_balance_micros ??
+    0;
+  const overageMicros = _m(_rawOvg);
+  // 合理性上限: Devin 最高 $200 Extra Usage; 上限 $1000 防解析异常虚高
+  const overageDollars = Math.min(
+    1000,
+    Math.round((overageMicros / 1000000) * 100) / 100,
+  );
+  const overageActive = overageDollars > 0;
   return {
     daily: safeDaily,
     weekly: safeWeekly,
@@ -1706,7 +2546,163 @@ function _parsePlanStatusJson(j) {
     dailyResetAt,
     weeklyResetAt,
     teamsTier,
+    overageDollars, // USD · $200 Extra Usage Balance
+    overageActive, // true = Cascade quota=0 时仍完全可用
   };
+}
+
+// ═══ $200 Extra Usage 激活引擎 · 道法自然 · 内化于一 · 太上下知有之 ═══════════
+// 触发: POST /api/{orgId}/schedules → checklist.automations=true
+// 发放: AdjustOverageBalanceInternal → overageBalanceMicros=200_000_000
+// 发现: GetUserStatus → overageActive=true → WAM 高优先选号
+const _pendingAct = new Set();
+
+async function _tryAllTriggers(auth1, orgId) {
+  const H = {
+    Authorization: "Bearer " + auth1,
+    "x-cog-org-id": orgId,
+    "Content-Type": "application/json",
+    "User-Agent": UA,
+    Origin: "https://app.devin.ai",
+    Referer: "https://app.devin.ai/",
+  };
+  const s = JSON.stringify({
+    name: "dao-init",
+    prompt: "echo ok",
+    schedule_type: "recurring",
+    frequency: "0 0 31 2 *",
+    interval_count: 1,
+    agent: "devin",
+    bypass_approval: true,
+    is_enabled: false,
+  });
+  for (const url of [
+    "https://app.devin.ai/api/" + orgId + "/schedules",
+    "https://app.devin.ai/api/v1/organizations/" + orgId + "/schedules",
+    "https://app.devin.ai/api/v3/organizations/" + orgId + "/schedules",
+    "https://app.devin.ai/api/" + orgId + "/automations",
+  ]) {
+    try {
+      const r = await httpsReq("POST", url, H, s, 8000);
+      if (r && (r.status === 200 || r.status === 201 || r.status === 202))
+        return { ok: true, url };
+    } catch {}
+  }
+  return { ok: false };
+}
+
+async function _pollForOverage(apiKey, apiServerUrl, n, ms) {
+  // v2.8.4 · 软编码: n/ms 参数可经 _cfg 覆盖 (autoActivate.pollN / autoActivate.pollMs)
+  // 默认 5×3s=15s 快验: $200 通常24-48h后到账 · 15s 足够检查"是否已有"/"刚触发到账"
+  const pollN =
+    n != null ? n : Math.max(1, _cfg("autoActivate.pollN", 5) | 0) || 5;
+  const pollMs =
+    ms != null
+      ? ms
+      : Math.max(500, _cfg("autoActivate.pollMs", 3000) | 0) || 3000;
+  for (let i = 0; i < pollN; i++) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    try {
+      const q = await tryFetchPlanStatus(apiKey, {
+        apiServerUrl,
+        silent: true,
+      });
+      if (q && q.overageActive)
+        return { ok: true, overage: q.overageDollars, pollN: i + 1, q };
+    } catch {}
+  }
+  return { ok: false, reason: "timeout" };
+}
+
+async function _getOrgId(auth1) {
+  try {
+    const r = await jsonPost(
+      URL_DEVIN_ORG_AUTH,
+      { Authorization: "Bearer " + auth1 },
+      {},
+      6000,
+    );
+    const j = r && r.json;
+    return (j && ((j.org && j.org.org_id) || j.org_id)) || null;
+  } catch {
+    return null;
+  }
+}
+
+// v3.0 · Devin billing 后备探额 · GetUserStatus 400 时用此路径获取真实额度
+// 实证: app.devin.ai/api/{orgId}/billing/status
+//   返回 { overage_credits: number, billing_error: string|null }
+//   overage_credits < 0 = 有 Extra Usage (平台对用户赏予)、>= 0 = 无额度
+async function _tryDevinBillingFallback(auth1) {
+  if (!auth1) return null;
+  try {
+    const orgId = await _getOrgId(auth1);
+    if (!orgId) return null;
+    const r = await httpsReq(
+      "GET",
+      "https://app.devin.ai/api/" + orgId + "/billing/status",
+      { Authorization: "Bearer " + auth1, "User-Agent": UA },
+      null,
+      8000,
+    );
+    if (r.status !== 200) return null;
+    let j;
+    try {
+      j = JSON.parse(r.body.toString());
+    } catch {
+      return null;
+    }
+    // overage_credits < 0 且无 billing_error → 有实际额度
+    const hasFunds =
+      typeof j.overage_credits === "number" &&
+      j.overage_credits < 0 &&
+      !j.billing_error;
+    const dollarAmt = hasFunds ? Math.abs(j.overage_credits) : 0;
+    return {
+      checked: true,
+      plan: "Trial", // billing API 不返 plan 名称 · 保守设 Trial
+      daily: hasFunds ? 100 : 0,
+      weekly: hasFunds ? 100 : 0,
+      planEnd: 0,
+      daysLeft: 0,
+      overageActive: hasFunds,
+      overageDollars: dollarAmt,
+      billingError: j.billing_error || null,
+      lastChecked: Date.now(),
+      _source: "devin_billing_v3", // 标记数据来源
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function _activateOverageFull(auth1, apiKey, apiServerUrl, email) {
+  if (!auth1 || !apiKey) return { ok: false };
+  if (_pendingAct.has(email)) return { ok: false, reason: "pending" };
+  _pendingAct.add(email);
+  try {
+    const q0 = await tryFetchPlanStatus(apiKey, { apiServerUrl, silent: true });
+    if (q0 && q0.overageActive)
+      return { ok: true, reason: "already", overage: q0.overageDollars, q: q0 };
+    const orgId = await _getOrgId(auth1);
+    if (!orgId) return { ok: false, reason: "no_orgId" };
+    const trig = await _tryAllTriggers(auth1, orgId);
+    log(
+      "activate [" +
+        email.split("@")[0].substring(0, 16) +
+        "] trigger:" +
+        (trig.ok ? "✓ " + trig.url : "✗"),
+    );
+    // v2.8.5 · 软编码: 不再硬传 20,3000 · 让 _cfg 软编码生效 (默认 5×3s)
+    const poll = await _pollForOverage(apiKey, apiServerUrl);
+    if (poll.ok) log("activate ✓ $" + poll.overage + " poll#" + poll.pollN);
+    else log("activate triggered:" + trig.ok + " $200 处理中(24-48h后到账)");
+    return { triggered: trig.ok, ...poll };
+  } catch (e) {
+    return { ok: false, reason: e.message };
+  } finally {
+    _pendingAct.delete(email);
+  }
 }
 
 // ═══ § 3b · 批量验证 (verifyOne / verifyAll) · 不切号 · 仅探测 quota ═══
@@ -1715,6 +2711,32 @@ function _parsePlanStatusJson(j) {
 async function verifyOneAccount(account) {
   if (!account || !account.email || !account.password)
     return { ok: false, stage: "init", error: "no creds" };
+  // v3.0.6 · 缓存快路 · 与 loginAccount 对齐 · 根治 verifyAll 批量触 IP限速
+  //   有效 session cache → 直接 tryFetchPlanStatus · 零 devinLogin · 二次 verifyAll 无任何限速
+  //   cache失效/quota获取失败 → 驱逐缓存 → 走全路 (devinLogin已被全局序列化门保护)
+  const _cachedV = _getCachedSession(account.email);
+  if (_cachedV) {
+    const _qC = await tryFetchPlanStatus(_cachedV.apiKey, {
+      apiServerUrl: _cachedV.apiServerUrl,
+      silent: true,
+    });
+    if (_qC) {
+      _cacheSession(
+        account.email,
+        _cachedV.sessionToken,
+        _cachedV.apiKey,
+        _cachedV.apiServerUrl,
+      ); // 刷新 TTL
+      return {
+        ok: true,
+        q: _qC,
+        sessionToken: _cachedV.sessionToken,
+        apiKey: _cachedV.apiKey,
+        apiServerUrl: _cachedV.apiServerUrl,
+      };
+    }
+    _evictSessionCache(account.email); // apiKey 失效 → 驱逐 → 走全路
+  }
   const dl = await devinLogin(account.email, account.password);
   if (!dl.ok) return { ok: false, stage: "devinLogin", error: dl.error };
   const pa = await windsurfPostAuth(dl.auth1);
@@ -1724,18 +2746,48 @@ async function verifyOneAccount(account) {
   const reg = await registerUserViaSession(pa.sessionToken);
   const apiKey = (reg.ok && reg.apiKey) || pa.sessionToken;
   const apiServerUrl = (reg.ok && reg.apiServerUrl) || pa.apiServerUrl || "";
-  const q = await tryFetchPlanStatus(apiKey, {
-    apiServerUrl: apiServerUrl,
-    silent: true,
-  });
-  if (!q) return { ok: false, stage: "planStatus", error: "fetch null" };
-  return {
-    ok: true,
-    q,
-    sessionToken: pa.sessionToken,
-    apiKey,
-    apiServerUrl,
-  };
+  let q = await tryFetchPlanStatus(apiKey, { apiServerUrl, silent: true });
+  // v3.0 · GetUserStatus 400 时用 Devin billing API 作后备探实隔额
+  if (!q) {
+    const qb = await _tryDevinBillingFallback(dl.auth1);
+    if (qb) {
+      q = qb;
+      log(
+        "  billing-fallback ✅ " +
+          account.email.split("@")[0] +
+          " overage=" +
+          qb.overageActive +
+          " $" +
+          (qb.overageDollars || 0) +
+          " err=" +
+          (qb.billingError || "null") +
+          " [" +
+          qb._source +
+          "]",
+      );
+    } else {
+      return {
+        ok: false,
+        stage: "planStatus",
+        error: "GetUserStatus 400 + billing fallback null",
+      };
+    }
+  }
+  // 内化激活: 若无 Extra Usage → 后台全链路激活 (5路触发+轮询) · 对用户透明
+  // v2.8.4 · 软编码门控: wam.autoActivate=false 可全局关闭 (默认开)
+  if (!q.overageActive && !q._source && _cfg("autoActivate", true)) {
+    _activateOverageFull(dl.auth1, apiKey, apiServerUrl, account.email)
+      .then((ar) => {
+        if (ar.ok && ar.q) {
+          _store.setHealth(account.email, ar.q);
+          _broadcastUI();
+        }
+      })
+      .catch(() => {});
+  }
+  // v3.0.3 · 🚀 验证阶段缓存 sessionToken · 下次切号可跳 devinLogin (道法自然·预赋)
+  _cacheSession(account.email, pa.sessionToken, apiKey, apiServerUrl);
+  return { ok: true, q, sessionToken: pa.sessionToken, apiKey, apiServerUrl };
 }
 
 // 批量验证 · onlyStale=true 时跳过最近验过的 (默认 staleMin <= 30)
@@ -1745,6 +2797,10 @@ async function verifyOneAccount(account) {
 async function verifyAllAccounts(opts) {
   if (_verifyAllInProgress) return { ok: false, busy: true };
   _verifyAllInProgress = true;
+  // v3.0.2 · try/finally 保证 _verifyAllInProgress 必重置 · 周期验证永不卡死
+  const _vADone = () => {
+    _verifyAllInProgress = false;
+  };
   const o = opts || {};
   const onlyStale = !!o.onlyStale;
   const userParallel = Math.max(
@@ -1752,7 +2808,11 @@ async function verifyAllAccounts(opts) {
     Math.min(8, _cfg("verify.parallel", 3) | 0 || 3),
   );
   const gapMs = Math.max(0, _cfg("verify.gapMs", 250) | 0);
-  const staleThresholdMin = Math.max(1, _cfg("verify.staleMin", 30) | 0);
+  // v3.0.2 · startupStaleMin: 启动验证可传更短阈值 (默认15min) · 防重启后跳过近期验号
+  const staleThresholdMin =
+    o.startupStaleMin != null
+      ? Math.max(1, o.startupStaleMin | 0)
+      : Math.max(1, _cfg("verify.staleMin", 30) | 0);
   const total = _store.accounts.length;
   // 构建队列 (排除黑名单 + onlyStale 时排除最近验过的)
   const queue = [];
@@ -1850,6 +2910,10 @@ async function verifyAllAccounts(opts) {
           fail++;
           _failedIndices.push(idx);
           log("verify [" + idx + "] " + tag + " ✗ " + r.stage + ": " + r.error);
+              // v3.3.0 · 账号真正验证失败才标不可用 · rate-limit是IP级与账号无关
+              if (!r.error || !/rate.?limit|too.?many|429/i.test(String(r.error))) {
+                _store.setHealthError(a.email, r.stage || "?", r.error || "?");
+              }
           // v2.1.1 全局限速: 指数退避 5s → 15s → 30s → 60s · 全 worker 共享
           if (r.error && /rate.?limit|too.many|429/i.test(String(r.error))) {
             _rateLimitHits++;
@@ -1922,7 +2986,7 @@ async function verifyAllAccounts(opts) {
   } else if (_abortedDueToDeadEndpoint) {
     log("verifyAll: 跳过重试 (endpoint 已挂) · 用 wam.endpointHealth 查诊断");
   }
-  _verifyAllInProgress = false;
+  _vADone(); // v3.0.2 finally-equivalent · 必重置
   _broadcastUI();
   const dur = Math.round((Date.now() - t0) / 1000);
   log("verifyAll: 完成 · " + ok + " ✓ / " + fail + " ✗ · " + dur + "s");
@@ -2074,34 +3138,36 @@ async function injectViaBing(token) {
   }
 }
 
-// v2.1.2: opts.silent (默认 true) · opts.preferYi (debug 用)
+// v3.1.0: 根治弹窗 · 只走路丙 (provideAuthTokenToAuthProvider) + 一次重试
+//   路甲(hijack loginWithAuthToken) / 路乙(clipboard loginWithAuthToken) 永废
+//   loginWithAuthToken 内部 provideAuthToken() 调 openExternal(loginUrl) = 弹窗根源
+//   即使 hijack 看似堵住 · Windsurf 可能在 hijack 前已捕获原始引用 → 泄漏
+//   路丙是唯一真正不弹 UI 的通道 · 失败仅重试一次 (transient 失败可恢复)
 async function injectToken(token, opts) {
   opts = opts || {};
-  // preferYi 强走旧路 (debug)
-  if (_cfg("preferYi", false) || opts.preferYi) {
-    const r = await injectViaYi(token, { silent: opts.silent !== false });
-    return { ok: r.ok, path: "乙", note: r.reason || "" };
-  }
-  // 路丙: IDE 内部 API (主路径 · 真无为)
+  // v3.1.0 · openExternal 守卫已在 activate 永久安装 · 此处无需再装卸
+  // 路丙: IDE 内部 API (唯一安全路径 · 真无为)
   log("inject 路丙 provideAuthTokenToAuthProvider");
   const c = await injectViaBing(token);
   if (c.ok) {
     log("路丙 ✓ " + (c.detail || ""));
     return { ok: true, path: "丙" };
   }
-  log("路丙 ✗ " + c.reason);
-  // 路甲兜底: hijack
-  log("降路甲 hijack");
-  const a = await injectViaJia(token);
-  if (a.ok) {
-    log("路甲 ✓ showCalls=" + a.showCalls);
-    return { ok: true, path: "甲" };
+  log("路丙 ✗ " + c.reason + " · 500ms 后重试一次");
+  // 路丙唯一重试 (transient failure: timeout / 暂时未注册 / 内部错误)
+  await new Promise((r) => setTimeout(r, 500));
+  const c2 = await injectViaBing(token);
+  if (c2.ok) {
+    log("路丙 retry ✓ " + (c2.detail || ""));
+    return { ok: true, path: "丙retry" };
   }
-  log("路甲 ✗ " + a.reason + (a.cmdErr ? " err: " + a.cmdErr : ""));
-  // 路乙兜底: clipboard (默认 silent · 不阻塞自动切号)
-  log("降路乙 clipboard" + (opts.silent === false ? " (modal)" : " (silent)"));
-  const b = await injectViaYi(token, { silent: opts.silent !== false });
-  return { ok: b.ok, path: "乙", note: b.reason || "" };
+  log("路丙 retry ✗ " + c2.reason);
+  // v3.1.0 · 路丙两次均失败 · 返回失败 · 绝不降级路甲/路乙 (弹窗根源)
+  return {
+    ok: false,
+    path: "丙",
+    note: "路丙2次均失败: " + c.reason + " / " + c2.reason,
+  };
 }
 
 function tryLoadPendingToken() {
@@ -2143,63 +3209,117 @@ async function loginAccount(store, idx) {
   if (idx < 0 || idx >= store.accounts.length)
     return { ok: false, error: "idx_out_of_range" };
   const acc = store.accounts[idx];
-  if (store.isBanned(acc.email))
-    return { ok: false, error: "banned", stage: "preCheck" };
+  // v3.3.0 · 道法自然 · 手动切号永不拒绝 · 失败记录仅供参考
+  //   用户意志即最高优先级 · 有失败历史仍可尝试 · 不作茧自缚
   const t0 = Date.now();
   const tag = acc.email.split("@")[0].substring(0, 18);
+  const _bl = store.blacklist[acc.email.toLowerCase()];
+  if (_bl && _bl.count > 0) {
+    log("login: \u26a0 " + tag + " 有 " + _bl.count + " 次失败记录 · 仍尝试 (v3.3 · 道法自然)");
+  }
   log("login: 试 [" + idx + "] " + tag);
+  // v3.0.3 · 🚀 缓存快速通道 · 跳过 devinLogin/windsurfPostAuth 直射 injectToken (< 50ms vs 3-8s)
+  //   根治: devinLogin = IP级速率限制根源 · 缓存命中则根本不会触发限制
+  //   缓存来源: verifyOneAccount (verifyAll 已完成登录) · 上次切号成功
+  const _cached = _getCachedSession(acc.email);
+  if (_cached) {
+    const _injC = await injectToken(_cached.sessionToken);
+    if (_injC.ok) {
+      store.setActive(
+        idx,
+        acc.email,
+        _cached.sessionToken,
+        _cached.apiKey,
+        _cached.apiServerUrl,
+        _injC.path,
+      );
+      const _msC = Date.now() - t0;
+      _lastSwitchMs = _msC;
+      _lastRotateToastAt = Date.now();
+      _lastRotateToastEmail = acc.email;
+      try {
+        updateStatusBar();
+        setTimeout(() => {
+          try {
+            updateStatusBar();
+          } catch {}
+        }, 3100);
+      } catch {}
+      log(
+        "login: ✓ [cached] " +
+          tag +
+          " · 路" +
+          _injC.path +
+          " · " +
+          _msC +
+          "ms (无devinLogin)",
+      );
+      // 清除失败计数 (v2.3.0 逻辑)
+      const _kb = acc.email.toLowerCase();
+      const _bk = store.blacklist[_kb];
+      if (_bk && !_bk.until) {
+        delete store.blacklist[_kb];
+        store.save();
+      }
+      return { ok: true, path: _injC.path, ms: _msC, cached: true };
+    }
+    // 缓存命中但注入失败 → 驱逐失效缓存 → fallback 全登录
+    _evictSessionCache(acc.email);
+    log("login: cached token 失效 · 驱逐 · fallback 全登录");
+  }
   const dl = await devinLogin(acc.email, acc.password);
   if (!dl.ok) {
     log("  devinLogin ✗ " + (dl.error || "?"));
     _bumpFailure(store, acc.email, "devin: " + (dl.error || "?"));
+        // 切号失败不标不可用 · loginAccount是暂时性 · 仅verifyAll才判定账号真死
     return { ok: false, stage: "devinLogin", error: dl.error };
   }
   const pa = await windsurfPostAuth(dl.auth1);
   if (!pa.ok) {
     log("  postAuth ✗ " + (pa.error || "?"));
     _bumpFailure(store, acc.email, "postAuth: " + (pa.error || "?"));
+        // 切号失败不标不可用 · loginAccount是暂时性 · 仅verifyAll才判定账号真死
     return { ok: false, stage: "windsurfPostAuth", error: pa.error };
   }
-  // v2.4.1 · loginAccount 走完整 v2.4.1 链: RegisterUser → apiKey + apiServerUrl → GetUserStatus
-  // 先发起 register (synchronous-ish) 以拿真 apiKey, 再 tryFetchPlanStatus 用它做 auth
-  registerUserViaSession(pa.sessionToken)
-    .then((reg) => {
-      const apiKey = (reg.ok && reg.apiKey) || pa.sessionToken;
-      const apiServerUrl =
-        (reg.ok && reg.apiServerUrl) || pa.apiServerUrl || "";
-      // 先写 active api key/url (loginAccount 之后的 healthCheck/tick 也要用)
-      if (reg.ok) {
-        store.activeApiKey = reg.apiKey;
-        store.activeApiServerUrl = reg.apiServerUrl;
-        store.save();
-      }
-      return tryFetchPlanStatus(apiKey, { apiServerUrl });
-    })
-    .then((q) => {
-      if (q) {
-        store.setHealth(acc.email, q);
-        log(
-          "  planStatus: D" +
-            q.daily +
-            "% W" +
-            q.weekly +
-            "% " +
-            q.plan +
-            " " +
-            q.daysLeft +
-            "d",
-        );
-        _broadcastUI();
-      }
-    })
-    .catch(() => {});
+  // v3.1.0 · token 预验 + openExternal 守卫 + 注入
+  //   先 registerUserViaSession 验 token 有效性 · 再 injectToken
+  //   避免 handleAuthToken 内部 registerUser 失败扰动 auth 状态 → 触发 LOGIN_WITH_REDIRECT 弹窗
+  let _regApiKey = null,
+    _regApiServerUrl = "";
+  try {
+    const reg = await registerUserViaSession(pa.sessionToken);
+    if (reg.ok) {
+      _regApiKey = reg.apiKey;
+      _regApiServerUrl = reg.apiServerUrl || "";
+      log("  registerUser 预验 ✓ apiServerUrl=" + _regApiServerUrl);
+    } else {
+      log("  registerUser 预验 ✗ (token 可能无效) · 仍尝试注入");
+    }
+  } catch (e) {
+    log("  registerUser 预验 err: " + (e.message || e));
+  }
   const inj = await injectToken(pa.sessionToken);
   if (!inj.ok) {
     log("  inject ✗ 路" + inj.path + " " + inj.note);
     _bumpFailure(store, acc.email, "inject: " + (inj.note || ""));
+        // 切号失败不标不可用 · loginAccount是暂时性 · 仅verifyAll才判定账号真死
     return { ok: false, stage: "inject", error: inj.note };
   }
-  store.setActive(idx, acc.email, pa.sessionToken, null, null, inj.path);
+  store.setActive(
+    idx,
+    acc.email,
+    pa.sessionToken,
+    _regApiKey,
+    _regApiServerUrl,
+    inj.path,
+  );
+  if (_regApiKey) {
+    store.activeApiKey = _regApiKey;
+    store.activeApiServerUrl = _regApiServerUrl;
+    store.save();
+  }
+  // v3.0.3 · 全登录成功 → 更新缓存 (下次切号可跳 devinLogin)
+  _cacheSession(acc.email, pa.sessionToken, _regApiKey, _regApiServerUrl);
   // v2.3.0: 登陆成 · 消 _bumpFailure 计数 (不让历史泛黄　转转不休)
   {
     const k = acc.email.toLowerCase();
@@ -2209,16 +3329,28 @@ async function loginAccount(store, idx) {
       store.save();
     }
   }
-  registerUserViaSession(pa.sessionToken)
-    .then((r) => {
-      if (r.ok) {
-        store.activeApiKey = r.apiKey;
-        store.activeApiServerUrl = r.apiServerUrl;
-        store.save();
-        log("  registerUser ✓ apiServerUrl=" + r.apiServerUrl);
-      }
-    })
-    .catch(() => {});
+  // planStatus 异步获取 (非关键路径 · 不阻塞切号)
+  if (_regApiKey) {
+    tryFetchPlanStatus(_regApiKey, { apiServerUrl: _regApiServerUrl })
+      .then((q) => {
+        if (q) {
+          store.setHealth(acc.email, q);
+          log(
+            "  planStatus: D" +
+              q.daily +
+              "% W" +
+              q.weekly +
+              "% " +
+              q.plan +
+              " " +
+              q.daysLeft +
+              "d",
+          );
+          _broadcastUI();
+        }
+      })
+      .catch(() => {});
+  }
   const ms = Date.now() - t0;
   _lastSwitchMs = ms;
   log("login: ✓ " + tag + " · 路" + inj.path + " · " + ms + "ms");
@@ -2364,13 +3496,19 @@ function updateStatusBar() {
   _statusBar.tooltip = ttLines.join("\n");
 }
 function _broadcastUI() {
-  if (_sidebarProvider) _sidebarProvider.refresh();
-  if (_editorPanel) {
-    try {
-      _editorPanel.webview.html = buildHtml();
-    } catch {}
-  }
-  updateStatusBar();
+  // v3.0.6 · 60ms 防抖 · 合并高频调用 · 根治验证/切号期多次全量重建卡顿
+  //   verify N个新账号 → N次 broadcastUI → 合并为1次 · 用户无感 · 系统无不为
+  if (_broadcastUITimer) clearTimeout(_broadcastUITimer);
+  _broadcastUITimer = setTimeout(() => {
+    _broadcastUITimer = null;
+    if (_sidebarProvider) _sidebarProvider.refresh();
+    if (_editorPanel) {
+      try {
+        _editorPanel.webview.html = buildHtml();
+      } catch {}
+    }
+    updateStatusBar();
+  }, 60);
 }
 
 // ═══ Cascade 流式避让 (对齐本源 v17.42.5 · 道法自然: 让流完成再切 · 用户对话永不断裂) ═══
@@ -2398,16 +3536,21 @@ async function _waitIfCascadeBusy(maxWaitMs) {
   return waited;
 }
 
-// ═══ § v2.5 直觉切号 · Layer 6 跨进程信号触发 ═══
-// 道法自然 · 不主动量度 · 仅在 cascade webview 写 state.vscdb 时随之切号
+// ═══ § v2.6.11 直觉切号 · 道恒无名 · 民自均焉 (终极简化) ═══
 //
-// 反者道之动: v2.3-v2.4.13b 尝试 Layer 1-5 (http/net/fetch/http2/sock) hook
-// 均在 ext host 进程内 · 但 cascade webview 在独立 electron renderer 进程
-// 跨进程隔离实证失效 · self-test 自触被误为真命中 → v2.5 大减法弃 L1-L5
+// 上德不德 · 是以有德 · 损之又损 · 以至于无为 · 无为而无不为
+//
+// v2.6.11 损法 (相对 v2.6.10):
+//   · 删 perMessageDebounceMs (4s 防抖) — 真信号无抖·无需聚合
+//   · 删 perMessageMinIntervalMs (60s 强锁) — 真信号即真·无须压制
+//   · 删 perMessageDelayMs (1.5s 延迟) — 切号作用于下次 send·当前 send 已完成
+//
+// 守法:
+//   · _switching 守卫 (避并发切)
+//   · 30s 注入失败冷却 (避雪崩)
+//   · in-use lock 120s (已在 setActive · 切后该号锁 · 不会切回)
 //
 // 配置: wam.rotateOnEveryMessage (默认 true)
-//      wam.perMessageDebounceMs (默认 4000ms)
-//      wam.perMessageDelayMs (默认 1500ms · 切号延迟 · 让当前消息先发出)
 function _maybeTrigger(reason, hint) {
   // v2.3.0 道法自然 · 默认开 (rotateOnEveryMessage=true) · 可手关
   if (!_cfg("rotateOnEveryMessage", true)) return;
@@ -2417,39 +3560,61 @@ function _maybeTrigger(reason, hint) {
   if (_engine && _engine.rotating) return;
 
   const now = Date.now();
-  const debounceMs = Math.max(500, _cfg("perMessageDebounceMs", 4000) | 0);
-  if (now - _lastPerMsgTriggerAt < debounceMs) {
-    // v2.6.7 守一: 防抖拦截入诊断 · 修后多源派生 settle 应在此聚合到一条切号
-    _perMsgDebounced++;
+  // v3.0.3 · injectFailCooldownMs 软编码 (原 30s 硬编码 → 默认 5s · 缓存志下极少出现速率限制)
+  const _injFailMs = Math.max(0, _cfg("injectFailCooldownMs", 5000) | 0);
+  if (_injFailMs > 0 && now - _lastInjectFail < _injFailMs) return; // 注入失败冷却
+
+  // v2.6.12 守一 · 主信号优先 (修 v2.6.11 三路抢跑 1.75 倍切号 bug):
+  //   原 v2.6.11: ⚡W%脉动 + 📡WAL·edge + 📃pb·new 三路并发 → 1 send 引发 3 触发
+  //   新法: ⚡W%脉动 = 后端真账 = 主信号 · 触发后 N 秒窗口内 WAL/pb 全部让位 (skip)
+  //   理由: send 完成后后端 W% 必跌 · 文件 IO 是同 send 的副作用 · 不应重复
+  const pulsePriorityMs = Math.max(
+    0,
+    +_cfg("quotaPulsePriorityMs", 60000) || 60000,
+  );
+  if (
+    pulsePriorityMs > 0 &&
+    reason !== "\u26a1W%\u8109\u52a8" && // 非 ⚡W%脉动 来源
+    _lastQuotaPulseAt > 0 &&
+    now - _lastQuotaPulseAt < pulsePriorityMs
+  ) {
+    const sinceMs = now - _lastQuotaPulseAt;
     log(
-      "👁 per-msg debounced#" +
-        _perMsgDebounced +
-        " · " +
+      "\ud83d\udeab " +
         reason +
-        " · " +
-        (hint || "?") +
-        " (Δ=" +
-        (now - _lastPerMsgTriggerAt) +
-        "ms<" +
-        debounceMs +
-        "ms)",
+        " \u8ba9\u4f4d\u00b7\u4e3b\u4fe1\u53f7\u00b7" +
+        Math.round(sinceMs / 1000) +
+        "s\u524d \u26a1W%\u8109\u52a8\u5df2\u5207\u00b7\u8df3\u8fc7 " +
+        (hint || "?"),
     );
-    try {
-      const diagP = path.join(WAM_DIR, "_per_msg_diag.json");
-      const prev = fs.existsSync(diagP)
-        ? JSON.parse(fs.readFileSync(diagP, "utf8"))
-        : { hits: [], rotates: [] };
-      prev.totalDebounced = _perMsgDebounced;
-      prev.lastDebounced = now;
-      atomicWrite(diagP, JSON.stringify(prev, null, 2));
-    } catch {}
-    return; // 防抖: 一轮对话多请求只算一次
+    return;
   }
-  // v2.3.0: 去 switchCooldownMs 闸 · 由 in-use 锁 (120s) 更细粒度替代 (全局 cooldown 会拦正当切号)
-  if (now - _lastInjectFail < 30000) return; // 注入失败冷却仍保 · 30s
-  // v2.5.9: 最小切号间隔 · pb·new 为精确信号故默认 0 · 可手动配置兜底
-  const minIntervalMs = Math.max(0, _cfg("perMessageMinIntervalMs", 0) | 0);
-  if (minIntervalMs > 0 && now - _lastSwitchTime < minIntervalMs) return;
+
+  // v2.6.14 守一 · 全 reason 强锁 (复 v2.6.9 之全栏 · 适 W%/WAL/pb/⚖ 万源)
+  //   实证 (179 v2.6.13): 单 send → AI 流 → W%自火 4/40s + WAL 自火 174/5min
+  //   根因: quotaPulsePriorityMs 只守 WAL/pb · 不守 W% 自身 · 阳自决堤
+  //   修: 入口加 perMessageMinIntervalMs 全 reason 强锁 · 大制无割 · 一全锁覆万源
+  //   道: 64 章 "为之者败之·执之者失之·圣人无为故无败" · 单栏 > 多栏
+  const minIntervalMs = Math.max(
+    0,
+    +_cfg("perMessageMinIntervalMs", 60000) || 60000,
+  );
+  if (
+    minIntervalMs > 0 &&
+    _lastPerMsgTriggerAt > 0 &&
+    now - _lastPerMsgTriggerAt < minIntervalMs
+  ) {
+    const sinceMs = now - _lastPerMsgTriggerAt;
+    log(
+      "\ud83d\udeab " +
+        reason +
+        " \u5168\u680f\u00b7" + // 全栏
+        Math.round(sinceMs / 1000) +
+        "s\u524d\u5df2\u5207\u00b7\u8df3\u8fc7 " + // s前已切·跳过
+        (hint || "?"),
+    );
+    return;
+  }
 
   _lastPerMsgTriggerAt = now;
   _perMsgHits++;
@@ -2460,7 +3625,9 @@ function _maybeTrigger(reason, hint) {
       reason +
       " · " +
       (hint || "?") +
-      " → 计划切号",
+      " → 立即切号 (v2.6.14 全栏 " +
+      Math.round(minIntervalMs / 1000) +
+      "s)",
   );
   // v2.2.0 文件诊断 (Output Channel 懒刷盘时仍可观)
   try {
@@ -2476,9 +3643,8 @@ function _maybeTrigger(reason, hint) {
     atomicWrite(diagP, JSON.stringify(prev, null, 2));
   } catch {}
 
-  // 异步切 · 让当前消息先送出 (perMessageDelayMs)
-  const delayMs = Math.max(0, _cfg("perMessageDelayMs", 1500) | 0);
-  setTimeout(async () => {
+  // v2.6.11 立即切 · 不延迟 (W% 信号到达说明 send 已完成·后端已计费)
+  (async () => {
     try {
       if (!_cfg("rotateOnEveryMessage", true)) return;
       if (_wamMode !== "wam" || _switching) return;
@@ -2541,7 +3707,7 @@ function _maybeTrigger(reason, hint) {
     } catch (e) {
       log("per-msg rotate err: " + (e.message || e));
     }
-  }, delayMs);
+  })();
 }
 
 // ═══ Layer 6 · 跨进程文件信号 (v2.5.9 · 反者道之动 · 万法归宗) ═══
@@ -2675,148 +3841,56 @@ function _installLayer6FileWatcher(context) {
         ) {
           await new Promise((r) => setTimeout(r, 1000));
         }
-        _lastPerMsgTriggerAt = 0;
+        // v2.6.11 · 立即触发 (无防抖无强锁·_maybeTrigger 内 _switching 守卫足以)
+        // pb·new 队列保留 3.5s gap·避同时多新对话造成切号抖动 (与 W%脉动 10s 周期协同)
         _maybeTrigger("L6→pb·new", f.slice(0, 8));
-        const gap = Math.max(0, _cfg("perMessageDelayMs", 1500) | 0) + 2000;
-        await new Promise((r) => setTimeout(r, gap));
+        await new Promise((r) => setTimeout(r, 3500));
       }
       _queueRunning = false;
     }
 
+    // v2.6.9 道法自然 · 唯留 pb·new (新对话纯信号 · 1:1 精确)
+    //   实证 v2.6.8: 4 个并行活 .pb 文件 (8bc7943c/b2165dd0/e9e73244/f9ebad5b)
+    //     存量文件 settle 累积模型 = AI 流式段静默 ≠ 用户 click Send · 信号错位
+    //     11min 实测 36 fired + 6 skip · 全部错触发 · 雪崩 9 倍率
+    //   v2.6.9 损法: 删 _firePbSettle / pbSettle Map / settle 常量 / 存量增量分支
+    //     (~150 行净减) · 大制无割 · 反者道之动
+    //   留法: pb·new 唯一信号 · 用户开新对话 → 一新 .pb 文件 → 一切号
     const POLL_MS = 600;
-    // v2.6.6 反者道之动: settle (debounce trailing edge) 替 cooloff
-    // SETTLE_MS: 文件增长后静默此时长 = AI 已停 = 真切号时机
-    const SETTLE_MS = Math.max(3000, _cfg("sendDetectSettleMs", 15000) | 0);
-    // ACCUM_MIN: settle 期间累积增量阈值 · 低于此值视为心跳/元数据 · 不切号
-    const ACCUM_MIN = Math.max(256, _cfg("sendDetectAccumMin", 5120) | 0);
-    // 单次最小增量: 低于此值不入累积 (噪声过滤)
-    const GROW_MIN = Math.max(20, _cfg("sendDetectGrowMin", 30) | 0);
-    // 单次大增量兜底: 单写 ≥ LARGE_DELTA 直接立即切 (AI 大代码块持续流式时不憋太久)
-    const LARGE_DELTA = 131072; // 128KB
-
-    // settle 状态: f → { accum: number, timer: NodeJS.Timeout, claimed: bool }
-    const pbSettle = new Map();
-
-    function _firePbSettle(f, total, reason) {
-      // 跨实例声明锁: 时间桶 key · SETTLE_MS 窗口内唯一
-      const _bucket = Math.floor(Date.now() / SETTLE_MS);
-      const _claim = path.join(
-        L6_CLAIM_DIR,
-        f.slice(0, 8) + "." + _bucket + ".settle",
-      );
-      try {
-        fs.writeFileSync(_claim, String(process.pid), { flag: "wx" });
-      } catch {
-        return; // 已被另一实例认领
-      }
-      log(
-        "Layer 6 · pb·settle: " +
-          f.slice(0, 8) +
-          " 累积" +
-          total +
-          "B · " +
-          reason +
-          " [pid=" +
-          process.pid +
-          "] → 切号",
-      );
-      // v2.6.7 守一 · 删 _lastPerMsgTriggerAt = 0 (自夺防抖) · 让多源派生 settle 自然合一
-      _maybeTrigger("L6→pb·settle", f.slice(0, 8) + "+" + total);
-    }
 
     const timer = setInterval(() => {
       try {
         let hasNew = false;
         for (const f of fs.readdirSync(cascadePbDir)) {
           if (!f.endsWith(".pb")) continue;
+          if (knownPbs.has(f)) continue; // v2.6.9: 存量文件不再监增量 (settle 错位本源)
+          // ── 信号①: 新文件 = 新对话 → 立即入队切号 ──
           const fpath = path.join(cascadePbDir, f);
-
-          if (!knownPbs.has(f)) {
-            // ── 信号①: 新文件 = 新对话 → 立即入队切号 ──
-            knownPbs.add(f);
-            try {
-              const sz = fs.statSync(fpath).size;
-              pbSizes.set(f, sz);
-              if (sz < 64) continue; // Windsurf 预占位临时文件·跳过
-            } catch {
-              continue;
-            }
-            // v2.6.2 · 跨实例声明: 排他创建 · 第一到者触发 · 其余静默跳
-            const _claimNew = path.join(L6_CLAIM_DIR, f + ".new");
-            try {
-              fs.writeFileSync(_claimNew, String(process.pid), { flag: "wx" });
-            } catch {
-              log("Layer 6 · pb·new: " + f.slice(0, 8) + " 已认领·跳");
-              continue;
-            }
-            log(
-              "Layer 6 · pb·new: " +
-                f.slice(0, 12) +
-                " [pid=" +
-                process.pid +
-                "]",
-            );
-            _newConvQueue.push({ f });
-            hasNew = true;
-          } else {
-            // ── 信号②: 存量文件增量 → settle 累积 → 静默后切号 (反者道之动) ──
-            try {
-              const newSz = fs.statSync(fpath).size;
-              const oldSz = pbSizes.get(f) || 0;
-              const delta = newSz - oldSz;
-              pbSizes.set(f, newSz);
-              if (delta < 0) {
-                // 文件缩小(重写/截断) → 清空累积 + 取消 settle
-                const st = pbSettle.get(f);
-                if (st && st.timer) clearTimeout(st.timer);
-                pbSettle.delete(f);
-                continue;
-              }
-              if (delta < GROW_MIN) continue; // 单次太小·跳过
-
-              // 累积
-              let st = pbSettle.get(f);
-              if (!st) {
-                st = { accum: 0, timer: null };
-                pbSettle.set(f, st);
-              }
-              st.accum += delta;
-
-              // 单次大增量兜底: 立即切 + 重置累积
-              if (delta >= LARGE_DELTA && st.accum >= ACCUM_MIN) {
-                if (st.timer) clearTimeout(st.timer);
-                const total = st.accum;
-                st.accum = 0;
-                st.timer = null;
-                _firePbSettle(f, total, "大块" + delta + "B");
-                continue;
-              }
-
-              // 重置 settle 计时器: SETTLE_MS 后到期 → 切号
-              if (st.timer) clearTimeout(st.timer);
-              st.timer = setTimeout(() => {
-                const total = st.accum;
-                st.accum = 0;
-                st.timer = null;
-                if (total < ACCUM_MIN) {
-                  // 累积未达阈值 (心跳/小元数据) · 不切号
-                  log(
-                    "Layer 6 · pb·settle·skip: " +
-                      f.slice(0, 8) +
-                      " 累积" +
-                      total +
-                      "B<" +
-                      ACCUM_MIN +
-                      " [pid=" +
-                      process.pid +
-                      "]",
-                  );
-                  return;
-                }
-                _firePbSettle(f, total, "静默" + SETTLE_MS + "ms");
-              }, SETTLE_MS);
-            } catch {}
+          knownPbs.add(f);
+          try {
+            const sz = fs.statSync(fpath).size;
+            pbSizes.set(f, sz);
+            if (sz < 64) continue; // Windsurf 预占位临时文件·跳过
+          } catch {
+            continue;
           }
+          // v2.6.2 · 跨实例声明: 排他创建 · 第一到者触发 · 其余静默跳
+          const _claimNew = path.join(L6_CLAIM_DIR, f + ".new");
+          try {
+            fs.writeFileSync(_claimNew, String(process.pid), { flag: "wx" });
+          } catch {
+            log("Layer 6 · pb·new: " + f.slice(0, 8) + " 已认领·跳");
+            continue;
+          }
+          log(
+            "Layer 6 · pb·new: " +
+              f.slice(0, 12) +
+              " [pid=" +
+              process.pid +
+              "]",
+          );
+          _newConvQueue.push({ f });
+          hasNew = true;
         }
         if (hasNew) _drainQueue().catch(() => {});
       } catch {}
@@ -2824,11 +3898,6 @@ function _installLayer6FileWatcher(context) {
 
     _layer6Stop = () => {
       clearInterval(timer);
-      // 清理悬挂 settle 计时器 (防退出残留)
-      for (const st of pbSettle.values()) {
-        if (st && st.timer) clearTimeout(st.timer);
-      }
-      pbSettle.clear();
     };
     if (context && context.subscriptions) {
       context.subscriptions.push({
@@ -2841,15 +3910,9 @@ function _installLayer6FileWatcher(context) {
       });
     }
     log(
-      "Layer 6 · watch[pb·new+pb·settle] · " +
+      "Layer 6 · watch[pb·new only · v2.6.9 损 settle] · " +
         POLL_MS +
-        "ms · settle=" +
-        SETTLE_MS +
-        "ms · accum≥" +
-        ACCUM_MIN +
-        "B · grow≥" +
-        GROW_MIN +
-        "B · " +
+        "ms · " +
         cascadePbDir,
     );
   } catch (e) {
@@ -2857,9 +3920,19 @@ function _installLayer6FileWatcher(context) {
   }
 }
 
-// ── WAL 直达触发 (v2.6.3 · 大道至简 · Send 按鈕最底层信号源) ──
-// state.vscdb-wal 在用户点击 Send 后同步写入 SQLite WAL 帧
-// 高于 pb 文件: WAL 写入在 HTTP 请求前发生 · 300ms 轮询 · 比 pb 轮询快一倍
+// ── WAL 边沿首发 (v2.6.11 · 备用信号源 · 真本源 W%脉动 已在 Engine._tick) ──
+// state.vscdb-wal 在用户点击 Send 后 SQLite 同步写入 WAL 帧 (1-2 帧 ≈ 4-8KB)
+//
+// v2.6.11 修法 (道法自然·去芜存菁):
+//   · 删 WAL_EDGE_MAX checkpoint 上限过滤 (实证 v2.6.10 9.5h walfr=0 杀真信号)
+//   · 删 LOCK_MS bucket claim (perMessageMinIntervalMs 已删)
+//   · WAL 仅作为 W%脉动信号的 backup (W% 主导·WAL 备用)
+//   · 真本源迁至 Engine._tick 的 W%增量 (零中间噪音·后端真实计费)
+//
+// v2.6.9-v2.6.10 历史损法 (背景):
+//   · 弃 settle 累积模型 (实证 v2.6.6-2.6.8 0 触发)
+//   · 改首次增量边沿即 fire (WAL_EDGE_MIN ≥ 512B)
+//   · v2.6.10 加 max filter 想拦 checkpoint·实证杀真信号·v2.6.11 删
 function _installWalWatcher(context) {
   try {
     const gsDir = _resolveGlobalStorageDir(context);
@@ -2876,36 +3949,77 @@ function _installWalWatcher(context) {
       return null;
     }
 
-    // v2.6.6 反者道之动: WAL 同走 settle 模型 (debounce trailing edge)
-    const WAL_SETTLE_MS = Math.max(3000, _cfg("walDetectSettleMs", 15000) | 0);
-    const WAL_ACCUM_MIN = Math.max(512, _cfg("walDetectAccumMin", 10240) | 0);
-    // SQLite WAL 帧 = pageSize(4096) + 24B 帧头 · 任意有效内容写入必然 ≥1 帧
-    const WAL_GROW_MIN = Math.max(100, _cfg("walDetectGrowMin", 1024) | 0);
-    const WAL_POLL_MS = 300; // 比 pb 轮询(600ms)快一倍 · 更贴近真实 send 时刻
-    const WAL_LARGE = 524288; // 单次 ≥512KB 立即 settle 兜底
+    // 道法自然 · 边沿首发参数
+    const WAL_EDGE_MIN = Math.max(256, _cfg("walEdgeMinBytes", 512) | 0); // 单次 delta ≥ 此值即 fire (1 SQLite 帧最小 4KB·512B 即可捕捉部分写)
+    const WAL_POLL_MS = Math.max(100, _cfg("walPollMs", 300) | 0);
+    // v2.6.14 守二·守三 · WAL 同源冷 + 启动暖启
+    const WAL_COOLDOWN_MS = Math.max(0, _cfg("walEdgeCooldownMs", 2000) | 0); // 同源最小间隔 (2s 避 4KB 帧连火)
+    const WAL_WARMUP_MS = Math.max(0, _cfg("walWarmupMs", 5000) | 0); // 启动暖启 (5s 防 activate 首 stat 累积差引雪崩)
+    const walInstalledAt = Date.now();
+    let lastWalFireAt = 0;
+    let walWarmupSkipCount = 0;
+    let walCooldownSkipCount = 0;
 
-    let walAccum = 0;
-    let walSettleTimer = null;
-
-    function _fireWalSettle(total, reason) {
-      const bucket = Math.floor(Date.now() / WAL_SETTLE_MS);
-      const claim = path.join(L6_CLAIM_DIR, "wal." + bucket + ".settle");
-      try {
-        fs.writeFileSync(claim, String(process.pid), { flag: "wx" });
-      } catch {
-        return; // 已被其他实例认领
+    function _fireWalEdge(delta, totalSz) {
+      // v2.6.14 守三 · 启动暖启窗 · 跳过首 WAL_WARMUP_MS 内之差 (cascade-server 流期累积)
+      const sinceInstall = Date.now() - walInstalledAt;
+      if (WAL_WARMUP_MS > 0 && sinceInstall < WAL_WARMUP_MS) {
+        walWarmupSkipCount++;
+        log(
+          "WAL · edge·skip[warmup:" +
+            sinceInstall +
+            "ms<" +
+            WAL_WARMUP_MS +
+            "ms] +" +
+            delta +
+            "B (size=" +
+            totalSz +
+            ")",
+        );
+        return;
       }
+      // v2.6.14 守二 · 同源最小间隔 · 避连续 4KB 帧连火 (log 噪削减)
+      const sinceLastFire = Date.now() - lastWalFireAt;
+      if (
+        WAL_COOLDOWN_MS > 0 &&
+        lastWalFireAt > 0 &&
+        sinceLastFire < WAL_COOLDOWN_MS
+      ) {
+        walCooldownSkipCount++;
+        log(
+          "WAL · edge·skip[cooldown:" +
+            sinceLastFire +
+            "ms<" +
+            WAL_COOLDOWN_MS +
+            "ms] +" +
+            delta +
+            "B",
+        );
+        return;
+      }
+      lastWalFireAt = Date.now();
       log(
-        "WAL · settle: 累积" +
-          total +
-          "B · " +
-          reason +
-          " [pid=" +
+        "WAL · edge·fire: +" +
+          delta +
+          "B (size=" +
+          totalSz +
+          ") [pid=" +
           process.pid +
           "] → 切号",
       );
-      // v2.6.7 守一 · 删 _lastPerMsgTriggerAt = 0 (自夺防抖) · WAL 与 pb 同源派生收一道
-      _maybeTrigger("L6→wal·settle", "+" + total);
+      // diag 记录 user send 真信号分布 (v2.6.14 加 warmup/cooldown 计)
+      try {
+        const diagP = path.join(WAM_DIR, "_per_msg_diag.json");
+        const prev = fs.existsSync(diagP)
+          ? JSON.parse(fs.readFileSync(diagP, "utf8"))
+          : { hits: [], rotates: [] };
+        prev.lastEdgeDelta = delta;
+        prev.lastEdgeAt = Date.now();
+        prev.walWarmupSkipCount = walWarmupSkipCount;
+        prev.walCooldownSkipCount = walCooldownSkipCount;
+        atomicWrite(diagP, JSON.stringify(prev, null, 2));
+      } catch {}
+      _maybeTrigger("L6→wal·edge", "+" + delta);
     }
 
     const timer = setInterval(() => {
@@ -2913,60 +4027,32 @@ function _installWalWatcher(context) {
         const newSz = fs.statSync(walPath).size;
         const delta = newSz - walSz;
         if (delta < 0) {
-          // WAL checkpoint: 主 DB 吸收 WAL 后 WAL 缩小 · 重置累积
+          // WAL checkpoint: 主 DB 吸收 WAL 后 WAL 缩小 · 仅更新 baseline
           walSz = newSz;
-          if (walSettleTimer) clearTimeout(walSettleTimer);
-          walSettleTimer = null;
-          walAccum = 0;
           return;
         }
-        if (delta < WAL_GROW_MIN) return;
+        if (delta === 0) return;
+        if (delta < WAL_EDGE_MIN) {
+          // 太小 (SQLite 元数据微动) · 仅推 baseline · 不 fire
+          walSz = newSz;
+          return;
+        }
+        // v2.6.11 · 边沿首发 · 单次 delta ≥ MIN 即 fire (无 max·无累积·无 settle·无 bucket lock)
         walSz = newSz;
-        walAccum += delta;
-
-        // 单次大块兜底
-        if (delta >= WAL_LARGE && walAccum >= WAL_ACCUM_MIN) {
-          if (walSettleTimer) clearTimeout(walSettleTimer);
-          const total = walAccum;
-          walAccum = 0;
-          walSettleTimer = null;
-          _fireWalSettle(total, "大块" + delta + "B");
-          return;
-        }
-
-        // 重置 settle
-        if (walSettleTimer) clearTimeout(walSettleTimer);
-        walSettleTimer = setTimeout(() => {
-          const total = walAccum;
-          walAccum = 0;
-          walSettleTimer = null;
-          if (total < WAL_ACCUM_MIN) {
-            log(
-              "WAL · settle·skip: 累积" +
-                total +
-                "B<" +
-                WAL_ACCUM_MIN +
-                " [pid=" +
-                process.pid +
-                "]",
-            );
-            return;
-          }
-          _fireWalSettle(total, "静默" + WAL_SETTLE_MS + "ms");
-        }, WAL_SETTLE_MS);
+        _fireWalEdge(delta, newSz);
       } catch {}
     }, WAL_POLL_MS);
 
     log(
-      "WAL watcher · " +
+      "WAL watcher v2.6.14·守二守三·备用信号 · poll=" +
         WAL_POLL_MS +
-        "ms · settle=" +
-        WAL_SETTLE_MS +
-        "ms · accum≥" +
-        WAL_ACCUM_MIN +
-        "B · grow≥" +
-        WAL_GROW_MIN +
-        "B · " +
+        "ms · edge≥" +
+        WAL_EDGE_MIN +
+        "B · 同源冷=" +
+        WAL_COOLDOWN_MS +
+        "ms · 暖启=" +
+        WAL_WARMUP_MS +
+        "ms · " +
         walPath,
     );
     return timer;
@@ -3114,6 +4200,11 @@ function buildHtml() {
     const liveTag = h.hasSnap
       ? '<span class="live-dot" title="实时"></span>'
       : "";
+    // v3.3.0 · 道法自然 · 唯一变灰条件: 账号真正不可用 (lastError)
+    //   其余状态(未验/耗尽/陈旧)均正常显示 · 不变灰 · 不多此一举
+    //   用户可随时手动尝试切号 · 不作茧自缚
+    const isUnavail = !!h.lastError;
+    const unavailTag = isUnavail ? `<span class="unavail-tag" title="${_esc(h.lastError)}">不可用</span>` : "";
     const ucTag = isU ? '<span class="uc">未验</span>' : "";
     const bnTag = isBanned
       ? `<span class="bn" title="${_esc(banInfo.reason || "")}">黑${banSec}s</span>`
@@ -3152,11 +4243,11 @@ function buildHtml() {
       }
     }
     rows += `
-    <div class="row${isActive ? " act" : ""}${isBanned ? " banned" : ""}${isInUse ? " inuse" : ""}${!claudeOk && h.checked ? " expired-row" : ""}${isStaleRow ? " is-stale" : ""}" data-i="${i}" data-email="${_esc(a.email.toLowerCase())}">
+    <div class="row${isActive ? " act" : ""}${isUnavail ? " unavail" : ""}${isInUse ? " inuse" : ""}" data-i="${i}" data-email="${_esc(a.email.toLowerCase())}">
       <input type="checkbox" class="chk" data-i="${i}" />
       <span class="dm ${domainBadge}" title="${_esc(domain)}">${domainBadge}</span>
       <span class="em" title="${_esc(a.email)}">${_esc(emailShort)}</span>
-      ${expTag}${planTag}${claudeTag}${bnTag}${iuTag}${staleTag}${freshTag}${liveTag}${ucTag}
+      ${expTag}${planTag}${h.checked && h.overageDollars > 0 ? (h.staleHours >= 6 ? `<span class="eua-stale" title="Extra Usage $${h.overageDollars.toFixed(0)} · 数据${h.staleHours}h前(可能已消耗·建议重验)">$${Math.round(h.overageDollars)}?</span>` : `<span class="eua" title="Extra Usage Active · $${h.overageDollars.toFixed(0)} · Cascade quota=0时仍完全可用${h.staleHours >= 1 ? " · " + h.staleHours + "h前验" : ""}">$${Math.round(h.overageDollars)}</span>`) : ""}${h.checked && !h.overageDollars ? `<span class="eua0" title="已验 · 无Extra Usage余额 · 激活处理中或未成功">$0</span>` : ""} ${claudeTag}${bnTag}${iuTag}${staleTag}${freshTag}${liveTag}${ucTag}${unavailTag}
       <span class="qt">
         <span class="mb"><span class="mf" style="width:${dPct}%;background:${dC}"></span></span>
         <span class="ql" style="color:${dC}">${isU ? "D?" : "D" + dPct}</span>
@@ -3165,7 +4256,7 @@ function buildHtml() {
       </span>
       <span class="acts">
         <button class="b sk" onclick="sk(${i})" title="${a.skipAutoSwitch ? "已锁定·自动切号跳过此号(点击解锁)" : "锁定·防止自动切号选到此号"}" style="opacity:${a.skipAutoSwitch ? "1;color:#f0c674" : ".4"}">${a.skipAutoSwitch ? "&#128274;" : "&#128275;"}</button>
-        <button class="b sw" onclick="sw(${i})" title="手动切换(无限制)"${isBanned ? " disabled" : ""}${_wamMode === "official" ? ' disabled style="opacity:.3;cursor:not-allowed"' : ""}>&#9889;</button>
+        <button class="b sw" onclick="sw(${i})" title="手动切换(任何状态可试)"${_wamMode === "official" ? ' disabled style="opacity:.3;cursor:not-allowed"' : ""}>&#9889;</button>
         <button class="b vf" onclick="vf(${i})" title="验证">&#128270;</button>
         <button class="b cp" onclick="cp(${i})" title="复制">&#128203;</button>
         <button class="b rm" onclick="rm(${i})" title="删除">&times;</button>
@@ -3260,10 +4351,12 @@ body{font:12px/1.5 -apple-system,'Segoe UI',sans-serif;background:var(--bg);colo
 .row{display:flex;align-items:center;padding:3px 2px;border-bottom:1px solid #1a1a1a;gap:4px}
 .row:hover{background:#2a2d2e}
 .row.act{background:#264f7844;border-left:2px solid var(--blue)}
-.row.banned{opacity:.5;background:#2a1a1a}
+.row.unavail{opacity:.5;background:#2a1a1a}
 .row.inuse{background:#1a2a3a;border-left:2px solid #6cb3ff66}
 .iu{font-size:9px;background:#1a3a5a;color:#6cb3ff;padding:0 4px;border-radius:3px;font-weight:600}
-.row.expired-row{opacity:.55;background:#1a1515}
+.eua{font-size:9px;background:#1a3a1a;color:#4ec9b0;padding:0 4px;border-radius:3px;font-weight:700;letter-spacing:.2px;flex-shrink:0}
+.eua0{font-size:9px;background:#1e1e1e;color:#444;padding:0 4px;border-radius:3px;font-weight:600;letter-spacing:.2px;flex-shrink:0;border:1px solid #2a2a2a}
+.eua-stale{font-size:9px;background:#2a1e00;color:#ce9178;padding:0 4px;border-radius:3px;font-weight:700;letter-spacing:.2px;flex-shrink:0;border:1px solid #4a3a10}
 .row.switching{opacity:.6;pointer-events:none;position:relative}
 .row.switching::after{content:'⏳';position:absolute;right:6px;animation:pulse 1s infinite}
 .row.verifying{opacity:.7}
@@ -3281,6 +4374,7 @@ body{font:12px/1.5 -apple-system,'Segoe UI',sans-serif;background:var(--bg);colo
 .dm.o{background:#333;color:#999}
 .em{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
 .uc{font-size:9px;background:#333;color:#888;padding:0 4px;border-radius:3px}
+.unavail-tag{font-size:9px;color:#f87171;background:#2a1515;padding:0 4px;border-radius:3px;border:1px solid #4a2a2a}
 .bn{font-size:9px;background:#5a1d1d;color:#f88;padding:0 4px;border-radius:3px}
 .plan-tag{font-size:9px;background:#1a3a1a;color:var(--blue);padding:0 4px;border-radius:3px}
 .days{font-size:9px;color:#666;min-width:32px;display:inline-block;text-align:center;flex-shrink:0}
@@ -3314,8 +4408,6 @@ body{font:12px/1.5 -apple-system,'Segoe UI',sans-serif;background:var(--bg);colo
 /* v2.4.0 · stale 陈年标记 · UI 不骗人 */
 .stale{font-size:9px;color:#888;background:#2a2a1a;padding:0 4px;border-radius:3px;border:1px solid #4a4a2a}
 .stale-old{font-size:9px;color:#a08;background:#2a1a2a;padding:0 4px;border-radius:3px;border:1px solid #4a2a4a}
-.row.is-stale{opacity:.65}
-.row.is-stale .qt .ql{color:#888 !important}
 .endpoint-warn{background:#2a1a1a;border:1px solid #4a2a2a;border-radius:4px;padding:4px 10px;margin:4px 0;font-size:11px;color:#f88}
 .endpoint-warn b{color:#f88}
 .row.quota-flash{animation:qflash .6s}
@@ -3324,7 +4416,7 @@ body{font:12px/1.5 -apple-system,'Segoe UI',sans-serif;background:var(--bg);colo
 .footer .v{color:var(--blue)}
 </style></head><body>
 <div class="hd">
-<div class="st"><span style="color:${poolColor};font-weight:700">D${stats.totalD} W${stats.totalW}</span><span><b>${stats.available}</b>可用</span>${stats.exhausted > 0 ? `<span class="ex"><b>${stats.exhausted}</b>耗尽</span>` : ""}<span><b>${stats.pwCount}</b>号</span>${stats.unchecked > 0 ? `<span style="color:var(--blue)"><b>${stats.unchecked}</b>未验</span>` : ""}${stats.banned > 0 ? `<span style="color:var(--red)"><b>${stats.banned}</b>黑</span>` : ""}${stats.inUse > 0 ? `<span style="color:#6cb3ff" title="v2.3.0 使用中锁·120s后可再选"><b>${stats.inUse}</b>🔒</span>` : ""}<span class="mode-sw"><button class="${_wamMode === "wam" ? "on" : ""}" onclick="setMode('wam')" title="WAM 自动切号">WAM</button><button class="${_wamMode === "official" ? "on" : ""}" onclick="setMode('official')" title="官方登录·停引擎">官方</button></span></div>
+<div class="st"><span style="color:${poolColor};font-weight:700">D${stats.totalD} W${stats.totalW}</span><span><b>${stats.available}</b>可用</span>${stats.exhausted > 0 ? `<span class="ex"><b>${stats.exhausted}</b>耗尽</span>` : ""}<span><b>${stats.pwCount}</b>号</span>${stats.unchecked > 0 ? `<span style="color:var(--blue)"><b>${stats.unchecked}</b>未验</span>` : ""}${stats.banned > 0 ? `<span style="color:var(--red)"><b>${stats.banned}</b>黑</span>` : ""}${stats.inUse > 0 ? `<span style="color:#6cb3ff" title="v2.3.0 使用中锁·120s后可再选"><b>${stats.inUse}</b>🔒</span>` : ""}${stats.checkedCount > 0 ? `<span style="color:${stats.overageAccounts > 0 ? "#4ec9b0" : "#555"};font-size:10px" title="Extra Usage: ${stats.overageAccounts}已激活 / ${stats.checkedCount}已验 · $${Math.round(stats.totalOverageDollars)} · $0账号将在下次验证时触发激活"><b>${stats.overageAccounts}/${stats.checkedCount}</b>激活${stats.overageAccounts > 0 ? " $" + Math.round(stats.totalOverageDollars) : ""}</span>` : ""}${stats.checkedNoOverage > 0 && !_verifyAllInProgress ? `<button onclick="doActivateAll()" style="background:#1e3a1e;color:#4ec9b0;border:1px solid #2a5a2a;padding:1px 7px;border-radius:3px;cursor:pointer;font-size:10px;margin-left:2px" title="一键激活全池 $200 (${stats.checkedNoOverage}个待激活账号)">⚡激活(${stats.checkedNoOverage})</button>` : ""}<span class="mode-sw"><button class="${_wamMode === "wam" ? "on" : ""}" onclick="setMode('wam')" title="WAM 自动切号">WAM</button><button class="${_wamMode === "official" ? "on" : ""}" onclick="setMode('official')" title="官方登录·停引擎">官方</button></span></div>
 <div class="pool-bar"><div class="pool-fill" style="width:${poolPct}%"></div></div>
 ${activeHtml}${monitorBar}
 ${_wamMode === "official" ? '<div style="background:#2a1a1a;border:1px solid #4a2a2a;border-radius:4px;padding:6px 10px;margin:4px 0;font-size:11px;color:#f87171"><b>&#128274; 官方登录模式</b><br>WAM 引擎已停 (扫描/切号/心跳)<br>切回 WAM 模式可恢复自动轮转</div>' : ""}
@@ -3334,11 +4426,11 @@ ${_quotaEndpointDead() ? `<div class="endpoint-warn">&#9888;&#65039; <b>GetPlanS
 </div>
 <div class="batch-bar" id="batchBar"><span>已选 <b id="batchCount">0</b> 个</span><button onclick="batchDelete()">批量删除</button><button onclick="clearSelection()" style="background:#333;color:var(--blue)">取消</button></div>
 <div class="add-section">
-<div class="add-header" onclick="toggleAdd()"><span>&#43; 添加账号</span><span id="addArrow">&#9660;</span></div>
-<div class="add-body" id="addBody">
-<textarea id="addInput" placeholder="支持任意格式，每行一个 (自动识别)：&#10;email password   /   email:password   /   email----password&#10;email|password   /   email,password   /   email\tpassword&#10;邮箱：x@y.com&#10;密码：abc123    (多行标签 · 全角:也行)&#10;{&quot;email&quot;:&quot;x&quot;,&quot;password&quot;:&quot;y&quot;}    (JSON)&#10;devin-session-token$xxx   或   eyJ…JWT   (直接登录)"></textarea>
+<div class="add-header" onclick="toggleAdd()"><span>&#43; 添加账号</span><span id="addArrow">${_uiAddOpen ? "&#9650;" : "&#9660;"}</span></div>
+<div class="add-body${_uiAddOpen ? " open" : ""}" id="addBody">
+<textarea id="addInput" placeholder="万法识号 v2.7 · 任意格式·一文混万法·自动识号：&#10;email password   /   email:password   /   email----password&#10;email|password   /   email,password   /   email\tpassword&#10;邮箱:x@y.com / 账号:x / 卡号1:x   (多行标签·支持数字编号·全角:也行)&#10;密码:abc123 / 卡密1:abc / 口令:abc   (含@亦无碍·守一不退)&#10;{&quot;email&quot;:&quot;x&quot;,&quot;password&quot;:&quot;y&quot;}   (JSON)&#10;devin-session-token$xxx / eyJ…JWT / auth1_…   (直接登录)&#10;微信发货消息原文亦可粘 (自动剥(去掉点)·跳订单/账号管理器)"></textarea>
 <div class="add-actions"><button onclick="doAdd()">添加</button><button onclick="copyAll()" style="background:#333;color:var(--blue);margin-left:auto">&#128203; 一键导出</button></div>
-<div class="add-hint">万法识号 · 邮箱密码自动入库 · 原始 token 自动直登 · 重复跳过</div>
+<div class="add-hint">万法识号 v2.7 · 守道反者 · 卡号/卡密/微信发货/含@密码 皆通 · 原始 token 自动直登 · 重复跳过</div>
 </div></div>
 <div class="sec"><span>&#9660; 账号列表 (${stats.pwCount})</span></div>
 <div id="list">${rows}</div>
@@ -3355,13 +4447,15 @@ function cp(i){_clickFb(event);vscode.postMessage({type:'copyAccount',index:i});
 function rm(i){_clickFb(event);send('remove',i);}
 function copyAll(){vscode.postMessage({type:'copyAllAccounts'});}
 function setMode(m){vscode.postMessage({type:'setMode',mode:m});}
-function toggleAdd(){const b=document.getElementById('addBody');b.classList.toggle('open');document.getElementById('addArrow').textContent=b.classList.contains('open')?'\\u25B2':'\\u25BC';}
-function doAdd(){const ta=document.getElementById('addInput');const t=ta.value.trim();if(!t)return;vscode.postMessage({type:'addBatch',text:t});ta.value='';}
+function doActivateAll(){vscode.postMessage({type:'activateAll'});}
+function toggleAdd(){const b=document.getElementById('addBody');b.classList.toggle('open');const isOpen=b.classList.contains('open');document.getElementById('addArrow').textContent=isOpen?'\\u25B2':'\\u25BC';const s=vscode.getState()||{};vscode.setState({...s,addOpen:isOpen});vscode.postMessage({type:'setAddOpen',open:isOpen});}
+function doAdd(){const ta=document.getElementById('addInput');const t=ta.value.trim();if(!t)return;vscode.postMessage({type:'addBatch',text:t});ta.value='';const s=vscode.getState()||{};vscode.setState({...s,addText:''});}
 function showToast(m,cls){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(cls?' '+cls:'');setTimeout(()=>{t.className='toast';},2200);}
 function updateBatchBar(){const c=document.querySelectorAll('.chk:checked');document.getElementById('batchCount').textContent=c.length;document.getElementById('batchBar').classList.toggle('visible',c.length>0);}
 function batchDelete(){const ix=[...document.querySelectorAll('.chk:checked')].map(c=>parseInt(c.dataset.i));if(ix.length===0)return;vscode.postMessage({type:'removeBatch',indices:ix});}
 function clearSelection(){document.querySelectorAll('.chk:checked').forEach(c=>c.checked=false);updateBatchBar();}
 document.addEventListener('change',e=>{if(e.target.classList.contains('chk'))updateBatchBar();});
+(function(){const s=vscode.getState()||{};if(s.addText){const ta=document.getElementById('addInput');if(ta)ta.value=s.addText;}const ta=document.getElementById('addInput');if(ta)ta.addEventListener('input',function(){const st=vscode.getState()||{};vscode.setState({...st,addText:this.value});});})();
 window.addEventListener('message',e=>{const m=e.data;
 if(m.type==='toast'){const cls=m.text&&m.text.startsWith('\\u2713')?'ok':m.text&&m.text.startsWith('\\u2717')?'fail':'';showToast(m.text,cls);}
 if(m.type==='switching'){const r=document.querySelector('.row[data-i=\"'+m.index+'\"]');if(r){r.classList.add('switching');showToast('\\u26A1 \\u5207\\u6362\\u4E2D...');}}
@@ -3401,24 +4495,26 @@ async function handleWebviewMessage(msg) {
   try {
     switch (msg.type) {
       case "switch": {
-        // v17.42.20 手动抢占: _switching 超 30s 强制释放
+        // v3.0.1 手动至高优先 · 道法自然 · 用户意志即最高优先级
+        //   超时 30s → 10s: 手动操作不应让用户等待超过10s
+        //   删除 _engine.rotating && !_switching 永久阻塞 (v3.x 病灶一·最致命)
+        //   _switching 统一互斥锁: rotateNext/命令面板 均已同步 (v3.0.1 修二·修三)
         if (_switching) {
           const lockAge = Date.now() - _switchingStartTime;
-          if (lockAge < 30000) {
+          if (lockAge < 10000) {
             _toast("正在切换中(" + Math.round(lockAge / 1000) + "s)...");
             return;
           }
           log(
-            "switch: 手动抢占 — 强制释放超时锁(" +
+            "switch: 手动强占 — 强制释放超时锁(" +
               Math.round(lockAge / 1000) +
               "s)",
           );
           _switching = false;
+          if (_engine) _engine.rotating = false; // v3.0.1 双锁归一 同步清除
         }
-        if (_engine.rotating && !_switching) {
-          _toast("引擎正在轮转中...");
-          return;
-        }
+        // v3.0.1: 已删除 _engine.rotating && !_switching 永久无超时阻塞
+        // 手动切号不受引擎轮转状态约束 · 天下莫柔弱于水 · 一锁至柔覆万场景
         _switching = true;
         _switchingStartTime = Date.now();
         _engine.rotating = true;
@@ -3451,47 +4547,49 @@ async function handleWebviewMessage(msg) {
         if (i < 0 || i >= _store.accounts.length) return;
         const a = _store.accounts[i];
         const vt0 = Date.now();
+        // v2.8.3 · 统一走 verifyOneAccount (内含 activate) · 一码归一 · 无为而无以为
         _broadcastMsg({ type: "verifying", index: i });
-        _toast("🔍 验证中: " + a.email.split("@")[0]);
-        const dl = await devinLogin(a.email, a.password);
-        if (!dl.ok) {
-          _bumpFailure(_store, a.email, "verify-devin: " + dl.error);
-          _toast("✗ devin: " + dl.error + " · " + (Date.now() - vt0) + "ms");
-          _broadcastUI();
-          return;
-        }
-        const pa = await windsurfPostAuth(dl.auth1);
-        if (!pa.ok) {
-          _bumpFailure(_store, a.email, "verify-postAuth: " + pa.error);
-          _toast("✗ postAuth: " + pa.error + " · " + (Date.now() - vt0) + "ms");
-          _broadcastUI();
-          return;
-        }
-        // v2.4.1 · webview 单号验: 加 RegisterUser 拿真 apiKey · 走 GetUserStatus 真路径
-        const reg = await registerUserViaSession(pa.sessionToken);
-        const apiKey = (reg.ok && reg.apiKey) || pa.sessionToken;
-        const apiServerUrl =
-          (reg.ok && reg.apiServerUrl) || pa.apiServerUrl || "";
-        const q = await tryFetchPlanStatus(apiKey, { apiServerUrl });
+        _toast("🔍 验证+激活中: " + a.email.split("@")[0]);
+        const vr = await verifyOneAccount(a);
         const vms = Date.now() - vt0;
-        if (q) {
-          _store.setHealth(a.email, q);
+        if (vr.ok && vr.q) {
+          _store.setHealth(a.email, vr.q);
+          const ovgStr = vr.q.overageActive
+            ? " $" + Math.round(vr.q.overageDollars)
+            : "";
           _toast(
             "✓ " +
               a.email.split("@")[0] +
               " D" +
-              q.daily +
+              vr.q.daily +
               "% W" +
-              q.weekly +
+              vr.q.weekly +
               "% " +
-              (q.plan || "") +
+              (vr.q.plan || "") +
+              ovgStr +
               " · " +
               vms +
               "ms",
           );
         } else {
-          _store.setHealth(a.email, { plan: "?", daily: 0, weekly: 0 });
-          _toast("✓ 登录通 · PlanStatus 未取到 · " + vms + "ms");
+          _bumpFailure(
+            _store,
+            a.email,
+            "verify: " + (vr.stage || "?") + " " + (vr.error || "?"),
+          );
+              // v3.3.0 · 账号真正验证失败才标不可用 · rate-limit是IP级与账号无关
+              if (!vr.error || !/rate.?limit|too.?many|429/i.test(String(vr.error))) {
+                _store.setHealthError(a.email, vr.stage || "?", vr.error || "?");
+              }
+          _toast(
+            "✗ " +
+              (vr.stage || "?") +
+              ": " +
+              (vr.error || "?") +
+              " · " +
+              vms +
+              "ms",
+          );
         }
         const k = a.email.toLowerCase();
         if (_store.blacklist[k]) {
@@ -3526,88 +4624,102 @@ async function handleWebviewMessage(msg) {
         break;
       }
       case "addBatch": {
+        // v3.0.6 · 无感无为 · 立即响应 · 零用户等待
+        //   原病灶一: await injectToken 先阻塞 → 点「添加」后 N 秒无任何反馈
+        //   原病灶二: 串行 verify + 800ms 抖动 → 20账号需 2-6 分钟 → 用户反复开面板都是"未验"
+        //   原病灶三: reloadAccounts() 多余重读盘 (addBatch 已在内存 · 无需重读)
+        //   修法: 3 并行 verify worker · 零初始延迟 · 无抖动 · devinLogin 序列化门已保证限速
+        //         20 账号: 串行 2-6min → 并行 3 worker ~30-80s · 5 账号 ~10s · 用户可感
         const r = _store.addBatch(msg.text || "");
+        const tks = r.tokens || [];
         let info = "添加 " + r.added + " 个";
         if (r.duplicate > 0) info += " · 跳重 " + r.duplicate;
-        const tks = r.tokens || [];
-        if (tks.length > 0) {
-          info += " · 检出 " + tks.length + " token";
-          // 直登 · 注入第一个 token (后续 token 仅记录)
-          const inj = await injectToken(tks[0]);
-          if (inj.ok) {
-            _store.lastInjectPath = inj.path;
-            _store.activeTokenShort = (tks[0] || "").substring(0, 24) + "…";
-            _store.save();
-            info += " ✓路" + inj.path;
-            log(
-              "addBatch token直登 ✓ 路" +
-                inj.path +
-                " · 余 " +
-                (tks.length - 1) +
-                " 个未用",
-            );
-          } else {
-            info += " ✗" + (inj.note || inj.path || "?");
-            log("addBatch token直登 ✗ " + (inj.note || ""));
-          }
-        }
-        _toast(info);
-        _store.reloadAccounts();
-        _broadcastUI();
-        // v2.4.3 · 新加号即时后台 verify · 不再等 30min stale 周期
-        //   · 1s 后启动 (让 UI 先 render 加号成功)
-        //   · 串行 + 800ms 抖动 (防 Devin 拉黑)
-        //   · 失败不重试 (用户可手动点🔍按钮)
-        if (r.added > 0 && r.addedEmails && r.addedEmails.length > 0) {
-          const newEmails = r.addedEmails.slice();
-          setTimeout(async () => {
-            log(
-              "addBatch · 新加 " + newEmails.length + " 号 · 后台即时 verify",
-            );
-            for (const em of newEmails) {
-              const a = _store.accounts.find(
-                (x) => x.email.toLowerCase() === em.toLowerCase(),
+        if (tks.length > 0) info += " · " + tks.length + " token (注入中…)";
+        _toast(info); // ← 立即告知 · 不等 injectToken
+        // 不调 reloadAccounts() — addBatch 已直接修改 this.accounts · accounts 已在内存
+        _broadcastUI(); // ← 立即刷新 · 用户即见新账号列表
+        // 后台 fire-forget: token 注入 + 3 worker 并行 verify
+        (async () => {
+          if (tks.length > 0) {
+            const inj = await injectToken(tks[0]);
+            if (inj.ok) {
+              _store.lastInjectPath = inj.path;
+              _store.activeTokenShort = (tks[0] || "").substring(0, 24) + "…";
+              _store.save();
+              _toast("✓ token 路" + inj.path);
+              log(
+                "addBatch token直登 ✓ 路" +
+                  inj.path +
+                  " · 余 " +
+                  (tks.length - 1) +
+                  " 个未用",
               );
-              if (!a) continue;
-              try {
-                const vr = await verifyOneAccount(a);
-                if (vr.ok && vr.q) {
-                  _store.setHealth(a.email, vr.q);
-                  log(
-                    "addBatch verify ✓ " +
-                      em.substring(0, 30) +
-                      " D" +
-                      vr.q.daily +
-                      "% W" +
-                      vr.q.weekly +
-                      "% " +
-                      vr.q.plan +
-                      " " +
-                      vr.q.daysLeft +
-                      "d",
-                  );
-                  _broadcastUI();
-                } else {
-                  log(
-                    "addBatch verify ✗ " +
-                      em.substring(0, 30) +
-                      " · " +
-                      (vr.stage || "?") +
-                      ": " +
-                      (vr.error || "?"),
-                  );
-                }
-              } catch (e) {
-                log("addBatch verify err " + em + " · " + (e.message || e));
-              }
-              // 抖动 800ms ± 30%
-              await new Promise((rr) =>
-                setTimeout(rr, 800 + Math.random() * 480),
-              );
+              _broadcastUI();
+            } else {
+              _toast("token ✗ " + (inj.note || inj.path || "?"));
+              log("addBatch token直登 ✗ " + (inj.note || ""));
             }
-            _broadcastUI();
-          }, 1000);
-        }
+          }
+          if (r.added > 0 && r.addedEmails && r.addedEmails.length > 0) {
+            const newEmails = [...r.addedEmails];
+            const _vq = [...newEmails]; // 共享队列 · 3 worker 竞争消费
+            log(
+              "addBatch · 新加 " +
+                newEmails.length +
+                " 号 · 并行 verify 3 workers · 零等待",
+            );
+            // 并行 verify worker · 共享 _vq 队列
+            // devinLogin 序列化门保证: 任意时刻只 1 个 devinLogin 飞 · 最小间隔 1200ms
+            // 3 worker 最终效果: 3x 加速 vs 串行 + cache快路账号完全不占门
+            async function _addBatchVerifyWorker() {
+              while (_vq.length > 0) {
+                const em = _vq.shift();
+                if (!em) continue;
+                const a = _store.accounts.find(
+                  (x) => x.email.toLowerCase() === em.toLowerCase(),
+                );
+                if (!a) continue;
+                try {
+                  const vr = await verifyOneAccount(a);
+                  if (vr.ok && vr.q) {
+                    _store.setHealth(a.email, vr.q);
+                    log(
+                      "addBatch verify ✓ " +
+                        em.substring(0, 30) +
+                        " D" +
+                        vr.q.daily +
+                        "% W" +
+                        vr.q.weekly +
+                        "% " +
+                        vr.q.plan +
+                        " " +
+                        vr.q.daysLeft +
+                        "d",
+                    );
+                    _broadcastUI(); // 逐账号更新 · 防抖合并 · 用户实时见进度
+                  } else {
+                    log(
+                      "addBatch verify ✗ " +
+                        em.substring(0, 30) +
+                        " · " +
+                        (vr.stage || "?") +
+                        ": " +
+                        (vr.error || "?"),
+                    );
+                  }
+                } catch (e) {
+                  log("addBatch verify err " + em + " · " + (e.message || e));
+                }
+                // 无额外等待 · devinLogin 序列化门已保证最小 1200ms 间隔 · 800ms 抖动冗余废除
+              }
+            }
+            const nWorkers = Math.min(3, newEmails.length);
+            await Promise.all(
+              Array.from({ length: nWorkers }, _addBatchVerifyWorker),
+            );
+            _broadcastUI(); // 收尾刷新
+          }
+        })();
         break;
       }
       case "copyAccount": {
@@ -3625,6 +4737,7 @@ async function handleWebviewMessage(msg) {
         break;
       }
       // ── 本源 v17.42.7 锁🔒 toggleSkip ──
+      // v2.7.4 (补入v3.0.2) · 真本源持久化 · 写独立 lock-state.json (race-safe)
       case "toggleSkip": {
         const acc3 = _store.accounts[msg.index];
         if (acc3) {
@@ -3638,12 +4751,21 @@ async function handleWebviewMessage(msg) {
                 " 是 _predictiveCandidate → 即时作废",
             );
           }
+          // v2.7.4 · 写 lock-state.json 独立真本源 (其他窗口 save() 不会覆盖)
+          const wOk = _writeLockState(acc3.email, !!acc3.skipAutoSwitch);
           log(
             "🔒 " +
               (acc3.skipAutoSwitch ? "锁" : "解锁") +
               ": " +
-              acc3.email.substring(0, 20),
+              acc3.email.substring(0, 20) +
+              (wOk ? " · 持久化 ✓" : " · 持久化失败 ⚠️"),
           );
+          // 同步内存快照 (reloadAccounts 路径不破)
+          const _lk = acc3.email.toLowerCase();
+          if (!_store._savedAccountMeta) _store._savedAccountMeta = {};
+          if (acc3.skipAutoSwitch)
+            _store._savedAccountMeta[_lk] = { skipAutoSwitch: true };
+          else delete _store._savedAccountMeta[_lk];
           _toast(
             (acc3.skipAutoSwitch ? "🔒 已锁定 " : "🔓 已解锁 ") +
               acc3.email.split("@")[0],
@@ -3675,10 +4797,21 @@ async function handleWebviewMessage(msg) {
         _broadcastUI();
         break;
       }
-      // ── 对齐本源: refresh (刷新视图) ──
+      // ── 对齐本源: refresh (刷新视图 + 后台触发 onlyStale 验证) ──
+      // v3.0.2 · 手动 refresh 不再只是 reloadAccounts · 同步触发 stale 验证刷新额度
       case "refresh": {
         _store.reloadAccounts();
         _broadcastUI();
+        // 后台触发 onlyStale 验证 (不阻塞 · 不重复 · 用户点刷新即更新额度)
+        if (!_verifyAllInProgress && _wamMode === "wam") {
+          setTimeout(() => {
+            if (_verifyAllInProgress) return;
+            log("refresh: 触发后台 onlyStale 验证");
+            verifyAllAccounts({ onlyStale: true }).catch((e2) =>
+              log("refresh-verify err: " + (e2.message || e2)),
+            );
+          }, 300);
+        }
         break;
       }
       // ── 对齐本源: autoRotate (智能轮转) ──
@@ -3743,9 +4876,59 @@ async function handleWebviewMessage(msg) {
         _broadcastUI();
         break;
       }
+      // ── v2.8.4 · activateAll: 一键激活全池未激活账号 $200 Extra Usage ──
+      // 道法自然: 触发验证即触发激活 · 激活内化于验证之中 · 无需独立激活路径
+      case "activateAll": {
+        if (_verifyAllInProgress) {
+          _toast("验证中自动激活...请稍候");
+          break;
+        }
+        const needAct = _store.accounts.filter((a) => {
+          const h = _store.getHealth(a.email);
+          return h.checked && !h.overageActive && !_store.isBanned(a.email);
+        });
+        const uncheckedAll = _store.accounts.filter((a) => {
+          const h = _store.getHealth(a.email);
+          return !h.checked && !_store.isBanned(a.email);
+        });
+        const total = needAct.length + uncheckedAll.length;
+        if (total === 0) {
+          _toast("✓ 所有已验账号均已激活 Extra Usage Balance");
+          break;
+        }
+        _toast("⚡ 后台激活 " + total + " 个账号 Extra Usage (验证+触发)...");
+        log(
+          "activateAll: 启动 · 需激活 " +
+            needAct.length +
+            " · 未验 " +
+            uncheckedAll.length,
+        );
+        // 触发全量验证 (内含自动激活) · onlyStale=false 确保全部刷新
+        verifyAllAccounts({ onlyStale: false })
+          .then((r2) => {
+            const st = _store.getStats();
+            _toast(
+              "⚡ 激活批次完成: $" +
+                Math.round(st.totalOverageDollars || 0) +
+                " (" +
+                (st.overageAccounts || 0) +
+                " 账号 Extra Usage) · 验证 " +
+                (r2 ? r2.ok + "/" + r2.total : "?"),
+            );
+            _broadcastUI();
+          })
+          .catch((e2) => log("activateAll err: " + (e2.message || e2)));
+        break;
+      }
       // ── 对齐本源: openEditor (从侧栏打开大窗口) ──
       case "openEditor": {
         openEditorPanel();
+        break;
+      }
+      // v3.0.5 · 添加账号展开状态持久化 · 防回退闪烁
+      // 客户端 toggleAdd() 点击时上报 → 服务端记住 → 下次 buildHtml() 正确渲染初始态
+      case "setAddOpen": {
+        _uiAddOpen = !!msg.open;
         break;
       }
     }
@@ -3765,11 +4948,19 @@ class Engine {
   }
 
   async rotateNext(opts) {
-    if (this.rotating) {
-      log("rotate: in-progress");
+    if (this.rotating || _switching) {
+      log(
+        "rotate: in-progress (rotating=" +
+          this.rotating +
+          " switching=" +
+          _switching +
+          ")",
+      );
       return { ok: false, busy: true };
     }
     this.rotating = true;
+    _switching = true; // v3.0.1 · 与 _doAutoSwitch 对齐 · 手动10s超时生效
+    _switchingStartTime = Date.now(); // v3.0.1
     _broadcastUI();
     try {
       if (opts && opts.tryPending) {
@@ -3834,6 +5025,7 @@ class Engine {
       return { ok: false };
     } finally {
       this.rotating = false;
+      _switching = false; // v3.0.1 · 与 _doAutoSwitch 对齐
       _broadcastUI();
     }
   }
@@ -3876,8 +5068,9 @@ class Engine {
 
   startMonitor() {
     if (this.scanTimer) return;
-    const ms = Math.max(30000, _cfg("scanIntervalMs", 60000) | 0);
-    log("monitor start · period=" + ms + "ms");
+    // v2.6.11 · min 5s (为 W%脉动信号争取实时性 · 原 30s 太慢·合并多次 send)
+    const ms = Math.max(5000, _cfg("scanIntervalMs", 10000) | 0);
+    log("monitor start · period=" + ms + "ms (v2.6.11 W%脉动真本源)");
     this.scanTimer = setInterval(() => {
       this._tick().catch((e) => log("tick err: " + (e.message || e)));
     }, ms);
@@ -3936,6 +5129,110 @@ class Engine {
       log("tick: planStatus 拉空 · 跳过");
       return;
     }
+    // v2.6.12 道恒无名 · 民自均焉 · W%脉动信号 (真本源 · 守一)
+    //   原理: 每次 user send → 后端计费 → weekly% 减少 (Remaining%)
+    //   两轮间 prevW% - newW% = 本轮 user send 总消耗
+    //   外在文件 IO 全不必赖 · 零中间噪音 · 后端账即真账
+    //
+    //   v2.6.12 守一 (修 v2.6.11 跨账号假脉动 bug):
+    //     · 必须同账号 (_lastQuotaEmail === activeEmail) 才比 W% (跨账号 ΔW% 是切号引起·非 send)
+    //     · 真脉动 → 设 _lastQuotaPulseAt → 后续 N 秒内 WAL/pb 让位 (主信号优先)
+    const pulseMinDelta = Math.max(
+      0.01,
+      +_cfg("quotaPulseMinDelta", 0.3) || 0.3,
+    );
+    const curEmail = this.store.activeEmail || "";
+    if (
+      _lastQuotaWeekly >= 0 &&
+      _lastQuotaEmail === curEmail &&
+      curEmail &&
+      typeof q.weekly === "number" &&
+      q.weekly >= 0 &&
+      _lastQuotaWeekly - q.weekly >= pulseMinDelta
+    ) {
+      const dW = +(_lastQuotaWeekly - q.weekly).toFixed(3);
+      _quotaPulseCount++;
+      _lastQuotaPulseAt = Date.now(); // 守一 · 主信号窗口起点
+      log(
+        "\u26a1 W%\u8109\u52a8\u4fe1\u53f7#" +
+          _quotaPulseCount +
+          " \u00b7 W " +
+          _lastQuotaWeekly.toFixed(2) +
+          "% \u2192 " +
+          q.weekly.toFixed(2) +
+          "% \u00b7 \u0394=-" +
+          dW +
+          "% \u2192 \u89e6\u53d1\u5207\u53f7",
+      );
+      _maybeTrigger("\u26a1W%\u8109\u52a8", "-" + dW + "%");
+    } else if (
+      _lastQuotaWeekly >= 0 &&
+      _lastQuotaEmail !== curEmail &&
+      typeof q.weekly === "number" &&
+      q.weekly >= 0 &&
+      Math.abs(_lastQuotaWeekly - q.weekly) >= pulseMinDelta
+    ) {
+      // 跨账号变化 · 屏蔽假脉动 · 仅诊断计数 (不打 log 噪音 · 仅累计)
+      _quotaPulseSuppressedCount++;
+    }
+    // v2.6.13 阴阳结合 · ⚖额度变动信号 (阴·辅 · 与 W%脉动互补)
+    //   原理: weekly% (阳·主·宏观百分比) ↔ daily%/promptCredits/flowCredits (阴·辅·微观+其他维度)
+    //   反者道之动: 自彼则不见 · 自是则知之 · W% 自是 · ⚖ 自彼 · 阴阳互补显全象
+    //   不冲突: 同入 _maybeTrigger · 同受 60s 强锁 · W%脉动主信号窗内 ⚖ 让位 (主 _maybeTrigger 已处理)
+    //   防跨账号假脉动: 同 W% · 必 _lastQuotaEmail === curEmail 才比 (在更新 _lastQuotaEmail 之前)
+    if (
+      _cfg("quotaDeltaEnable", true) &&
+      curEmail &&
+      _lastQuotaEmail === curEmail
+    ) {
+      const creditsMin = Math.max(1, +_cfg("quotaDeltaCreditsMin", 1) || 1);
+      const dailyMin = Math.max(0.01, +_cfg("quotaDeltaDailyMin", 0.3) || 0.3);
+      const dDaily =
+        _lastQuotaDaily >= 0 && typeof q.daily === "number" && q.daily >= 0
+          ? _lastQuotaDaily - q.daily
+          : 0;
+      const dPC =
+        _lastQuotaPromptCredits >= 0 &&
+        typeof q.promptCredits === "number" &&
+        q.promptCredits >= 0
+          ? _lastQuotaPromptCredits - q.promptCredits
+          : 0;
+      const dFC =
+        _lastQuotaFlowCredits >= 0 &&
+        typeof q.flowCredits === "number" &&
+        q.flowCredits >= 0
+          ? _lastQuotaFlowCredits - q.flowCredits
+          : 0;
+      const triggers = [];
+      if (dDaily >= dailyMin) triggers.push("D-" + dDaily.toFixed(2) + "%");
+      if (dPC >= creditsMin) triggers.push("PC-" + dPC);
+      if (dFC >= creditsMin) triggers.push("FC-" + dFC);
+      if (triggers.length > 0) {
+        _quotaDeltaCount++;
+        log(
+          "\u2696 \u989d\u5ea6\u53d8\u52a8\u4fe1\u53f7#" + // ⚖ 额度变动信号#
+            _quotaDeltaCount +
+            " \u00b7 " + // ·
+            triggers.join(",") +
+            " \u2192 \u89e6\u53d1\u5207\u53f7", // → 触发切号
+        );
+        _maybeTrigger("\u2696\u989d\u5ea6\u53d8\u52a8", triggers.join(",")); // ⚖额度变动
+      }
+    }
+    // 基线统一更新 (W% + ⚖ 同步) · 切号后 setActive 已清 -1 · 此处只更非负值
+    _lastQuotaWeekly =
+      typeof q.weekly === "number" ? q.weekly : _lastQuotaWeekly;
+    _lastQuotaEmail = curEmail;
+    _lastQuotaDaily =
+      typeof q.daily === "number" && q.daily >= 0 ? q.daily : _lastQuotaDaily;
+    _lastQuotaPromptCredits =
+      typeof q.promptCredits === "number" && q.promptCredits >= 0
+        ? q.promptCredits
+        : _lastQuotaPromptCredits;
+    _lastQuotaFlowCredits =
+      typeof q.flowCredits === "number" && q.flowCredits >= 0
+        ? q.flowCredits
+        : _lastQuotaFlowCredits;
     this.store.setHealth(this.store.activeEmail, q);
     _broadcastUI();
 
@@ -4137,6 +5434,13 @@ async function activate(context) {
   } catch (e) {
     log("seed: " + (e.message || e));
   }
+  // v3.1.0 · 永久安装 openExternal 守卫 · WAM 管控 auth 全程无弹窗
+  // 仅拦截 windsurf.com 认证 URL · 其余 openExternal 放行
+  // WAM 存在期间 永不应由 Windsurf 自动弹 auth 浏览器 · 一切 auth 由 WAM API 层驱动
+  _installOpenExternalGuard();
+  context.subscriptions.push({
+    dispose: () => _removeOpenExternalGuard(),
+  });
   _store = new Store();
   _store.load();
   _store.reloadAccounts();
@@ -4151,6 +5455,35 @@ async function activate(context) {
       " from " +
       (_store.accountsSource || "<none>"),
   );
+  // v3.0.2 · lock-state.json 跨窗口实时锁同步监视器
+  //   原理: Window A toggleSkip 写 lock-state.json → fs.watchFile 通知 Window B
+  //           Window B 收到通知 → reloadAccounts() + _broadcastUI() → UI 即时同步锁状态
+  let _lockWatchDebounce = null;
+  try {
+    fs.watchFile(LOCK_FILE, { persistent: false, interval: 1000 }, () => {
+      clearTimeout(_lockWatchDebounce);
+      _lockWatchDebounce = setTimeout(() => {
+        if (_store) {
+          log(
+            "lockWatcher: lock-state.json 变更 → reloadAccounts + broadcastUI",
+          );
+          _store.reloadAccounts();
+          _broadcastUI();
+        }
+      }, 500);
+    });
+    context.subscriptions.push({
+      dispose: () => {
+        try {
+          fs.unwatchFile(LOCK_FILE);
+        } catch {}
+        clearTimeout(_lockWatchDebounce);
+      },
+    });
+    log("lockWatcher: 监视 " + LOCK_FILE);
+  } catch (e) {
+    log("lockWatcher init err: " + (e.message || e));
+  }
   _engine = new Engine(_store);
 
   _statusBar = vscode.window.createStatusBarItem(
@@ -4245,6 +5578,8 @@ async function activate(context) {
         });
         if (!pick || pick.idx === _store.activeIdx) return;
         _engine.rotating = true;
+        _switching = true; // v3.0.1 · 命令面板切号同步 _switching
+        _switchingStartTime = Date.now(); // v3.0.1
         _broadcastUI();
         try {
           const r = await loginAccount(_store, pick.idx);
@@ -4252,6 +5587,7 @@ async function activate(context) {
           else _notify("error", "WAM: ✗ " + r.stage + ": " + r.error);
         } finally {
           _engine.rotating = false;
+          _switching = false; // v3.0.1
           _broadcastUI();
         }
       },
@@ -4595,11 +5931,22 @@ async function activate(context) {
             ? " (首次加速 · " + Math.round(uncheckedPct * 100) + "% 未验)"
             : ""),
       );
+      // v3.0.2 · 启动验证使用 autoVerifyStartupStaleMin (默认15min)
+      //   旧法: 始终用 30min 阈值 · 重启后若所有号均 <30min 前验 → 全部跳过 → 用户看到旧额度
+      //   新法: startupStaleMin 默认15min · 覆盖 verify.staleMin · 启动后15min内未验也会刷新
+      const startupStaleMin = Math.max(
+        1,
+        _cfg("autoVerifyStartupStaleMin", 15) | 0,
+      );
       const tv = setTimeout(() => {
         if (_wamMode !== "wam") return;
         if (_verifyAllInProgress) return;
-        log("auto-verify(stale): 启动 · 内化 refresh 按钮");
-        verifyAllAccounts({ onlyStale: true }).catch((e) =>
+        log(
+          "auto-verify(stale): 启动 · startupStaleMin=" +
+            startupStaleMin +
+            "min",
+        );
+        verifyAllAccounts({ onlyStale: true, startupStaleMin }).catch((e) =>
           log("auto-verify err: " + (e.message || e)),
         );
       }, verifyDelay);
@@ -4798,11 +6145,22 @@ async function activate(context) {
   log(
     "WAM v" +
       VERSION +
-      " activated · 道法自然 · 太上下知有之 · settle 模型[pb·new+pb·settle+wal·settle] · 4s 防抖" +
+      " activated · 三守俱全·大制无割 · ⚡W%脉动 (\u0394\u2265" +
+      (+_cfg("quotaPulseMinDelta", 0.3)).toFixed(2) +
+      "%·同账号判·切号清基线) + [全栏 " +
+      Math.round(+_cfg("perMessageMinIntervalMs", 60000) / 1000) +
+      "s / WAL让位 " +
+      Math.round(+_cfg("quotaPulsePriorityMs", 60000) / 1000) +
+      "s / WAL冷 " +
+      Math.round(+_cfg("walEdgeCooldownMs", 2000) / 1000) +
+      "s / 暖启 " +
+      Math.round(+_cfg("walWarmupMs", 5000) / 1000) +
+      "s]" +
       (_cfg("rotateOnEveryMessage", true) ? " [开]" : " [关]") +
       " · 使用中🔒 " +
       Math.round(_cfg("inUseLockMs", 120000) / 1000) +
-      "s · 不禁号·永不入黑",
+      "s · 不禁号·永不入黑" +
+      " · 🛡️guard=" + (_openExternalGuardActive ? "ON" : "OFF"),
   );
 }
 
@@ -4825,6 +6183,11 @@ module.exports = {
     verifyOneAccount,
     verifyAllAccounts,
     injectViaBing,
+    injectToken, // v3.1.0 · 暴露给回归测
+    _installOpenExternalGuard, // v3.1.0 · 暴露给回归测
+    _removeOpenExternalGuard, // v3.1.0 · 暴露给回归测
+    get _openExternalGuardActive() { return _openExternalGuardActive; },
+    get _guardBlockCount() { return _guardBlockCount; },
     _isValidAutoTarget,
     _bumpFailure, // v2.3.0 暴露给回归测
     isClaudeAvailable,
