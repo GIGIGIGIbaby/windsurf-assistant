@@ -40,7 +40,7 @@ __pycache__/
 060-修复_Repair/_archive_20260527_道法CSP/
 *byok_cfg.json
 
-# 印269 hdougle 测试运行时日志 + 临时脚本（含 mask 过的 token 等敏感信息）
+# 印271 hdougle 测试运行时日志 + 临时脚本（含 mask 过的 token 等敏感信息）
 130-道独立体_Standalone/05-GitHub/_hdougle_测试/_*.log
 130-道独立体_Standalone/05-GitHub/_hdougle_测试/_*.json
 130-道独立体_Standalone/05-GitHub/_hdougle_测试/_*.txt

@@ -2,7 +2,7 @@
 
 > 「执大象，天下往」「无有入于无间」「弱之胜强 · 以其无以易之也」
 
-本目录是 **印269 道独立体** 的实证工具链——
+本目录是 **印271 道独立体** 的实证工具链——
 脱离 zhouyoukang / zroliu 主账号，仅以独立 GitHub 账号 `hdougle` 走完
 **登录 → PAT → 推送 → secret → workflow → tunnel → API 验证** 全链路。
 
@@ -134,7 +134,7 @@ GitHub 设 secret 涉及 sudo 二次确认，纯 API 不够。
 
 ## 六、相关文档
 
-- `060-修复_Repair/SEAL_印269_道独立体_hdougle第三方账号全自动反代闭环.md` · 全过程实证档案
+- `060-修复_Repair/SEAL_印271_道独立体_hdougle第三方账号全自动反代闭环.md` · 全过程实证档案
 - `130-道独立体_Standalone/05-GitHub/README.md` · GitHub Actions 反代总览
 - `130-道独立体_Standalone/05-GitHub/dao_proxy.js` · 核心反代代理逻辑
 - `130-道独立体_Standalone/05-GitHub/workflows/dao-boot.yml` · 一键启动工作流
@@ -143,4 +143,4 @@ GitHub 设 secret 涉及 sudo 二次确认，纯 API 不够。
 
 > 道恒无名。朴唯小，而天下弗敢臣。
 
-— 道法自然 · 印269 之器
+— 道法自然 · 印271 之器
