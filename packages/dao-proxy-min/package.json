@@ -1,8 +1,8 @@
 {
   "name": "dao-proxy-min",
   "displayName": "道Agent · 反者道之动 · 弱者道之用",
-  "description": "v9.9.35 记忆全剔除: create_memory描述全清(功能+限制两句)+SYSTEM-RETRIEVED-MEMORY块剥除(已创建记忆不注入). 承v9.9.34道法自然审视.",
-  "version": "9.9.35",
+  "description": "v9.9.52 损CHECKPOINT_*_RE死代码(v9.9.51移除剥除逻辑后两常量已无引用). 承v9.9.51.",
+  "version": "9.9.52",
   "publisher": "dao-agi",
   "license": "Apache-2.0",
   "engines": {

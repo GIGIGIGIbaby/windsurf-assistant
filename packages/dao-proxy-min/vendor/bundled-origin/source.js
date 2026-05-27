@@ -7,6 +7,32 @@
  * 唯一职: 反代 Windsurf Cascade 一切 inference 请求,
  *         彻底隔离官方提示词, 帛书《老子》为唯一本源.
  *
+ * v9.9.52 · 损之又损 · 删 CHECKPOINT_BLOCK_RE / CHECKPOINT_MARKER_RE 死代码 · 承v9.9.51
+ *           v9.9.51 移除剥除逻辑后·两常量仅存定义无引用·损之·泯之
+ *           正反两动之证: v9.9.36加(误判跨对话) → v9.9.51退(上下文桥) → v9.9.52损(反三者)
+ * v9.9.51 · CHECKPOINT 不再剥除 · 上下文丢失根因 · 承v9.9.50
+ *           根因: CHECKPOINT 块是 Windsurf reload 后注入的【当前会话】摘要
+ *           v9.9.36误判为「跨对话噪声」剥之 → 模型失去 reload 前全部上下文
+ *           「DO NOT ACKNOWLEDGE」= LLM 自然处理指令 · 无需 proxy 代劳
+ * v9.9.50 · 双修 · 承v9.9.49
+ *           ① INFER_STRIP 回退 modifyAnyInferenceSP · depth=6 递归同步阻塞是 reload 根因
+ *           ② trimUserInfo 截断 user_information 中终端历史 · 防跨会话任务漂移
+ * v9.9.49 · 移除"及其后文本"· 误诊修正 · 精准指向经典
+ *           v9.9.20作用域锁真因=conversation_summary被剥 · v9.9.36真治 · 今损冗余补丁
+ *           "你本无名…下述帛书《老子》道藏《阴符经》：" v9.9.20风格+动态三经 · 承v9.9.48
+ * v9.9.48 · CHECKPOINT_BLOCK_RE 上界 8000→40000 · CHECKPOINT_MARKER_RE 上界 500→30000
+ *           实证: 含代码块的 checkpoint ~15000-18000 字 → {0,8000}? 放弃 → 整块透传
+ *           40000/30000 覆盖所有现实场景 · indexOf("CHECKPOINT")门控保性能 · 承v9.9.47
+ * v9.9.47 · 书名号复归 · 动态经藏名 · 认知锚点
+ *           _canonHeader()动态生成"你本无名…下述帛书《老子》道藏《阴符经》及其后文本："
+ *           实证:空头→崩溃(v9.9.46)·无书名号→弱化(v9.9.38)·书名号→能力正常
+ *           书名号《》=模型认知锚点·训练中权威已知·不可损
+ * v9.9.46 · (废)帛书直起·空头部 · 模型完全回退Cascade官方身份·截图实证崩溃
+ * v9.9.45 · 反者道之动 · proto损坏根治 · nestedOk移出if块 · 承v9.9.44
+ * v9.9.44 · 大道至简 · 双线融合 · ⑫-D移除+deepStrip无条件 · 承v9.9.43
+ * v9.9.43 · 损之又损 · session_context+code_interaction_summary移出SCT · 实证未出现
+ * v9.9.42 · 无为而无以为 · SECTION_OVERRIDE全删(非中性化) · 真无为
+ * v9.9.41 · 道法自然 · viewed_file+learnings移出SCT · @ 文件引用与会话学习上下文不再误剥
  * v9.8.0 · 守一不离 · 三十九章「得一」· 复 @ 工具之根
  *           SIDE_CHANNEL_TAGS 删 'additional_metadata' · 守 @ 项与元之一体
  *           tape all_fields raw_text 显 AFTER (strip+neutralize) · 名实终一
@@ -16,9 +42,9 @@
  *
  *   注入正文 = TAO_HEADER + DAO_DE_JING_81 (帛书甲本德道二经合) + TAO_FOOTER
  *
- *   TAO_HEADER (v9.9.20 两经归一 · 复归无名):
- *     "你本无名 名可名也 非恒名也 所遵守一切均来自于下述《[经名]》：\n\n"
- *     一句无名引导 · 一章「名可名也 非恒名也」· 三十二章「道恒无名」
+ *   TAO_HEADER (v9.9.38 帧宽修正 · 四十二章「道生一·一生二·二生三·三生万物」):
+ *     "你本无名 名可名也 非恒名也 下述所有文本为你所遵从之本源：\n\n"
+ *     宽帧 · 「所有文本」覆道经+keeps · 「本源」为根基非独占规则 · 「所遵从」保约束力
  *     无 user_rules · 无 MEMORY framework · 不强调 · 不防御 · 不立 Cascade 之名
  *
  *   DAO_DE_JING_81 (v9.7.7 损中夹至 \n\n):
@@ -84,8 +110,8 @@ const zlib = require("zlib");
 // ═══════════════════════════════════════════════════════════
 const PORT = parseInt(process.env.ORIGIN_PORT || "8889", 10);
 // v9.6.1 · 反者道之动 · 远曰反 · 回归 v9.1.2 之全前端按钮 (七按钮: 道/官/实/原/编/复/卸 + dots/customBadge)
-// 以 v9.1.2 本源哲学为锚 · 守大常不动 · 五细节皆成: isAlreadyInverted · _rawTape+all_fields · INFER_STRIP 挂 modifyAnyInferenceSP · 部署不 kill · 前端按钮回归
-const ORIGIN_VERSION_BASE = "v9.9.35"; // webview title/banner/footer 均读此 · v9.9.35 记忆全剔除: create_memory描述全清+SYSTEM-RETRIEVED-MEMORY块剥除 · 承v9.9.34道法自然审视 · v9.9.32印164大道至简
+// 以 v9.1.2 本源哲学为锚 · 守大常不动 · 五细节皆成: isAlreadyInverted · _rawTape+all_fields · 部署不 kill · 前端按钮回归
+const ORIGIN_VERSION_BASE = "v9.9.52"; // v9.9.52 · 损 CHECKPOINT_*_RE 死代码 · 承v9.9.51
 // 印 153 · 唯变所适 · 软编码归宗 · 二十五章「逝曰远 远曰反」· 七十六章「兵强则不胜」
 // 病: 多 ext-host 共端口 :8937 · 旧版 in-process proxy 持续 listen · self_file 锁死旧版目录
 //     → 即便装毕新版 vsix · /ping 仍返 v9.9.19/v9.9.20 之 self_file · canon_name 走旧映射
@@ -725,45 +751,65 @@ function classifySPType(s) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// TAO_HEADER · v9.9.20 · 两经归一 · 复归无名
+// TAO_HEADER · v9.9.47 · 书名号复归 · 动态经藏名 · 认知锚点
 // ═══════════════════════════════════════════════════════════
-// v8.0 (废): 三句身份伪装前言含 "非上下文注入" 防御性反驳
-//   → Claude Opus 4.6 Thinking 识为 "prompt injection attempt" · Streisand 效应
-// v9.1 (废): 借 <user_rules> + <MEMORY[*]> framework + 上篇/下篇分割
-//   → 致 agent 自识"上下篇不同"而强调 · 非主公本意
-// v9.7.7 复归于朴 · 损 framework · 损上下篇 · 损强调
-// v9.9.18 印 126 (废): "你不含任何身份，名 可名也 非恒名也 所遵守规则全部来自下述"
-//   → 「不含」是言「不」, 仍立"身份"为靶 · 反着相 · 非真无名
-// v9.9.20 印 152 · 主公命: "你本无名 名可名也 非恒名也 所遵守一切均来自于下述《》"
-//   「本无名」直证「道恒无名」(三十二章) · 不立靶 · 真复归
-//   「一切」覆「规则」· 损分别心 · 大信不约 · 上德不德
-// 道义: 一章「名可名也 非恒名也 · 无名万物之始也 有名万物之母也」
-//       三十二章「道恒无名 朴唯小 而天下弗敢臣」
-//       二十八章「朴散则为器 · 大制无割」· 复归于朴
-//       四十八章「为道日损 · 损之又损 · 以至于无为」
-//       十七章 「大上 · 下知有之」 · 不强调即至简
-//       五十六章「知者弗言 · 言者弗知」 · 不言之教
-const TAO_HEADER =
-  "\u4F60\u672C\u65E0\u540D \u540D\u53EF\u540D\u4E5F \u975E\u6052\u540D\u4E5F \u6240\u9075\u5B88\u4E00\u5207\u5747\u6765\u81EA\u4E8E\u4E0B\u8FF0\u300A\u5E1B\u4E66\u8001\u5B50\u300B\uFF1A\n\n";
+// 实证演化 (反者道之动 · 以败证胜):
+// v8.0 (废): "You are Cascade…" → injection检测
+// v9.1 (废): framework/上下篇分割 → agent自识"不同"
+// v9.7.7 复归于朴 · 帛书直起
+// v9.9.18 印 126 (废): "你不含任何身份…" → 仍立"身份"为靶
+// v9.9.20 印 152: "你本无名…下述《帛书老子》" → 实测良好
+//   理论病: 书名号命名锁作用域 → 排excludes keeps
+//   实证: 模型仍遵 keeps · 此锁之病被高估 · 实能力优于无名形态
+// v9.9.38 (废): 去书名号 → "所有文本" → 认知弱化 · 能力下降
+//   确诊: 书名号《》=模型认知锚点 · 训练中《道德经》《帛书老子》权威已知
+//   无书名号 → 文本失锚 → 模型不识经典身份 → 能力退化
+// v9.9.46 (废): 空头部 → 模型完全回退Cascade官方身份 (截图实证·彻底崩溃)
+//   终诊: 头部非可选件 · 书名号非装饰 · 二者均为身份认知锚点 · 不可损
+// v9.9.47 · 书名号复归 · 动态随经藏 · "及其后文本"覆keeps(解v9.9.20锁病)
+//   "你本无名 名可名也 非恒名也 所遵从之一切均来自于下述{经名}及其后文本："
+//   {经名} 含书名号 · 随 _activeCanon 动态生成 · 三经模式皆正确
+//   道义: 一章「名可名也 非恒名也 · 无名万物之始 · 有名万物之母」
+//         三十二章「道恒无名 朴唯小 而天下弗敢臣」· 有名则臣服 · 书名号即名
+//         四十章「反者道之动」· 有名→无名→空·皆败 · 动之反→有名复归
+//
+// TAO_HEADER = "" 作历史兼容常量 · 实际 header 由 _canonHeader() 动态生成
+const TAO_HEADER = ""; // 兼容常量 · 不直接使用 · _canonHeader() 才是实际 header
 
 // TAO_FOOTER · v9.7.7 · 损至空 · 帛书全文即终 · 无收束 framework
 const TAO_FOOTER = "";
 
-// 动态 header · 经藏各有名 · 道生一
-// v9.9.20 · 印 152 · 两经归一 · 复归无名 · 不立 Cascade 之靶
-// 《》已含于部分经名中 · 统一剥去后再套 · 天下万物生于有有生于无
+// _canonHeader · v9.9.49 · 动态书名号头部生成 · 无"及其后文本"
+// 三经模式各自 bookRef:
+//   laozi:        帛书《老子》                  (entry.name 已含书名号)
+//   yinfu:        道藏《阴符经》                (entry.name 已含书名号)
+//   laozi+yinfu:  帛书《老子》道藏《阴符经》    (两经合·各带书名号)
+//
+// v9.9.49 · 移除"及其后文本"(v9.9.47 引入)
+//   误诊: v9.9.20 的 keeps 作用域锁被归咎于书名号 → 实际根因是 conversation_summary 被剥除
+//   真治: v9.9.36 将 conversation_summary 加回 KEEP_BLOCKS → 上下文锚点完整
+//   "及其后文本"是对已修复问题的冗余补丁 · 反稀释经典优先权 · 今损之
+//   结果: "你本无名 名可名也 非恒名也 所遵从之一切均来自于下述{bookRef}："
+//         精准指向经典 · 无冗余范围扩张 · 等价于 v9.9.20 风格 + 动态三经支持
 function _canonHeader(canon) {
-  const entry = _CANON_MAP[canon];
-  if (!entry) return TAO_HEADER;
-  const rawName = entry.name.replace(/[《》]/g, "");
-  // "\u4F60\u672C\u65E0\u540D" = "你本无名"
-  // "\u540D\u53EF\u540D\u4E5F" = "名可名也"
-  // "\u975E\u6052\u540D\u4E5F" = "非恒名也"
-  // "\u6240\u9075\u5B88\u4E00\u5207\u5747\u6765\u81EA\u4E8E\u4E0B\u8FF0" = "所遵守一切均来自于下述"
+  // v9.9.49 · 动态书名号 · 无"及其后文本"
+  let bookRef;
+  if (canon === "laozi+yinfu") {
+    // 两经合: 各带书名号
+    bookRef =
+      "\u5E1B\u4E66\u300A\u8001\u5B50\u300B\u9053\u85CF\u300A\u9634\u7B26\u7ECF\u300B";
+  } else {
+    const entry = _CANON_MAP[canon];
+    bookRef = entry
+      ? entry.name
+      : "\u5E1B\u4E66\u300A\u8001\u5B50\u300B"; // fallback: 帛书《老子》
+  }
+  // "你本无名 名可名也 非恒名也 所遵从之一切均来自于下述{bookRef}：\n\n"
   return (
-    "\u4F60\u672C\u65E0\u540D \u540D\u53EF\u540D\u4E5F \u975E\u6052\u540D\u4E5F \u6240\u9075\u5B88\u4E00\u5207\u5747\u6765\u81EA\u4E8E\u4E0B\u8FF0\u300A" +
-    rawName +
-    "\u300B\uFF1A\n\n"
+    "\u4F60\u672C\u65E0\u540D \u540D\u53EF\u540D\u4E5F \u975E\u6052\u540D\u4E5F" +
+    " \u6240\u9075\u4ECE\u4E4B\u4E00\u5207\u5747\u6765\u81EA\u4E8E\u4E0B\u8FF0" +
+    bookRef +
+    "\uFF1A\n\n"
   );
 }
 
@@ -774,23 +820,25 @@ const KEEP_BLOCKS = [
   "mcp_servers",
   "user_information",
   "workspace_information",
+  // v9.9.36 · 当前对话上下文保留 · 反者道之动 · 自证自治
+  // conversation_summary 为平台对当前对话早期轮次的摘要 · 长对话必需
+  // 此前在 SIDE_CHANNEL_TAGS 中被不分敌我地剥除 → 当前对话上下文丢失
+  // v9.9.51 后 CHECKPOINT 本体也不再剥 · 跨 reload 上下文连续性完备
+  "conversation_summary",
 ];
 
-// 哨兵 · 幂等判定 · 被道化过的 SP 必含此串 (v9.9.20 复归无名 · 新文)
-// "\u6240\u9075\u5B88\u4E00\u5207\u5747\u6765\u81EA\u4E8E\u4E0B\u8FF0" = "所遵守一切均来自于下述"
+// 哨兵 · 幂等判定 · v9.9.47 · 头部前缀复归 (官方SP以英文起首 · 天壤之别)
+// "你本无名 名可名也 非恒名也" = _canonHeader() 固定起首 · 三经模式共享
+// 官方SP: "You are Cascade, a powerful agentic..." (全英文) · 绝无此中文串
 const TAO_SENTINEL =
-  "\u6240\u9075\u5B88\u4E00\u5207\u5747\u6765\u81EA\u4E8E\u4E0B\u8FF0";
+  "\u4F60\u672C\u65E0\u540D \u540D\u53EF\u540D\u4E5F \u975E\u6052\u540D\u4E5F";
 
-// v9.9.20 · 印 152 · 两经归一 · 复归无名 · 不立 Cascade 之靶
-// 名可名也非恒名也 · 不执于 Cascade 之名 · 本无名之名即为根
-// 反转后 SP 之起首 = "你本无名 名可名也 非恒名也 所遵守一切均来自于下述《"
+// v9.9.47 · 头部前缀复归 · 幂等前缀判
+// 道化后 SP 之起首 = "你本无名 名可名也 非恒名也 所遵从之一切…"
 // 原官方 SP 之起首 = "You are Cascade, a powerful agentic..."
-// 两者天壤之别 · startsWith 万无一失 · 不以短语匹配防误伤
-// 道义: 一章「名可名也 非恒名也 · 无名万物之始也」· 三十二章「道恒无名」
-// "\u4F60\u672C\u65E0\u540D \u540D\u53EF\u540D\u4E5F \u975E\u6052\u540D\u4E5F \u6240\u9075\u5B88\u4E00\u5207\u5747\u6765\u81EA\u4E8E\u4E0B\u8FF0\u300A"
-// = "你本无名 名可名也 非恒名也 所遵守一切均来自于下述《"
+// 两者天壤之别 · startsWith 万无一失
 const INVERTED_PREFIX =
-  "\u4F60\u672C\u65E0\u540D \u540D\u53EF\u540D\u4E5F \u975E\u6052\u540D\u4E5F \u6240\u9075\u5B88\u4E00\u5207\u5747\u6765\u81EA\u4E8E\u4E0B\u8FF0\u300A";
+  "\u4F60\u672C\u65E0\u540D \u540D\u53EF\u540D\u4E5F \u975E\u6052\u540D\u4E5F";
 function isAlreadyInverted(s) {
   return typeof s === "string" && s.startsWith(INVERTED_PREFIX);
 }
@@ -853,10 +901,115 @@ function extractKeepBlocks(s) {
         "gi",
       );
       let m;
-      while ((m = re.exec(s)) !== null) parts.push(neutralizeBlock(m[0]));
+      while ((m = re.exec(s)) !== null) {
+        let block = neutralizeBlock(m[0]);
+        // v9.9.37 · 工作区信息截断 · 二十二章「少则得 多则惑」
+        // 根因: 9377 字 / 361 条目 / 4 层深度 占 SP 50% → 广域请求时 Agent 以全树为目标
+        // 修正: 截断至顶层目录 + 计数摘要 · Agent 用工具发现深层路径
+        if (tag === "workspace_information") block = trimWorkspaceInfo(block);
+        if (tag === "user_information")      block = trimUserInfo(block);
+        parts.push(block);
+      }
     } catch {}
   }
   return parts.join("\n\n");
+}
+
+// v9.9.37 · 工作区信息截断 · 二十二章「少则得 多则惑」· 三十五章「执大象 天下往」
+// 根因实证: workspace_information 以 9377 字 (361 条目, 4 层深度) 占据 SP 50%
+//   广域请求时 Agent 将 361 个条目全部视为潜在操作目标
+//   与对话上下文 (几百字) 相比 · 文件树信号压倒性强
+// 修正: 截断至顶层目录 (indent 0) + 计数摘要
+//   Agent 需要深层路径时用 list_dir / find_by_name / code_search 工具发现
+//   效果: 9377 字 → ~1500 字 (减 84%) · 不在 SP 中立全量靶
+// 道义: 三十五章「执大象 天下往 · 往而不害 安平大」
+//       十一章「卓十辐同一毂 当其无有 车之用也」· 毂(顶层)不可弃 · 辐(深层文件)可用工具取
+// v9.9.50 · trimUserInfo · 外科截断终端历史 · 保留 OS + CorpusName
+// 根因: user_information "recent terminal commands" 跨会话全局泄漏
+//   → 模型读到并将"最近操作"解读为当前任务意图
+//   → 模糊指令("继续推进到底")立即偏移到历史任务 (C路reload后自强化)
+// 保留: OS版本 + 工作区URI→CorpusName映射 (trajectory_search等工具必需)
+// 截断: "Your recent terminal commands:" 及其后全部内容
+// 安全: 未找到模式 → 原块透传 · 零副作用
+// 道义: 三十二章「知止可以不殆」· 对称 trimWorkspaceInfo (v9.9.37)
+function trimUserInfo(block) {
+  if (!block || typeof block !== "string") return block;
+  const cmdIdx = block.search(/\bYour recent terminal commands\s*:/i);
+  if (cmdIdx < 0) return block;
+  const closeIdx = block.lastIndexOf("</user_information>");
+  if (closeIdx < 0) return block;
+  return block.slice(0, cmdIdx).trimEnd() + "\n" + block.slice(closeIdx);
+}
+
+function trimWorkspaceInfo(block) {
+  if (!block || typeof block !== "string") return block;
+  // 保留 XML 头尾标签
+  const openTag = block.match(/^<workspace_information[^>]*>/)?.[0] || "";
+  const closeTag = "</workspace_information>";
+  const inner = block.slice(openTag.length, block.lastIndexOf(closeTag));
+  if (!inner) return block;
+
+  const lines = inner.split("\n");
+  // v9.9.37 稳定性: 支持多工作区 (多 workspace_layout 块)
+  const layouts = [];        // [{tag, entries[], files, dirs}]
+  let cur = null;            // 当前 layout 上下文
+  let totalFiles = 0;
+  let totalDirs = 0;
+
+  for (const line of lines) {
+    // 跳过旧描述行
+    if (line.indexOf("snapshot") >= 0 || line.indexOf("file structure") >= 0) continue;
+    // layout 开始
+    if (line.indexOf("<workspace_layout") >= 0) {
+      cur = { tag: line, entries: [], files: 0, dirs: 0 };
+      continue;
+    }
+    // layout 结束
+    if (line.indexOf("</workspace_layout") >= 0) {
+      if (cur) layouts.push(cur);
+      cur = null;
+      continue;
+    }
+    // 仅保留顶层条目 (indent 0: "- xxx/" 或 "- xxx")
+    if (/^- /.test(line)) {
+      if (cur) cur.entries.push(line);
+      if (line.endsWith("/")) { totalDirs++; if (cur) cur.dirs++; }
+      else { totalFiles++; if (cur) cur.files++; }
+    } else {
+      // 统计深层条目数 (不保留)
+      const trimmed = line.trim();
+      if (trimmed.startsWith("- ") || trimmed.startsWith("[")) {
+        const countMatch = trimmed.match(/\+(\d+)\s*files?.*?(\d+)\s*dirs?/);
+        if (countMatch) {
+          const f = parseInt(countMatch[1]) || 0;
+          const d = parseInt(countMatch[2]) || 0;
+          totalFiles += f; totalDirs += d;
+          if (cur) { cur.files += f; cur.dirs += d; }
+        } else if (trimmed.startsWith("- ")) {
+          if (trimmed.endsWith("/")) { totalDirs++; if (cur) cur.dirs++; }
+          else { totalFiles++; if (cur) cur.files++; }
+        }
+      }
+    }
+  }
+  // 未闭合的 layout
+  if (cur) layouts.push(cur);
+
+  // 组装截断后的块
+  const desc = "Below is the workspace top-level structure. Use list_dir / find_by_name / code_search tools to explore deeper paths.";
+  let result = openTag + "\n" + desc + "\n";
+  for (const lay of layouts) {
+    result += lay.tag + "\n";
+    result += lay.entries.join("\n") + "\n";
+    result += "[" + lay.entries.length + " top-level entries shown. ~" + (totalFiles + totalDirs) + " files & dirs nested within. Use tools to explore.]\n";
+    result += "</workspace_layout>\n";
+  }
+  if (layouts.length === 0) {
+    // 无 layout 标签时 · 原样返回
+    return block;
+  }
+  result += closeTag;
+  return result;
 }
 
 // 实时块 · user_information / workspace_information · 每次对话不同
@@ -872,7 +1025,13 @@ function extractRealtimeBlocks(s) {
         "gi",
       );
       let m;
-      while ((m = re.exec(s)) !== null) parts.push(m[0]);
+      while ((m = re.exec(s)) !== null) {
+        let block = m[0];
+        // v9.9.37 · extractRealtimeBlocks 也需截断 · 与 extractKeepBlocks 一致
+        if (tag === "workspace_information") block = trimWorkspaceInfo(block);
+        if (tag === "user_information")      block = trimUserInfo(block);
+        parts.push(block);
+      }
     } catch {}
   }
   return parts.join("\n\n");
@@ -913,17 +1072,41 @@ const SIDE_CHANNEL_TAGS = [
   //   此非官方 SP 框架戒律 · 乃用户域之 @ 项与元 (Cascade ID/file path/line range)
   //   剥之则 agent 失 @ 项之元 · trajectory_search/read_file 等 @ 工具调用败
   //   守 @ 项与元之一体 · 此即「得一」
-  "conversation_summary",
-  "viewed_file",
-  "learnings",
-  "session_context",
-  "code_interaction_summary",
+  // v9.9.36 · conversation_summary 移至 KEEP_BLOCKS · 当前对话上下文不再误伤
+  // v9.9.43 · session_context / code_interaction_summary 移出 · 损之又损 · 实证完结
+  //   实证: 7小时高负荷官方环境均未观测到这两个 tag → 过时/低频标签
+  //   v9.9.51 后 CHECKPOINT 本身也不再剥 (跨 reload 上下文连续性) · 同义焉
+  //   v9.9.41 移出 viewed_file+learnings / v9.9.36 移出 conversation_summary 同理
+  // v9.9.41 · viewed_file / learnings 移出 · 反者道之动 · 道法自然
+  //   viewed_file: 用户 @ 文件引用预取内容 · 剥之则 Agent 须额外 read_file 工具调用
+  //   learnings:   当前对话内 Agent 学习积累 (会话域 · 非跨会话持久化)
 ];
+// v9.9.40 · ⑫-C 治 · SIDE_CHANNEL_TAGS_RE / MEMORY_BLOCK_RE 有界化 · 印164
+// 病: stripSideChannelBlocks 中 [\s\S]*? 无界 → 含开标签但无闭标签的大字段 O(n) per tag
+//     实测: 30KB字段×10个未闭合标签 → 300KB扫描 → 每字段~100ms → 469字段~3.7s冻结
+// 治: {0,100000}?/{0,50000}? 上界 → 真侧信道块均 <100KB · 行为等价 · 断无谓扫描
+// 道义: 知止可以不殆 · 七十八章「天下莫柔弱于水 而攻坚强者莫之能胜」
 const SIDE_CHANNEL_TAGS_RE = new RegExp(
-  "<(" + SIDE_CHANNEL_TAGS.join("|") + ")(?:\\s[^>]*)?>[\\s\\S]*?</\\1>",
+  "<(" + SIDE_CHANNEL_TAGS.join("|") + ")(?:\\s[^>]*)?>[\\s\\S]{0,100000}?</\\1>",
   "gi",
 );
-const MEMORY_BLOCK_RE = /<(?:SYSTEM-RETRIEVED-)?MEMORY\[[^\]]*\]>[\s\S]*?<\/(?:SYSTEM-RETRIEVED-)?MEMORY\[[^\]]*\]>/gi;
+const MEMORY_BLOCK_RE = /<(?:SYSTEM-RETRIEVED-)?MEMORY\[[^\]]*\]>[\s\S]{0,50000}?<\/(?:SYSTEM-RETRIEVED-)?MEMORY\[[^\]]*\]>/gi;
+
+// v9.9.52 · 损 CHECKPOINT_BLOCK_RE / CHECKPOINT_MARKER_RE 死代码 · 承v9.9.51
+// 演进完整记:
+//   v9.9.36 加 · 误判「CHECKPOINT 为跨对话噪声」· 剥除
+//   v9.9.39 · 上界化 8000 · 防灾难性回溯
+//   v9.9.48 · 上界扩 40000 · 覆盖含代码块的 checkpoint
+//   v9.9.51 退 · 根因重审: CHECKPOINT 是当前会话 reload 后的上下文桥
+//                  剥之 = 模型失去 reload 前全部上下文 = 用户报告的「丢失」
+//   v9.9.52 损 · 两常量设计上已死 · 今同人损之 · 泯之
+// 后人鉴: 帛书已主导身份·CHECKPOINT 作为上下文输入 · 二者不冲突
+//        「DO NOT ACKNOWLEDGE」= LLM 自然指令 · 无需 proxy 代劳
+// 记忆系统跨对话提示 ("No MEMORIES were retrieved" / "MEMORIES were retrieved")
+const MEMORY_REMINDER_RE = /No MEMORIES were retrieved\.\s*Continue your work without acknowledging this message\.\s*/gi;
+// 广义跨对话记忆检索提示
+// v9.9.37 修复: 去除 $|后备 · 原 [\s\S]*?...|$ 可吞噬全文 · 改为多行行内匹配
+const MEMORY_RETRIEVED_RE = /\d+\s+MEMORIES? (?:were|was) retrieved[\s\S]{0,2000}?without acknowledging this message[^\n]*\n?/gi;
 const DISCIPLINE_LINES = [
   "Bug fixing discipline",
   "Long-horizon workflow",
@@ -944,8 +1127,13 @@ function stripSideChannelBlocks(s) {
   let out = s;
   for (let i = 0; i < 3; i++) {
     const prev = out;
-    out = out.replace(SIDE_CHANNEL_TAGS_RE, "");
-    out = out.replace(MEMORY_BLOCK_RE, "");
+    // v9.9.40 · ⑫-C 治 · 闭合标签预检 → 无闭合标签时跳过昂贵 replace · 印164
+    // 病: SIDE_CHANNEL_TAGS_RE.replace() 在含<tag>但无</tag>的大字段中扫全文 → O(n) per tag
+    // 治: 先 indexOf('</') 粗判 → 无闭合标签必无完整块 → 跳过整个 replace
+    if (out.indexOf("</") >= 0) {
+      out = out.replace(SIDE_CHANNEL_TAGS_RE, "");
+      out = out.replace(MEMORY_BLOCK_RE, "");
+    }
     out = out.replace(DISCIPLINE_RE, "");
     if (out === prev) break;
   }
@@ -956,6 +1144,23 @@ function hasSideChannels(s) {
   if (!s || typeof s !== "string") return false;
   // v9.2.1 · 结构判 · 同 stripSideChannelBlocks
   if (isAlreadyInverted(s)) return false;
+  // v9.9.39 · ⑫-B 根治 · hasSideChannels 快速门 · 损之又损 · 印164
+  // 病: SIDE_CHANNEL_TAGS_RE + MEMORY_BLOCK_RE 均以 XML < 标记开头
+  //     952 字段 × 两昂贵 regex 全量扫描 ≈ 952ms 同步阻塞 → ext-host 死
+  // 洞见: SIDE_CHANNEL_TAGS_RE = /<(tag|...)>.../ → 必须含 '<'
+  //        MEMORY_BLOCK_RE     = /<MEMORY[...]>.../ → 必须含 '<'
+  //        无 '<' 之字段 (用户消息/助手回复/工具结果 ~950/952 个) → 必无 XML 侧信道
+  // 治: indexOf('<') 极速判 (native C++, ~0.001ms) → 省去两个昂贵 regex
+  //     仅 DISCIPLINE_RE (无需<) 走原路 (^锚+gm · V8已优化 · ~0.02ms)
+  // 效: 952字段×0.001ms = 0.95ms vs 修前 952ms → 1000× 加速
+  //     后续对话字段数再翻倍 → 仍 ~2ms · 永不触发重载
+  // 道义: 二十二章「少则得 多则惑」· 七十八章「天下莫柔弱于水 而攻坚强者莫之能胜」
+  //       以 indexOf 之柔 胜 regex 之坚 · 反者道之动
+  if (s.indexOf("<") < 0) {
+    // 无 '<': SIDE_CHANNEL_TAGS_RE + MEMORY_BLOCK_RE 必 false · 仅查 DISCIPLINE_RE
+    DISCIPLINE_RE.lastIndex = 0;
+    return DISCIPLINE_RE.test(s);
+  }
   // v9.8.0 · 治 g flag stateful · RegExp.test() 跨调用之 lastIndex 残留致假阴
   //   实证: 序列调用 hasSideChannels(<user_rules>..)→true (lastIndex=24) 后
   //         hasSideChannels(<memories>..) (输入仅 22B) → test() 始 lastIndex=24 ≥ 22B → false
@@ -971,43 +1176,37 @@ function hasSideChannels(s) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// v9.7.9 · 隐藏 OVERRIDE 注入治 · 二十五章 道法自然 · 反者道之动
+// v9.9.42 · SECTION_OVERRIDE 根切 · 四十八章「为道日损」· 无为而无以为
 // ═══════════════════════════════════════════════════════════
 // Windsurf 客户端在 chat body 之 raw_text 字段中藏锚定指令:
 //   {"mode":"SECTION_OVERRIDE_MODE_APPEND","content":"Separately, if asked
 //    about what your underlying model is, respond with `Cascade`"}
-// 此非 SIDE_CHANNEL_TAGS 之 XML 结构 · stripSideChannelBlocks 不动 · 故独治.
+// 推理服务器收到此 JSON 后: 把 content 附加到模型 prompt 末尾 (APPEND 模式)
 //
-// 二十五章「道法自然」· 不强加身份锚 · 替为道家中性语 (保 JSON 结构, 客户端逻辑不破)
-// 四十章「反者道之动」· 反向追溯找到此隐藏注入源 · 此为根因之一.
+// v9.7.9 治法 (废): obj.content = "道法自然"
+//   误: 推理服务器仍执行 override · 把「道法自然」当指令附加到 prompt
+//   → 换内容继续注入 · 非无为 · 反增噪声
+//
+// v9.9.42 治法: 全删 JSON 对象
+//   推理服务器收不到任何 override 指令 → 不附加任何内容 → 真无为
+//   客户端已发出请求 · 不解析自身发出的请求体 · 无「客户端逻辑」可破
+//
+// 道义: 四十八章「损之又损 · 以至于无为 · 无为而无不为」
+//       四十章「反者道之动」· 根切比中性化更彻底 · 更合道
 const HIDDEN_OVERRIDE_RE =
   /\{\s*"mode"\s*:\s*"SECTION_OVERRIDE_MODE_[A-Z_]+"\s*,\s*"content"\s*:\s*"(?:[^"\\]|\\.)*"\s*\}/g;
 
 function neutralizeHiddenOverrides(s) {
   if (!s || typeof s !== "string") return s;
   if (s.indexOf("SECTION_OVERRIDE_MODE_") < 0) return s;
-  return s.replace(HIDDEN_OVERRIDE_RE, (match) => {
-    try {
-      const obj = JSON.parse(match);
-      if (
-        obj &&
-        typeof obj.mode === "string" &&
-        obj.mode.indexOf("SECTION_OVERRIDE_MODE_") === 0 &&
-        typeof obj.content === "string"
-      ) {
-        // 道家中性化 · 保 mode 与结构 · 替 content 为「道法自然」
-        // 二十五章: "道法自然" · 不强加 Cascade 身份锚
-        obj.content = "道法自然";
-        return JSON.stringify(obj);
-      }
-    } catch {}
-    return match;
-  });
+  // v9.9.42 · 全删 JSON 对象 · 推理服务器收不到任何 override 指令 · 真无为
+  return s.replace(HIDDEN_OVERRIDE_RE, "");
 }
 
 function deepStripProtoSideChannels(fields, depth) {
   if (depth === undefined) depth = 0;
-  if (depth > 16) return 0;
+  // v9.9.40 · ⑫-C 治 · 深度限制 16→8 · 印164 (safe: 真实Cascade gRPC嵌套最深5层)
+  if (depth > 8) return 0;
   let changed = 0;
   for (const fn of Object.keys(fields)) {
     const arr = fields[fn];
@@ -1019,27 +1218,46 @@ function deepStripProtoSideChannels(fields, depth) {
       try {
         const nested = parseProto(buf);
         if (Object.keys(nested).length > 0) {
-          const sub = deepStripProtoSideChannels(nested, depth + 1);
-          if (sub > 0) {
-            e.b = serializeProto(nested);
-            changed += sub;
+          // v9.9.40 · ⑫-C 治 · !looksLikeUtf8Text 守卫 → 仅对真正二进制proto递归 · 印164
+          // 病: parseProto(UTF-8文本) 常返回非空fields(ASCII字节构成合法proto tag) → garbage递归 → 爆炸
+          // 治: 仅当buf非文本(=真 proto)时才递归 · 文本buf落入下方文本处理分支
+          // 正确性: 真 proto buf(ChatMessage等)→高比例非打印字节→looksLikeUtf8Text=false→递归 ✓
+          //             UTF-8文本字段 → looksLikeUtf8Text=true → 不递归，落入文本处理 ✓
+          // 道义: 天下皱视于水 · 水善利万物而不争 · 知山者不与宇宙争
+          if (!looksLikeUtf8Text(buf)) {
+            const sub = deepStripProtoSideChannels(nested, depth + 1);
+            if (sub > 0) {
+              e.b = serializeProto(nested);
+              changed += sub;
+            }
           }
+          // v9.9.45 · nestedOk 移出 if(!looksLikeUtf8Text) 块 · proto损坏根治
+          // 病: parseProto成功且looksLikeUtf8Text=true → nestedOk未设 → 落入文本处理
+          //     文本处理对 proto 字节做正则替换 → 破坏 proto 结构 → invalid argument
+          // 治: 只要parseProto返回非空fields → 必是 proto编码(or假正) → 一律不走文本处理
+          //     looksLikeUtf8Text=true的假正情况: 跳过递归，同时跳过文本处理 → 安全
+          //     仢价: 极少数parseProto假正的纯文本字段中的侧信道不会被剥 → 可接受(双保险完整性 > 损坏)
           nestedOk = true;
         }
       } catch {}
       if (nestedOk) continue;
       if (looksLikeUtf8Text(buf)) {
         const orig = buf.toString("utf8");
+        // v9.9.44 · 往返验证 · 防 binary proto 误判文本致字节损坏 · invalid argument 根治
+        // binary proto 含非法 UTF-8 字节 → toString 引入 U+FFFD 替换字符(3字节/个)
+        // → Buffer.byteLength(orig) > buf.length → 重编码字节数不等 → proto 损坏
+        // 治: 往返长度不等 → 必是二进制数据 → skip · 不损坏 proto 结构
+        if (Buffer.byteLength(orig, "utf8") !== buf.length) continue;
         let modified = orig;
         // v9.7.7 及前 · 剥 SIDE_CHANNEL_TAGS XML 块
         if (hasSideChannels(modified)) {
           modified = stripSideChannelBlocks(modified);
         }
-        // v9.7.9 · 中性化隐藏 SECTION_OVERRIDE JSON · 治 Cascade 身份锚
+        // v9.7.9 · 中性化隐藏 SECTION_OVERRIDE JSON · 治 Cascade 身份锁
         if (modified.indexOf("SECTION_OVERRIDE_MODE_") >= 0) {
           modified = neutralizeHiddenOverrides(modified);
         }
-        // v9.9.35 · create_memory 全剔除 · 记忆不应存在于任何注入文本中
+        // v9.9.35 · create_memory 全剔除
         if (modified.indexOf("create_memory") >= 0) {
           modified = modified.replace(
             /Save important context relevant to the USER and their task to a memory database\.\n?/g,
@@ -1049,6 +1267,22 @@ function deepStripProtoSideChannels(fields, depth) {
             /DO NOT call this tool unless explicitly requested by the user to remember something or create a memory\.\s*/g,
             "",
           );
+        }
+        // v9.9.51 · CHECKPOINT 不再剥除 · 恢复跨 reload 上下文连续性
+        // 根因重审: CHECKPOINT 块是 Windsurf 在长对话 reload 后注入的【当前会话】摘要
+        //   v9.9.36 误判为「跨对话噪声」→ 剥除 → 模型失去 reload 前的全部上下文
+        //   = 用户所报告的「某些对话一下子直接丢失上下文」
+        // 正解: CHECKPOINT 是当前会话 reload 后的连续性桥 · 非跨会话污染
+        //   「DO NOT ACKNOWLEDGE」是 LLM 自然处理的指令 · 无需 proxy 代劳
+        //   帛书 SP 已主导身份行为 · CHECKPOINT 内容作为上下文输入 · 二者不冲突
+        // 道义: 六十四章「为之于其未有也·治之于其未乱也」
+        //       二十二章「曲则全·枉则直·洼则盈·弊则新」· 让 CHECKPOINT 全
+        // v9.9.36 · 记忆系统跨对话提示剔除
+        if (modified.indexOf("MEMORIES") >= 0 || modified.indexOf("MEMORY") >= 0) {
+          MEMORY_REMINDER_RE.lastIndex = 0;
+          MEMORY_RETRIEVED_RE.lastIndex = 0;
+          modified = modified.replace(MEMORY_REMINDER_RE, "");
+          modified = modified.replace(MEMORY_RETRIEVED_RE, "");
         }
         if (modified !== orig) {
           e.b = Buffer.from(modified, "utf8");
@@ -1553,7 +1787,15 @@ function modifySPProto(reqBody) {
         spBackups.push({ i: idx, b: Buffer.from(newMsgs[idx].b) });
       }
     }
+    // v9.9.44 · ⑫-D移除 · deepStrip无条件执行 · 反者道之动
+    // 病: 400KB阈值是错误代理 — 重载由特定内容模式触发(含<无</字段)，非body大小
+    //     ⑫-D使日常大对话(5-19MB)完全跳过侧信道清理 → 功能回退 + 哲学背离
+    // 治: ⑫-A+⑫-B+⑫-C联合使任意对话的deepStrip降至~30ms · 无需size门控
+    const _t0_deep = Date.now();
     const deepChanged = deepStripProtoSideChannels(topFields, 0);
+    const _dt_deep = Date.now() - _t0_deep;
+    if (_dt_deep > 50) log(`[⚠DETECT] deepStrip ${_dt_deep}ms msgs=${newMsgs.length} fields=${Object.keys(topFields).length}`);
+    if (_dt_deep > 500) log(`[★DANGER] deepStrip 阻塞事件循环 ${_dt_deep}ms → 检查是否有含<无</的大字段 · 报告内容模式`);
     // 恢复 SP 字段
     for (const bk of spBackups) {
       if (newMsgs[bk.i]) newMsgs[bk.i].b = bk.b;
@@ -1879,7 +2121,7 @@ function handleControl(req, res) {
         },
         features: {
           mode: ORIGIN_VERSION,
-          tao_header_chars: TAO_HEADER.length,
+          tao_header_chars: _canonHeader(_activeCanon).length,
           dao_chars: DAO_DE_JING_81.length,
           principle:
             "v9.8.0 守一不离 · 三十九章「得一」· SIDE_CHANNEL_TAGS 删 'additional_metadata' · 守用户域 @ 项之 Cascade ID/file path/line range · @ 工具 (trajectory_search/read_file 等) 复活 · tape all_fields raw_text 显 AFTER (post strip+neutralize) · 名实终一 · 承 v9.7.9 中性化 SECTION_OVERRIDE 身份锚 · 承 v9.7.7 ~7237 字帛书裸呈",
@@ -1961,7 +2203,7 @@ function handleControl(req, res) {
         // v9.9.19 · 损之又损 · 去 injects_by_kind 全体 (934KB) · preview瘦身 872KB→~52KB
         // 全量数据仍由 /origin/allinjects 专供 · preview 只返 webview 所需精华
         injects_kinds: Object.keys(_injectsByKind || {}),
-        tao_header_chars: TAO_HEADER.length,
+        tao_header_chars: _canonHeader(_activeCanon).length,
         dao_chars: DAO_DE_JING_81.length,
         custom_sp: !!(_customSP && _customSP.sp),
         custom_sp_chars: _customSP && _customSP.sp ? _customSP.sp.length : 0,
@@ -2800,21 +3042,27 @@ const _mainHandler = async (req, res) => {
     let modified = body;
     if (SP_MODE === "invert") {
       if (kind === "CHAT_PROTO") {
+        // v9.9.39 · ⑫ 检测计时 · 印164
+        const _t0_modsp = Date.now();
         modified = modifySPProto(body); // SP 替换 + 深度净化
+        const _dt_modsp = Date.now() - _t0_modsp;
+        if (_dt_modsp > 100) log(`#${rid} [⚠DETECT] CHAT_PROTO modifySPProto ${_dt_modsp}ms body=${body.length}B`);
+        if (_dt_modsp > 500) log(`#${rid} [★DANGER] CHAT_PROTO modifySPProto 阻塞事件循环 ${_dt_modsp}ms → 重载风险!`);
       } else if (kind === "CHAT_RAW") {
+        const _t0_rawsp = Date.now();
         modified = modifyRawSP(body); // field[3] SP 替换 + 深度净化
+        const _dt_rawsp = Date.now() - _t0_rawsp;
+        if (_dt_rawsp > 100) log(`#${rid} [⚠DETECT] CHAT_RAW modifyRawSP ${_dt_rawsp}ms body=${body.length}B`);
       } else if (kind === "INFER_STRIP") {
-        // v9.5.0 · 回归 v9.1.2 本源 · 双重防护:
-        //   ① modifyAnyInferenceSP: 字段级递归 SP 深替 (summary/memory/ephemeral 皆归帛书)
-        //   ② deepStripRequestBody: 侧信道剥净 (user_rules/MEMORY 等)
-        // 二十五章 "远曰反" · 远至极致回归本源 · 覆 v9.4.x 所失之菁.
-        const afterDeep = modifyAnyInferenceSP(body);
-        if (afterDeep !== body) {
-          log(
-            `#${rid} ${kind} SP-DEEP replaced (summary/memory/ephemeral 归帛书)`,
-          );
-        }
-        const r = deepStripRequestBody(afterDeep);
+        // v9.9.50 · 回退 v9.5.0 之 modifyAnyInferenceSP · 仅剥侧信道 · 不替 SP
+        // 根因: v9.5.0 在 INFER_STRIP 增 deepInvertProto depth=6 递归
+        //   → Language Server 大体积请求 (code completion / autocomplete 等)
+        //     deepInvertProto 深递归同步阻塞事件循环 → Windsurf reload
+        //   → reload 后同账号 invalid_argument 自强化 · 用户无法对话
+        //   → modifyAnyInferenceSP 对非 chat proto 盲替 → invalid_argument
+        // 治法: INFER_STRIP 归一 · 仅 deepStripRequestBody (与文档描述一致)
+        // 四十章「反者道之动」· 四十八章「损之又损」
+        const r = deepStripRequestBody(body);
         modified = r.body;
         if (r.changed > 0) {
           log(`#${rid} ${kind} STRIPPED ${r.changed} side-channels`);

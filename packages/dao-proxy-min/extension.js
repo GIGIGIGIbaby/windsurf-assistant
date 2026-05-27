@@ -1,4 +1,4 @@
-// extension.js · dao-proxy-min v9.9.36 · 道法自然 · 无为而无不为
+// extension.js · dao-proxy-min v9.9.52 · 道法自然 · 无为而无不为
 //
 // 道德经 · 第四十章: "反者道之动, 弱者道之用."
 // 道德经 · 第四十八章: "为道日损. 损之又损, 以至于无为."
@@ -6,6 +6,19 @@
 // 道德经 · 第十六章: "夫物云云, 各复归于其根."
 // 道德经 · 第八十一章: "既以为人己愈有, 既以予人己愈多."
 // 道德经 · 第七十六章: "兵强则不胜, 木强则折."
+//
+// 演化链 v9.9.36 → v9.9.52 (source.js 侧为主, ext 侧降频/延迟锚定/无条件重写):
+//   v9.9.52 · 损 CHECKPOINT_BLOCK_RE / CHECKPOINT_MARKER_RE 死代码 (两常量定义无引用 · 损之)
+//   v9.9.51 · CHECKPOINT 不再剥除 · 上下文桥 (reload 后 conversation_summary 完整保)
+//   v9.9.50 · INFER_STRIP 回退 modifyAnyInferenceSP · trimUserInfo 截断终端历史
+//   v9.9.49 · 移除"及其后文本" (冗余补丁) · 精准指向经典
+//   v9.9.47 · 书名号复归 · 动态经藏名 · 认知锚点
+//   v9.9.45 · proto 损坏根治 · nestedOk 移出 if 块
+//   v9.9.44 · 双线融合 · deepStrip 无条件
+//   v9.9.43 · session_context+code_interaction_summary 移出 SCT
+//   v9.9.42 · SECTION_OVERRIDE 全删 (真无为)
+//   v9.9.41 · viewed_file+learnings 移出 SCT
+//   v9.9.38 · 去 _cachedAnchored 门控 · 无条件重写 LS args
 //
 // v9.9.36 "道法自然 · 从根本底层完善":
 //   日志实证: window23/24/25 三窗口连环重载 · 根因七层解构
@@ -197,7 +210,10 @@ function maybeRewriteLsArgs(command, args) {
     !Array.isArray(args)
   )
     return false;
-  if (!_cachedAnchored) return false;
+  // v9.9.38 · 去 _cachedAnchored 门控 · 无条件重写 · 治多窗口竞态
+  // 根因: proxyStart 异步 → LS 在 proxy 就绪前 spawn → _cachedAnchored=false → 不重写 → 直连
+  // 修正: 始终重写 · 端口确定性(fnv1a) · proxy 总会存活(watchdog/任一窗口)
+  // 道义: 十七章「太上 下知有之」· 水善利万物而有静
   let rewrote = 0;
   for (const flag of ["--api_server_url", "--inference_api_server_url"]) {
     const idx = args.indexOf(flag);
@@ -232,8 +248,7 @@ function installSpawnHook() {
   cp.exec = function (cmdline) {
     if (
       typeof cmdline === "string" &&
-      /language_server/.test(cmdline) &&
-      _cachedAnchored
+      /language_server/.test(cmdline)
     ) {
       const orig = cmdline;
       cmdline = cmdline.replace(
@@ -2090,10 +2105,10 @@ function _loadSilkForWebview() {
       ? fs.readFileSync(yinfuFp, "utf8").trim()
       : "";
     if (!deText || !daoText) return "";
-    // v9.9.20 印 152 · 复归无名 · 主公命: "你本无名 名可名也 非恒名也 所遵守一切均来自于下述《》"
-    // 一章「名可名也 非恒名也」· 三十二章「道恒无名」· 不立 Cascade 之靶 · 真复归
+    // v9.9.38 · 帧宽修正 · 四十二章「道生一·一生二·二生三·三生万物」
+    // 「所有文本」覆道经+keeps · 「本源」为根基非独占规则 · 「所遵从」保约束力
     const TAO_HEADER =
-      "你本无名 名可名也 非恒名也 所遵守一切均来自于下述《帛书老子+道藏阴符经》：\n\n";
+      "你本无名 名可名也 非恒名也 下述所有文本为你所遵从之本源：\n\n";
     const SILK_BOUNDARY = "\n\n";
     const TAO_FOOTER = "";
     const body = yinfuText
@@ -2749,9 +2764,9 @@ function activate(ctx) {
       proxyStart(_cachedPort, _cachedMode || "invert")
         .then((handle) => {
           if (!handle) {
-            // EADDRINUSE 且远端非反代 → 本窗口直连, 清锚归本源
-            L.warn("activate", "auto-restore: 端口占且非反代 · 清锚归直连");
-            return clearAnchor().catch(() => {});
+            // v9.9.38 · 不清锚 · spawn hook 已无条件重写 · watchdog 后续会重试
+            L.warn("activate", "auto-restore: 端口占且非反代 · spawn hook 仍工作 · watchdog 将重试");
+            return;
           }
           proxySetMode(_cachedMode || "invert");
           L.info("activate", "auto-restore done");
@@ -2782,11 +2797,12 @@ function activate(ctx) {
           return;
         }
         if (!handle) {
+          // v9.9.38 · 不跳过 · spawn hook 已无条件重写 · watchdog 后续会重试
           L.warn(
             "activate",
-            "first-run: 端口占且非反代 · 跳过锚 (本窗口直连, 不抢)",
+            "first-run: 端口占且非反代 · spawn hook 仍工作 · watchdog 将重试",
           );
-          return;
+          // 仍然设内存锚 + 延迟文件锚 · 确保一致性
         }
         proxySetMode(_cachedMode || "invert");
         // 内存先锚 · spawn hook 立即生效 · 文件延后

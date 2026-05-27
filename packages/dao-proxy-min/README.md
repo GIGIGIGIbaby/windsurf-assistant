@@ -1,9 +1,43 @@
-# 道Agent · dao-proxy-min · **v9.9.29** · 终端会话池 · 七层污染一招治 · 印 160
+# 道Agent · dao-proxy-min · **v9.9.52** · 损之又损 · 道法自然
 
 > **反者, 道之动; 弱者, 道之用.** —《四十章》
-> **大邦者, 下流也, 天下之牝也. 牝恒以靓胜牡.** —《六十一章》
-> **朴散则为器, 圣人用则为官长, 夫大制无割.** —《二十八章》
-> **为道日损. 损之又损, 以至于无为, 无为而无不为.** —《四十八章》
+> **损之又损, 以至于无为, 无为而无不为.** —《四十八章》
+> **道法自然.** —《二十五章》
+
+## v9.9.52 · 损 CHECKPOINT 死代码 · 软编码适配一切 (2026-05-27)
+
+**承 v9.9.36 → v9.9.52 演化链** (source.js 侧 SP 注入精炼 · ext 侧降频/延迟锚定):
+
+| 版 | 变 | 意义 |
+|---|---|---|
+| v9.9.52 | 损 `CHECKPOINT_BLOCK_RE` / `CHECKPOINT_MARKER_RE` 死代码 | 两常量定义无引用 · 损之又损 |
+| v9.9.51 | CHECKPOINT 不再剥除 · reload 后上下文桥完整 | 归根复命 · 知其真用 |
+| v9.9.50 | INFER_STRIP 回退 `modifyAnyInferenceSP` · `trimUserInfo` 截断终端历史 | 反误治 · 用真柔 |
+| v9.9.49 | 移除"及其后文本"冗余补丁 | 精准指向经典 |
+| v9.9.47 | 书名号复归 · 动态经藏名 · 认知锚点 | 名可名也 非恒名也 |
+| v9.9.45 | proto 损坏根治 · `nestedOk` 移出 if 块 | 柔弱者生之徒 |
+| v9.9.42-44 | SCT 精炼 · `SECTION_OVERRIDE` 全删 · `session_context` 移出 | 真无为 |
+| v9.9.38 | 去 `_cachedAnchored` 门控 · spawn hook 无条件重写 · TAO_HEADER 帧宽修正 | 太上下知有之 |
+| v9.9.36 | activate 15s 延迟锚 · deactivate 智能保锚 · 降频减压 · **三窗口连环重载根治** | 从根本底层完善 |
+
+**无感升级 (9935 → 9952)**:
+
+```powershell
+# Windows — 软编码自检测最新 vsix · 无需指定版本
+.\install.ps1
+# install.ps1 自动: sort -Descending dao-proxy-min-*.vsix → 取最新 → 旧版标 .obsolete → 装毕
+
+# Mac/Linux
+./install.sh
+```
+
+装毕重启 Windsurf → 命令面板「道Agent: 启 (invert)」→ `/origin/ping` 验:
+
+```json
+{"ok":true,"version":"v9.9.52",...}
+```
+
+---
 
 ## v9.9.29 · 终端会话池 · 七层污染一招治 · 印 160 (2026-05-19)
 

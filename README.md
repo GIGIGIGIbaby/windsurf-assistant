@@ -4,9 +4,9 @@
 
 ## 快速安装
 
-**WAM 切号插件** (最新 v3.10.1):
+**WAM 切号插件** (最新 v3.10.3):
 
-1. 下载 [`rt-flow-3.10.1.vsix`](https://github.com/zhouyoukang/windsurf-assistant/releases/latest)
+1. 下载 [`rt-flow-3.10.3.vsix`](https://github.com/zhouyoukang/windsurf-assistant/releases/latest)
 2. Windsurf: `Ctrl+Shift+P → Extensions: Install from VSIX`
 3. 添加账号 → WAM 自动切号
 
@@ -21,7 +21,7 @@
 
 | 目录 | 说明 |
 |------|------|
-| [`packages/wam/`](./packages/wam/) | WAM 切号插件（rt-flow）源码 · 当前 v3.10.1 |
+| [`packages/wam/`](./packages/wam/) | WAM 切号插件（rt-flow）源码 · 当前 v3.10.3 |
 | [`packages/dao-proxy-min/`](./packages/dao-proxy-min/) | 反代插件 |
 | [`packages/dao-core/`](./packages/dao-core/) | 核心工具库 |
 

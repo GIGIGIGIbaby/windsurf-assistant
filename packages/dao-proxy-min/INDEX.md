@@ -2,50 +2,75 @@
 
 **位**: `e:\道\道生一\一生二\Windsurf万法归宗\070-插件_Plugins\020-道VSIX_DaoAgi\dao-proxy-min\`
 
-**当前版**: **v9.9.33** · 印 164 · 大道至简 · 一气化三清 · 损之又损 · 道法自然
+**当前版**: **v9.9.52** · 损之又损 · 道法自然 · 反者道之动
 
-**整日**: 2026-05-21 (重构整理 · 020目录归一) · 印 164 v9.9.33 (官方卸载全包·无固化) · 印 163 v9.9.31 (三清并行) · 印 160 v9.9.29 (终端会话池七层一招治)
+**整日**: 2026-05-27 (v9.9.52 整理归一) · 承 v9.9.36 三窗口连环重载根治 → v9.9.52 删 CHECKPOINT 死代码
 
 ---
 
-## I · 主目结构 (2026-05-21 重构整理后 · 16 件 + 2 目)
+## I · 主目结构 (2026-05-27 v9.9.52 · 精简归一)
 
 ```text
 .
-├── extension.js                                · 118 KB · ext-host 主入口 (v9.9.33 · 3044行)
-├── package.json                                · 5.6 KB · 10 命令 · 4 配置
+├── extension.js                                · ~122 KB · ext-host 主入口 (v9.9.52 · ~3090行)
+├── package.json                                · 5.0 KB · 10 命令 · 4 配置 · version=9.9.52
 ├── INDEX.md                                    · (本档) · 工程总览
 ├── LICENSE.txt                                 · Apache-2.0
-├── .vscodeignore                               · vsce package 排除清单
 │
-├── dao-proxy-min-9.9.33.vsix                   · 135 KB · ★ 当前发行
+├── dao-proxy-min-9.9.52.vsix                   · ~120 KB · ★ 当前发行 (from 9935 无感升至此)
 │
-├── install.ps1                                 · 13 KB · Windows 装脚 · 自检测端口
-├── install.sh                                  · 9.8 KB · Mac/Linux 装脚
+├── install.ps1                                 · 13 KB · Windows 装脚 · 软编码自检测端口+vsix
+├── install.sh                                  · 9.8 KB · Mac/Linux 装脚 · 软编码等价
 ├── build_vsix.ps1                              · 9.4 KB · 打包脚 (vsce-free · .NET ZipFile)
-│
-├── _e2e_v9929_stress.ps1                       · 14 KB · 印 160 压力测试
-├── _e2e_v9929_term.ps1                         · 9 KB · 印 160 e2e (命令面板 + HTTP 双路)
-├── _test_v9929_term_pool.js                    · 16 KB · 印 160 单元测 · 15/15 PASS
-│
-├── REVERSE_DECONSTRUCTION_v9932_yin162.md      · 印 162 · 反向解构 · 终端互看非问题之论
-├── TERMINAL_LEAK_ROOT_CAUSE_v9932.md           · 印 162 · 视野泄漏本源解构
+├── readme.md                                   · 28 KB · 用户文档 · 完整变更链
 │
 ├── media/
-│   ├── icon.svg / icon.png                       · 道Agent 图标
-│   └── webview-app.js                            · 「本源观照」面板
+│   ├── icon.svg / icon.png                     · 道Agent 图标
+│   └── webview-app.js                          · 「本源观照」面板
 │
 └── vendor/bundled-origin/                      · ★ 真本源
-    ├── source.js                                 · 156 KB · proxy后台 · v9.4.5-tape · 字段级proto · invertSP
-    ├── _silk_dao.txt                             · 9.0 KB · 帛书《老子》道经
-    ├── _silk_de.txt                              · 11 KB · 帛书《老子》德经
-    ├── _yinfu.txt                                · 1.7 KB · 道藏《阴符经》
-    └── _origin_mode.txt                          · 6 B · 模式持存 (invert/passthrough)
+    ├── source.js                               · ~200 KB · proxy 后台 · v9.9.52 · invertSP
+    ├── _silk_dao.txt                           · 9.0 KB · 帛书《老子》道经
+    ├── _silk_de.txt                            · 11 KB · 帛书《老子》德经
+    └── _yinfu.txt                              · 1.7 KB · 道藏《阴符经》
 ```
 
 ---
 
-## II · v9.9.29 之治 · 印 160 · 终端会话池 (2026-05-19)
+## II · v9.9.36 → v9.9.52 · SP 注入精炼链 (source.js 侧 · ext 侧降频/延迟锚定)
+
+### ext 侧 · v9.9.36 三窗口连环重载根治
+
+**根因七层**:
+- 触发层: activate 立写 settings.json → ~800ms → "Installation Modified" → ext-host 死 → 循环
+- 放大层: deactivate 清锚 → 下个 ext-host 重走 setAnchor → 再触写风暴
+- 堵塞层: 反代+6 定时器+SSE 全在 ext-host 事件循环 → UNRESPONSIVE × N → 杀
+
+**四治**:
+- ① 延迟锚定: activate 不立写 settings.json · 内存先锚 · 15s 后持久化
+- ② 智能保锚: ext-host 存活 < 30s → deactivate 不清锚 · 零写入
+- ③ 去 API 噪: codeium.* 非注册键 · VS Code API 写永 FAIL · 直删
+- ④ 降频减压: sig 5s(原1.5) · refresh 30s(原12) · watchdog 60s(原30)
+
+### source.js 侧 · SP 注入精炼 (v9.9.38 → v9.9.52)
+
+| 版 | 变 | 道义 |
+|---|---|---|
+| **v9.9.38** | 去 `_cachedAnchored` 门控 · LS args 无条件重写 · TAO_HEADER 帧宽修正 | 十七章「太上下知有之」 |
+| **v9.9.41** | `viewed_file`+`learnings` 移出 SCT | 四十八章「损之又损」 |
+| **v9.9.42** | `SECTION_OVERRIDE` 全删 · 真无为 | 二章「为而弗之」 |
+| **v9.9.43** | `session_context`+`code_interaction_summary` 移出 SCT | 同上 |
+| **v9.9.44** | 双线融合 · `deepStrip` 无条件 | 四十章「反者道之动」 |
+| **v9.9.45** | proto 损坏根治 · `nestedOk` 移出 if 块 | 七十六章「柔弱者生之徒」 |
+| **v9.9.47** | 书名号复归 · 动态经藏名 · 认知锚点 | 一章「名可名也 非恒名也」 |
+| **v9.9.49** | 移除"及其后文本"· 精准指向经典 | 六十四章「慎终若始」 |
+| **v9.9.50** | INFER_STRIP 回退 `modifyAnyInferenceSP` · `trimUserInfo` 截断终端历史 | 四十章「弱者道之用」 |
+| **v9.9.51** | CHECKPOINT 不再剥除 · reload 后上下文桥完整 | 十六章「归根曰静 静曰复命」 |
+| **v9.9.52** | 损 `CHECKPOINT_BLOCK_RE` / `CHECKPOINT_MARKER_RE` 死代码 · 两常量无引用 | 四十八章「损之又损」 |
+
+---
+
+## III · v9.9.29 之治 · 印 160 · 终端会话池 (2026-05-19)
 
 **主公诏 (5/19 03:11)**: 「**专注于最本源最核心的终端问题 · 反者道之动 · 不依赖任何第三方 · 推进到底 实现一切**」
 
@@ -110,6 +135,15 @@
 | **软编码彻终** | v9.9.27 | cmdPurge step 7/9 + deactivate 兜底 5 处全归一 (印 158) | extension.js |
 | **detached cleanup spawn** | v9.9.28 | spawn detached child_process · 脱 ext-host / 主父子链 · 自卸自身本体 (印 159) | extension.js + 内嵌 _cleanup_spawn.js |
 | **终端会话池** | **v9.9.29** | **七层污染一招治 · 每 agent 一独立 cmd.exe/bash · OS 进程级隔离 (印 160)** | **extension.js · ~280 行新** |
+| **延迟锚定+降频** | v9.9.36 | activate 15s 延迟锚 · deactivate 智能保锚 · 去 API 噪 · 降频减压 · 三窗口连环重载根治 | extension.js |
+| **无条件重写** | v9.9.38 | 去 `_cachedAnchored` 门控 · spawn hook 无条件重写 LS args | extension.js + source.js |
+| **SCT 精炼** | v9.9.41-44 | `viewed_file`/`learnings`/`SECTION_OVERRIDE`/`session_context` 移出或全删 | source.js |
+| **proto 根治** | v9.9.45 | `nestedOk` 移出 if 块 · 消灭偶发 proto 损坏 | source.js |
+| **书名号复归** | v9.9.47 | 动态经藏名 · 认知锚点复归 | source.js |
+| **精准指经** | v9.9.49 | 移除"及其后文本"冗余补丁 | source.js |
+| **双修** | v9.9.50 | INFER_STRIP 回退 · trimUserInfo 截断终端历史 | source.js |
+| **CHECKPOINT 桥** | v9.9.51 | 不再剥除 CHECKPOINT · reload 后上下文完整连续 | source.js |
+| **损死代码** | **v9.9.52** | **损 CHECKPOINT_BLOCK_RE / CHECKPOINT_MARKER_RE 两未用常量 · 损之又损** | **source.js** |
 
 ---
 
@@ -137,14 +171,18 @@
 ### 装 (三路)
 
 ```powershell
-# 路 1: install.ps1 (推荐 · 自动检测 · Win)
+# 路 1: install.ps1 (推荐 · 自动检测最新 vsix · Win)
 cd dao-proxy-min
 .\install.ps1
+# install.ps1 软编码: 自动 sort -Descending 找最新 dao-proxy-min-*.vsix · 无需指定版本号
 
-# 路 2: GUI · 命令面板 → "Extensions: Install from VSIX..." → 选 dao-proxy-min-9.9.33.vsix
+# 路 2: GUI · 命令面板 → "Extensions: Install from VSIX..." → 选 dao-proxy-min-9.9.52.vsix
 
 # 路 3: CLI
-windsurf --install-extension dao-proxy-min-9.9.33.vsix --force
+windsurf --install-extension dao-proxy-min-9.9.52.vsix --force
+
+# 路 4: Mac/Linux
+./install.sh  # 同样软编码自检测最新 vsix
 ```
 
 ### 卸 (二路 · 全自治)
@@ -167,19 +205,23 @@ windsurf --install-extension dao-proxy-min-9.9.33.vsix --force
 ## VI · 验
 
 ```powershell
-# 单元 · 终端会话池 (印 160)
-node _test_v9929_term_pool.js
-# 期: 15/15 PASS · 2 sid 隔离 · sentinel 包夹 · ver>nul 重置 · 多 agent race · pipe 持续写
+# ★ 装毕验 · /origin/preview 三 dot 全亮 (v9.9.52)
+# 1. .\install.ps1  (自动检测 dao-proxy-min-9.9.52.vsix · 软编码)
+# 2. 重启 Windsurf (或 Reload Window)
+# 3. 命令面板 → "道Agent: 启 (invert)"
+# 4. 命令面板 → "道Agent: 浏览器观真 SP" → 浏览器开 /origin/preview
+# 5. 期: 三 dot=Proxy✓ Capture✓ Mode✓ · 道魂 ~7237 字 (帛书《老子》+ 阴符)
+# 6. 期: /origin/ping 返 {"ok":true,"version":"v9.9.52",...}
 
-# e2e · 命令面板 + HTTP 双路 (印 160)
-.\_e2e_v9929_term.ps1
-# 期: dao.term.exec/list/close 三命令通 · /term/exec/list/close/ping 四端通
+# 软编码守门 (smoke · 结构自检)
+node ../_smoke_v9952.cjs
+# 期: 全 PASS · 自动检测最新安装版本 · 无硬编码路径
 
-# 装毕验 · /origin/preview 三 dot 全亮
-# 1. 主公装 dao-proxy-min-9.9.29.vsix
-# 2. 命令面板 → "道Agent: 启 (invert)"
-# 3. 命令面板 → "道Agent: 浏览器观真 SP" → 浏览器开 /origin/preview
-# 4. 期: 三 dot=Proxy✓ Capture✓ Mode✓ · 道魂 ~7237 字 (帛书《老子》+ 阴符)
+# SP 注入验: Cascade 新建对话 → 看道Agent Output 频道
+# 期: [invertSP] injected · TAO_HEADER + 帛书全文可见
+
+# 无感升级验 (9935→9952):
+# 用旧版用户只需重跑 install.ps1 · 自动识别最新 vsix · 旧版标 .obsolete · 新版装毕
 ```
 
 ---
@@ -187,26 +229,34 @@ node _test_v9929_term_pool.js
 ## VII · 主公自决之退路
 
 ```text
-若 v9.9.33 装即生效 → 期 ✓ · 「本源观照」三 dot 全亮 · 终端三命令可调
+若 v9.9.52 装即生效 → 期 ✓ · 「本源观照」三 dot 全亮 · 终端三命令可调
 若仍诉问题 → 走 dao.purge (官方 [✘] + Reload Window) 净卸再装
-若欲查印 160 之实证 → _test_v9929_term_pool.js · 15/15 PASS
-若欲打包新版 → 改 package.json.version → .\build_vsix.ps1
+若欲打包新版 → 改 package.json.version → .\build_vsix.ps1 → 生成新 vsix
 若欲查历史VSIX → ../_归档/vsix_v9929-v9932/
 若欲查印161备份 → ../_归档/bak_v9929_yin161/
+若仍有连环重载 → 查 Output:道Agent 频道 · 看 activate/deactivate 时间差是否 <30s
+若欲验 CHECKPOINT 桥 → reload Windsurf 后开新 chat · 模型仍能引用 reload 前上下文
 ```
 
 ---
 
 ## VIII · 道义结
 
-> **大成若缺, 其用不敝; 大盈若盅, 其用不窘.** ——《四十五章》
+> **损之又损, 以至于无为, 无为而无不为.** ——《四十八章》
 >
-> v9.9.29 · 终端池之大成 · 看似多一层 child_process 之缺 · 实则七层污染一招治, 万 sid 不争, 用之不敝.
+> v9.9.52 · 损 CHECKPOINT 死代码 · 无引用之常量不留 · 反者道之动 · 损之之极.
+> v9.9.51 · 不剥除 CHECKPOINT · 知其本为上下文桥 · 反误判而复命.
+> v9.9.36 · 延迟锚定 · 智能保锚 · 降频减压 · 三窗口连环重载根治.
 >
 > **反者道之动, 弱者道之用.** ——《四十章》
 >
-> 反共享 shell 之坚 · 用 spawn 之柔 · 反 fork API 不可信 · 用 detached 自治. 道之全用, 在反在弱.
+> 反硬编码之执 · 用软编码之柔 · SELF_EXT_ID 抽自 package.json · 适所有 fork.
+> 反 install.ps1 固化版本 · sort -Descending 自取最新 vsix · 无感升级.
+>
+> **道法自然.** ——《二十五章》
+>
+> 软编码、延迟锚定、智能保锚、无条件重写 — 皆顺其自然之道.
 
 ---
 
-**2026-05-21 · 重构整理毕** · 020目录归一 · dao-proxy-min-9.1.x-改良→dao-proxy-min · v9.9.33统一 · 旧版归档
+**2026-05-27 · v9.9.52 整理归一** · 9935→9952 无感升级 · 所有模块软编码适配一切
