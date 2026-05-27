@@ -33,6 +33,7 @@ $VERSION = Get-WamSourceVersion
 $pkgVer  = Get-WamSourcePackageVersion
 $srcExt  = Join-Path $PSScriptRoot 'extension.js'
 $srcPkg  = Join-Path $PSScriptRoot 'package.json'
+$srcStuck = Join-Path $PSScriptRoot 'dao_stuck.js'
 
 if (-not $VERSION) {
     Write-Host '[FATAL] cannot read const VERSION from extension.js' -ForegroundColor Red
@@ -41,9 +42,15 @@ if (-not $VERSION) {
 if ($pkgVer -and ($pkgVer -ne $VERSION)) {
     Write-Host ('[WARN] package.json version ({0}) != extension.js VERSION ({1})' -f $pkgVer, $VERSION) -ForegroundColor Yellow
 }
+if (-not (Test-Path $srcStuck)) {
+    Write-Host ('[FATAL] dao_stuck.js missing: {0}' -f $srcStuck) -ForegroundColor Red
+    exit 2
+}
 
 $srcSz  = (Get-Item $srcExt).Length
 $srcSha = Get-WamSourceShortSha
+$srcStuckSz  = (Get-Item $srcStuck).Length
+$srcStuckSha = (Get-FileHash $srcStuck -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
 $ts     = Get-Date -Format 'yyyyMMdd_HHmmss'
 
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -51,6 +58,8 @@ Write-Host (' WAM dao deploy - v{0} - dao fa zi ran' -f $VERSION) -ForegroundCol
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host ('source: {0} bytes  sha={1}' -f $srcSz, $srcSha)
 Write-Host ('        {0}' -f $srcExt)
+Write-Host ('engine: {0} bytes  sha={1}' -f $srcStuckSz, $srcStuckSha)
+Write-Host ('        {0}' -f $srcStuck)
 
 $daoEnv  = Get-DaoEnv
 $targets = Get-Targets -Filter $Target -LocalOnly:$LocalOnly -Env $daoEnv
@@ -88,6 +97,7 @@ foreach ($t in $targets) {
 
     $dst    = $loc.path
     $oldExt = Join-Path $dst 'extension.js'
+    $oldStuck = Join-Path $dst 'dao_stuck.js'
     # v2.6.10 · 道法自然 · 复用 Get-WamSourceVersion (已 400 行 head 容长 changelog)
     $oldVer = (Get-WamSourceVersion -ExtensionJs $oldExt)
     if (-not $oldVer) { $oldVer = '?' }
@@ -103,6 +113,9 @@ foreach ($t in $targets) {
     try {
         Copy-Item $oldExt (Join-Path $dst ("extension.js.bak.v" + $oldVer + "." + $ts)) -Force -ErrorAction Stop
         Copy-Item (Join-Path $dst 'package.json') (Join-Path $dst ("package.json.bak.v" + $oldVer + "." + $ts)) -Force -ErrorAction Stop
+        if (Test-Path $oldStuck) {
+            Copy-Item $oldStuck (Join-Path $dst ("dao_stuck.js.bak.v" + $oldVer + "." + $ts)) -Force -ErrorAction Stop
+        }
         Write-Host '   [1/5] backup OK'
     } catch {
         Write-Host ('   [1/5] backup FAIL: {0}' -f $_.Exception.Message) -ForegroundColor Red
@@ -114,6 +127,7 @@ foreach ($t in $targets) {
     try {
         Copy-Item $srcExt $oldExt -Force -ErrorAction Stop
         Copy-Item $srcPkg (Join-Path $dst 'package.json') -Force -ErrorAction Stop
+        Copy-Item $srcStuck $oldStuck -Force -ErrorAction Stop
         Write-Host '   [2/5] copy OK'
     } catch {
         Write-Host ('   [2/5] copy FAIL: {0}' -f $_.Exception.Message) -ForegroundColor Red
@@ -124,7 +138,9 @@ foreach ($t in $targets) {
     # 4. verify byte equal
     $dstSz  = (Get-Item $oldExt).Length
     $dstSha = (Get-FileHash $oldExt -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
-    Write-Host ('   [3/5] dst={0} B  sha={1}' -f $dstSz, $dstSha)
+    $dstStuckSz  = (Get-Item $oldStuck).Length
+    $dstStuckSha = (Get-FileHash $oldStuck -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
+    Write-Host ('   [3/5] dst={0} B  sha={1} · dao_stuck={2} B sha={3}' -f $dstSz, $dstSha, $dstStuckSz, $dstStuckSha)
     if ($srcSz -ne $dstSz) {
         Write-Host '         size MISMATCH' -ForegroundColor Red
         $results += [pscustomobject]@{ target=$name; ok=$false; reason='size'; oldVer=$oldVer; sha=$dstSha; path=$dst }
@@ -133,6 +149,11 @@ foreach ($t in $targets) {
     if ($srcSha -ne $dstSha) {
         Write-Host '         sha  MISMATCH' -ForegroundColor Red
         $results += [pscustomobject]@{ target=$name; ok=$false; reason='sha'; oldVer=$oldVer; sha=$dstSha; path=$dst }
+        continue
+    }
+    if (($srcStuckSz -ne $dstStuckSz) -or ($srcStuckSha -ne $dstStuckSha)) {
+        Write-Host '         dao_stuck.js MISMATCH' -ForegroundColor Red
+        $results += [pscustomobject]@{ target=$name; ok=$false; reason='dao_stuck'; oldVer=$oldVer; sha=$dstStuckSha; path=$dst }
         continue
     }
     Write-Host '         byte-equal OK' -ForegroundColor Green
