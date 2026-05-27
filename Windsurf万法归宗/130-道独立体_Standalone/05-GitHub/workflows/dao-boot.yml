@@ -172,6 +172,8 @@ jobs:
           DAO_MODE:           proxy
           HUB_PORT:           "7799"
           DAO_DEBUG:          "0"
+          # 印 271 反审升级: multi-account chat fallback
+          DAO_MAX_ROTATIONS:  ${{ secrets.DAO_MAX_ROTATIONS || '30' }}
         run: |
           echo "════════════════════════════════════════════════════════"
           echo "  dao_proxy.js · proxy 模式"
