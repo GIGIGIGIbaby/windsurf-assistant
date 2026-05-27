@@ -60,6 +60,8 @@ on:
 permissions:
   contents: read
   actions: write   # 用于触发下一轮工作流
+  models: read     # 印272 反者道之动 · GITHUB_TOKEN 可调 GitHub Models API (永久免费)
+  id-token: write  # OIDC 预留 (未来 federated identity)
 
 jobs:
   # ════════════════════════════════════════════════════════════════════
@@ -85,23 +87,28 @@ jobs:
         with:
           node-version: '20'
 
-      - name: "验证 ACCOUNTS"
+      - name: "验证 账号源 (印272 反者道之动 · 三源任一)"
         env:
           ACCOUNTS: ${{ inputs.accounts_override || secrets.ACCOUNTS }}
           DAO_JWT:  ${{ secrets.DAO_JWT }}
+          GH_TOKEN: ${{ secrets.DAO_GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          if [ -z "$ACCOUNTS" ] && [ -z "$DAO_JWT" ]; then
-            echo "::error::请先设置 ACCOUNTS secret!"
-            echo "路径: Settings → Secrets and variables → Actions → New repository secret"
-            echo "名称: ACCOUNTS"
-            echo "值:   your@windsurf.com:yourpassword"
+          if [ -z "$ACCOUNTS" ] && [ -z "$DAO_JWT" ] && [ -z "$GH_TOKEN" ]; then
+            echo "::error::需 ACCOUNTS 或 DAO_JWT 或 GITHUB_TOKEN 至少一个!"
             exit 1
           fi
           if [ -n "$ACCOUNTS" ]; then
             COUNT=$(echo "$ACCOUNTS" | tr ',' '\n' | grep -c ':' || echo 0)
-            echo "✓ ACCOUNTS: ${COUNT} 个账号"
-          else
-            echo "✓ 使用已有 DAO_JWT"
+            echo "✓ ACCOUNTS: ${COUNT} 个 windsurf 账号"
+          fi
+          if [ -n "$DAO_JWT" ]; then
+            echo "✓ DAO_JWT 现成"
+          fi
+          if [ -n "$GH_TOKEN" ]; then
+            echo "✓ GITHUB_TOKEN/DAO_GH_PAT 现成 · GitHub Models backend 可用 (永久免费)"
+          fi
+          if [ -z "$ACCOUNTS" ] && [ -z "$DAO_JWT" ] && [ -n "$GH_TOKEN" ]; then
+            echo "⚡ gh-only mode: 将只启用 GitHub Models backend"
           fi
 
       - name: "运行 Setup (认证 + 初始化 Gist)"
@@ -116,6 +123,8 @@ jobs:
           GITHUB_REPOSITORY:  ${{ github.repository }}
           DAO_MODE:           setup
           DAO_DEBUG:          "0"
+          # 印272 · backend 优先顺序 (setup 不用但入 ENV 供调试)
+          DAO_BACKEND_PRIORITY: ${{ secrets.DAO_BACKEND_PRIORITY || 'gh,windsurf' }}
         run: |
           echo "════════════════════════════════════════"
           echo "  dao_proxy.js · setup 模式"
@@ -167,6 +176,7 @@ jobs:
           DAO_API_SERVER:     ${{ needs.setup.outputs.api_server || secrets.DAO_API_SERVER }}
           DAO_ACCOUNTS:       ${{ secrets.ACCOUNTS }}
           DAO_GIST_ID:        ${{ needs.setup.outputs.gist_id || inputs.gist_id || secrets.DAO_GIST_ID }}
+          # GITHUB_TOKEN: 供 Gist/Secrets/Models API 三用 (印272 · 含 models:read perm)
           GITHUB_TOKEN:       ${{ secrets.DAO_GH_PAT || secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY:  ${{ github.repository }}
           DAO_MODE:           proxy
@@ -174,6 +184,8 @@ jobs:
           DAO_DEBUG:          "0"
           # 印 271 反审升级: multi-account chat fallback
           DAO_MAX_ROTATIONS:  ${{ secrets.DAO_MAX_ROTATIONS || '30' }}
+          # 印272 · 反者道之动 · backend 优先顺序 (默认 gh,windsurf)
+          DAO_BACKEND_PRIORITY: ${{ secrets.DAO_BACKEND_PRIORITY || 'gh,windsurf' }}
         run: |
           echo "════════════════════════════════════════════════════════"
           echo "  dao_proxy.js · proxy 模式"

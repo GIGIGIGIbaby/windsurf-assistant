@@ -42,8 +42,9 @@ const os = require("os");
 const { URL } = require("url");
 const { execSync, spawn } = require("child_process");
 
-const VERSION = "2.0.0";
-const SEAL = "道 · 万法归宗 · GitHub Actions 云端代理 · 用户输入账号即全自动";
+const VERSION = "3.0.0";
+const SEAL =
+  "道 · 万法归宗 · GitHub Actions 反代 · Windsurf + GitHub Models 双背 · 永久免费";
 
 // ══════════════════════════════════════════════════════════════════════
 // §0 · 终端着色工具
@@ -745,14 +746,95 @@ function sendChunk(res, model, content, finishReason = null) {
  * 协议: Connect-RPC · application/connect+json · JSON 帧
  * (实证: 02-Proxy/core/dao_proxy.js 印105 · 2026-05-14)
  */
+// ══════════════════════════════════════════════════════════════════════
+// 印272 · 反者道之动 · dual-backend smart router
+// ══════════════════════════════════════════════════════════════════════
+//
+//   策略:
+//     - `windsurf/xxx` · `MODEL_xxx`         → windsurf only
+//     - `gh/xxx` · `<publisher>/<model>`    → gh only
+//     - 其余 (`swe-1.5` · `gpt-4o-mini` 等) → 先 gh → 失败降级 windsurf
+//   「上德不德, 是以有德」: GH Models 永久免费优先 · windsurf 仅作 fallback
+//
 async function proxyChat(_unusedApiKey, _unusedApiServerUrl, reqBody, res) {
-  // 印 271 反审升级: 不再用入参 apiKey · 全用 CRED_BOX (支 multi-account fallback)
+  const { model: rawModel = "" } = reqBody;
+  const explicitWindsurf =
+    /^windsurf\//.test(rawModel) || /^MODEL_/.test(rawModel);
+  const explicitGH =
+    /^gh\//.test(rawModel) ||
+    /^(openai|deepseek|meta|mistral-ai|cohere|microsoft|xai)\//.test(rawModel);
+
+  let order;
+  if (explicitWindsurf) order = ["windsurf"];
+  else if (explicitGH) order = ["gh", "windsurf"];
+  else order = ["gh", "windsurf"];
+
+  // 用户可用 ENV 反序: DAO_BACKEND_PRIORITY=windsurf,gh
+  const envPrio = (process.env.DAO_BACKEND_PRIORITY || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (envPrio.length && !explicitWindsurf && !explicitGH) {
+    order = envPrio.filter((b) => ["gh", "windsurf"].includes(b));
+    if (!order.length) order = ["gh", "windsurf"];
+  }
+
+  log("PROXY", `→ model="${rawModel}" · backends=[${order.join(",")}]`);
+
+  let lastErr = null;
+  let lastInfo = null;
+  for (const backend of order) {
+    if (res.headersSent || res.writableEnded) return;
+    try {
+      if (backend === "gh") {
+        const r = await proxyChatGH(reqBody, res);
+        if (r.ok || res.headersSent || res.writableEnded) return;
+        lastErr = new Error(
+          `gh:${r.error || r.status} ${(r.body || "").slice(0, 120)}`,
+        );
+        lastInfo = { backend: "gh", status: r.status, error: r.error };
+        warn("PROXY", `gh fail · ${lastErr.message.slice(0, 140)}`);
+      } else if (backend === "windsurf") {
+        const r = await proxyChatWindsurf(reqBody, res);
+        if (r.ok || res.headersSent || res.writableEnded) return;
+        lastErr = new Error(`windsurf:${r.error || "unknown"}`);
+        lastInfo = { backend: "windsurf", ...r };
+        warn("PROXY", `windsurf fail · ${lastErr.message.slice(0, 140)}`);
+      }
+    } catch (e) {
+      lastErr = e;
+      warn("PROXY", `${backend} threw: ${e.message}`);
+    }
+  }
+
+  fail("PROXY", `all backends failed · last: ${lastErr?.message}`);
+  if (!res.headersSent && !res.writableEnded) {
+    res.writeHead(502, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(
+      JSON.stringify({
+        error: {
+          message: "all_backends_failed",
+          type: "upstream_error",
+          last_error: lastErr?.message || "unknown",
+          last_info: lastInfo,
+          tried_backends: order,
+        },
+      }),
+    );
+  }
+}
+
+// 原 windsurf 逻辑 (印271 multi-account fallback · 失败不写 502 · 让 router 决定)
+async function proxyChatWindsurf(reqBody, res) {
   const { model: rawModel = "swe-1.5", messages = [], stream = true } = reqBody;
   const model = rawModel.replace(/^windsurf\//, "");
   const modelUid = resolveModel(model);
 
   log(
-    "PROXY",
+    "WINDSURF",
     `→ ${model} (${modelUid}) · messages: ${messages.length} · stream: ${stream}`,
   );
 
@@ -760,12 +842,11 @@ async function proxyChat(_unusedApiKey, _unusedApiServerUrl, reqBody, res) {
   let lastErr = null;
 
   for (let rotation = 0; rotation <= MAX_ROTATIONS; rotation++) {
-    if (res.headersSent) break;
+    if (res.headersSent || res.writableEnded) return { ok: true };
     if (!CRED_BOX.apiKey) {
       const initOk = await rotateCred();
       if (!initOk) {
-        lastErr = lastErr || new Error("no_cred_no_accounts");
-        break;
+        return { ok: false, error: lastErr?.message || "no_cred_no_accounts" };
       }
     }
 
@@ -785,10 +866,10 @@ async function proxyChat(_unusedApiKey, _unusedApiServerUrl, reqBody, res) {
         );
         if (result.text.length > 0 || result.completed) {
           ok(
-            "PROXY",
+            "WINDSURF",
             `完成 · ${result.text.length} chars · via ${host} · cred=${mask(CRED_BOX.email || "?")}`,
           );
-          return;
+          return { ok: true };
         }
       } catch (e) {
         lastErr = e;
@@ -799,18 +880,18 @@ async function proxyChat(_unusedApiKey, _unusedApiServerUrl, reqBody, res) {
           exhausted = true;
           break;
         }
-        warn("PROXY", `${host}: ${e.message}`);
+        warn("WINDSURF", `${host}: ${e.message}`);
       }
     }
 
     if (exhausted && !res.headersSent && rotation < MAX_ROTATIONS) {
       warn(
-        "PROXY",
+        "WINDSURF",
         `cred 死(${mask(CRED_BOX.email || "?")}): ${lastErr?.message?.slice(0, 80)} · rotate ${rotation + 1}/${MAX_ROTATIONS}`,
       );
       const rotated = await rotateCred();
       if (!rotated) {
-        warn("PROXY", "全 frozen · 退出 rotation");
+        warn("WINDSURF", "全 frozen · 退出 rotation");
         break;
       }
       continue;
@@ -818,27 +899,15 @@ async function proxyChat(_unusedApiKey, _unusedApiServerUrl, reqBody, res) {
     break;
   }
 
-  const errMsg = lastErr?.message || "All chat hosts/accounts failed";
-  fail("PROXY", errMsg);
-  if (!res.headersSent) {
-    res.writeHead(502, {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    });
-    res.end(
-      JSON.stringify({
-        error: {
-          message: errMsg,
-          type: "upstream_error",
-          rotation_info: {
-            frozen: FROZEN_EMAILS.size,
-            total: ACCOUNTS_LIST.length,
-            current_email: CRED_BOX.email ? mask(CRED_BOX.email) : null,
-          },
-        },
-      }),
-    );
-  }
+  return {
+    ok: false,
+    error: lastErr?.message || "all_windsurf_failed",
+    rotation_info: {
+      frozen: FROZEN_EMAILS.size,
+      total: ACCOUNTS_LIST.length,
+      current_email: CRED_BOX.email ? mask(CRED_BOX.email) : null,
+    },
+  };
 }
 
 // 向单个 host 发起 Connect-RPC JSON 流式请求
@@ -1021,6 +1090,236 @@ function parseConnectFrames(buf) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// §5.5 · GitHub Models backend (反者道之动 · 印272 · 永久免费)
+// ══════════════════════════════════════════════════════════════════════
+//
+//   「天下之至柔，驰骋于天下之致坚；无有入于无间。」
+//   「损之又损，以至于无为，无为而无不为。」
+//
+//   ── 底层突破 ──
+//   每个 GitHub 账号自带 GitHub Models API
+//   GitHub Actions runner 内置 GITHUB_TOKEN (含 models:read perm) 默认即可调
+//   无需 trial 账号 · 无 quota=0 困境 · 永久免费 (free-tier rate limit)
+//
+//   ── 协议 ──
+//   端点: https://models.github.ai/inference/chat/completions
+//   认证: Bearer <GITHUB_TOKEN | DAO_GH_PAT | GITHUB_MODELS_TOKEN>
+//   格式: 100% OpenAI 兼容 (chat/completions)
+//   实证: 2026-05-28 hdougle PAT 6/6 端点 status=200 (probe_gh_models.js)
+//
+
+const GH_MODELS_BASE = "https://models.github.ai/inference";
+
+// GH Models 提供模型 ID (实证 2026-05-28 · catalog/models 共 43)
+const GH_MODELS_LIST = [
+  // OpenAI
+  "openai/gpt-5",
+  "openai/gpt-5-mini",
+  "openai/gpt-5-nano",
+  "openai/gpt-4.1",
+  "openai/gpt-4.1-mini",
+  "openai/gpt-4.1-nano",
+  "openai/gpt-4o",
+  "openai/gpt-4o-mini",
+  "openai/o1",
+  "openai/o1-mini",
+  "openai/o3",
+  "openai/o3-mini",
+  "openai/o4-mini",
+  // Meta
+  "meta/Llama-3.3-70B-Instruct",
+  "meta/Meta-Llama-3.1-8B-Instruct",
+  "meta/Meta-Llama-3.1-70B-Instruct",
+  "meta/Meta-Llama-3.1-405B-Instruct",
+  // DeepSeek
+  "deepseek/DeepSeek-V3-0324",
+  "deepseek/DeepSeek-R1",
+  "deepseek/DeepSeek-V3",
+  "deepseek/DeepSeek-R1-0528",
+  // Mistral
+  "mistral-ai/Mistral-large-2407",
+  "mistral-ai/Mistral-Nemo",
+  "mistral-ai/Mistral-small",
+  "mistral-ai/Codestral-2501",
+  // Cohere
+  "cohere/Cohere-command-r-08-2024",
+  "cohere/Cohere-command-r-plus-08-2024",
+  // Microsoft
+  "microsoft/Phi-4",
+  "microsoft/Phi-3.5-MoE-instruct",
+  // xAI
+  "xai/grok-3",
+  "xai/grok-3-mini",
+];
+
+// 用户友好名 ↔ GH Models 真名 (透明替代)
+const GH_MODEL_ALIAS = {
+  // Windsurf SWE 系列 → GPT-4o-mini (速度·成本优)
+  "swe-1.5": "openai/gpt-4o-mini",
+  "swe-1": "openai/gpt-4o-mini",
+  "swe-1-6-fast": "openai/gpt-4o-mini",
+  cascade: "openai/gpt-4o-mini",
+  // Claude → 等强 GPT (GH Models 暂无 Claude)
+  "claude-sonnet-4-20250514": "openai/gpt-4o",
+  "claude-opus-4-5": "openai/gpt-5",
+  "claude-haiku-3-5-20241022": "openai/gpt-4o-mini",
+  sonnet: "openai/gpt-4o",
+  opus: "openai/gpt-5",
+  haiku: "openai/gpt-4o-mini",
+  // GPT 直通
+  "gpt-4o": "openai/gpt-4o",
+  "gpt-4o-mini": "openai/gpt-4o-mini",
+  "gpt-4-5": "openai/gpt-5",
+  "gpt-5": "openai/gpt-5",
+  "o4-mini": "openai/o4-mini",
+  "o3-mini": "openai/o3-mini",
+  o1: "openai/o1",
+  // Gemini → 等强 OpenAI/GPT (GH Models 暂无 Gemini)
+  "gemini-2-5-pro": "openai/gpt-5-mini",
+  "gemini-2-0-flash": "openai/gpt-4.1-mini",
+  // DeepSeek 直通
+  "deepseek-r1": "deepseek/DeepSeek-R1",
+  "deepseek-v3": "deepseek/DeepSeek-V3-0324",
+  "deepseek-v3-0324": "deepseek/DeepSeek-V3-0324",
+  // Grok 直通
+  "grok-3": "xai/grok-3",
+  "grok-3-mini": "xai/grok-3-mini",
+  // Kimi → GPT-4o-mini
+  kimi: "openai/gpt-4o-mini",
+};
+
+function resolveGhModel(userModel) {
+  if (!userModel) return "openai/gpt-4o-mini";
+  if (userModel.startsWith("gh/")) return userModel.slice(3);
+  if (GH_MODEL_ALIAS[userModel]) return GH_MODEL_ALIAS[userModel];
+  if (/^[a-z][a-z-]*\/[A-Za-z0-9._-]+$/.test(userModel)) return userModel;
+  return "openai/gpt-4o-mini";
+}
+
+function getGhToken() {
+  return (
+    process.env.GITHUB_MODELS_TOKEN ||
+    process.env.GITHUB_TOKEN ||
+    process.env.DAO_GH_PAT ||
+    null
+  );
+}
+
+async function proxyChatGH(reqBody, res) {
+  const ghToken = getGhToken();
+  if (!ghToken) {
+    return { ok: false, error: "no_github_token" };
+  }
+  const {
+    model: rawModel = "",
+    messages = [],
+    stream = false,
+    max_tokens,
+    temperature,
+    top_p,
+    frequency_penalty,
+    presence_penalty,
+  } = reqBody;
+  const ghModel = resolveGhModel(rawModel);
+  log("GH_MODELS", `→ ${ghModel} (from "${rawModel}") · stream=${stream}`);
+
+  const upstreamBody = JSON.stringify({
+    model: ghModel,
+    messages,
+    ...(max_tokens && { max_tokens }),
+    ...(temperature !== undefined && { temperature }),
+    ...(top_p !== undefined && { top_p }),
+    ...(frequency_penalty !== undefined && { frequency_penalty }),
+    ...(presence_penalty !== undefined && { presence_penalty }),
+    stream,
+  });
+
+  return new Promise((resolve) => {
+    const u = new URL(GH_MODELS_BASE + "/chat/completions");
+    const req = https.request(
+      {
+        hostname: u.hostname,
+        port: 443,
+        path: u.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ghToken}`,
+          Accept: stream ? "text/event-stream" : "application/json",
+          "User-Agent": "dao-proxy/3.0",
+          "Content-Length": Buffer.byteLength(upstreamBody),
+        },
+        timeout: 120000,
+        rejectUnauthorized: false,
+      },
+      (upstreamRes) => {
+        const sc = upstreamRes.statusCode || 0;
+        if (sc !== 200) {
+          const bufs = [];
+          upstreamRes.on("data", (c) => bufs.push(c));
+          upstreamRes.on("end", () => {
+            const txt = Buffer.concat(bufs).toString("utf8").slice(0, 600);
+            warn("GH_MODELS", `← status=${sc} · body=${txt}`);
+            resolve({ ok: false, status: sc, body: txt });
+          });
+          return;
+        }
+        log("GH_MODELS", `← status=200 · streaming=${stream}`);
+        if (stream) {
+          if (!res.headersSent) {
+            res.writeHead(200, {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+              "Access-Control-Allow-Origin": "*",
+            });
+          }
+          upstreamRes.on("data", (c) => {
+            if (!res.writableEnded) res.write(c);
+          });
+          upstreamRes.on("end", () => {
+            if (!res.writableEnded) res.end();
+            ok("GH_MODELS", `stream end · ${ghModel}`);
+            resolve({ ok: true, status: 200, streamed: true });
+          });
+          upstreamRes.on("error", (e) => {
+            warn("GH_MODELS", `stream err: ${e.message}`);
+            if (!res.writableEnded) res.end();
+            resolve({ ok: false, error: e.message });
+          });
+        } else {
+          const bufs = [];
+          upstreamRes.on("data", (c) => bufs.push(c));
+          upstreamRes.on("end", () => {
+            const txt = Buffer.concat(bufs).toString("utf8");
+            if (!res.headersSent) {
+              res.writeHead(200, {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+              });
+            }
+            res.end(txt);
+            ok("GH_MODELS", `完成 · ${txt.length} bytes · ${ghModel}`);
+            resolve({ ok: true, status: 200, body: txt });
+          });
+        }
+      },
+    );
+    req.on("error", (e) => {
+      warn("GH_MODELS", `request err: ${e.message}`);
+      resolve({ ok: false, error: e.message });
+    });
+    req.on("timeout", () => {
+      req.destroy();
+      warn("GH_MODELS", "timeout 120s");
+      resolve({ ok: false, error: "timeout" });
+    });
+    req.write(upstreamBody);
+    req.end();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // §6 · HTTP 服务器 (OpenAI 兼容 API)
 // ══════════════════════════════════════════════════════════════════════
 
@@ -1044,6 +1343,7 @@ function startProxyServer(apiKey, apiServerUrl, port = 7799) {
       req.method === "GET" &&
       (u.pathname === "/health" || u.pathname === "/status")
     ) {
+      const ghTok = getGhToken();
       res.writeHead(200, {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -1052,8 +1352,28 @@ function startProxyServer(apiKey, apiServerUrl, port = 7799) {
         JSON.stringify({
           ok: true,
           version: VERSION,
-          model: "windsurf-cascade",
-          apiKey: mask(apiKey),
+          model: "dual-backend (windsurf + gh-models)",
+          backends: {
+            windsurf: {
+              available: !!CRED_BOX.apiKey,
+              apiKey: mask(CRED_BOX.apiKey || apiKey || ""),
+              email: CRED_BOX.email ? mask(CRED_BOX.email) : null,
+              accounts: ACCOUNTS_LIST.length,
+              frozen: FROZEN_EMAILS.size,
+            },
+            gh_models: {
+              available: !!ghTok,
+              token_source: process.env.GITHUB_MODELS_TOKEN
+                ? "GITHUB_MODELS_TOKEN"
+                : process.env.GITHUB_TOKEN
+                  ? "GITHUB_TOKEN"
+                  : process.env.DAO_GH_PAT
+                    ? "DAO_GH_PAT"
+                    : null,
+              models: GH_MODELS_LIST.length,
+            },
+          },
+          priority: process.env.DAO_BACKEND_PRIORITY || "gh,windsurf (default)",
         }),
       );
       return;
@@ -1061,12 +1381,20 @@ function startProxyServer(apiKey, apiServerUrl, port = 7799) {
 
     // ── GET /v1/models ─────────────────────────────────────────────
     if (req.method === "GET" && u.pathname === "/v1/models") {
-      const data = MODELS.map((id) => ({
-        id,
-        object: "model",
-        created: 1700000000,
-        owned_by: "windsurf",
-      }));
+      const data = [
+        ...MODELS.map((id) => ({
+          id,
+          object: "model",
+          created: 1700000000,
+          owned_by: "windsurf",
+        })),
+        ...GH_MODELS_LIST.map((id) => ({
+          id,
+          object: "model",
+          created: 1700000000,
+          owned_by: id.split("/")[0],
+        })),
+      ];
       res.writeHead(200, {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -1260,8 +1588,22 @@ async function scheduleSelfRenewal(gistId, tok) {
 async function modeSetup() {
   log("SETUP", "══ Step1: 认证 + 初始化 Gist ══");
 
-  // 认证
-  const cred = await resolveAuth();
+  // 认证 (允许失败 · 包 gh-only setup)
+  let cred = { apiKey: "", apiServerUrl: "", source: "none" };
+  try {
+    cred = await resolveAuth();
+    ok("SETUP", `windsurf cred OK · ${mask(cred.apiKey)}`);
+  } catch (e) {
+    warn(
+      "SETUP",
+      `windsurf auth fail: ${e.message.slice(0, 100)} · gh-only setup中`,
+    );
+  }
+
+  if (!cred.apiKey && !getGhToken()) {
+    fail("SETUP", "无 windsurf cred 且无 GITHUB_TOKEN/DAO_GH_PAT · setup 拒绝");
+    process.exit(1);
+  }
 
   // GitHub token 和 Gist
   const tok = process.env.GITHUB_TOKEN;
@@ -1334,8 +1676,27 @@ async function modeSetup() {
 async function modeProxy() {
   log("PROXY", "══ Step2: 启动代理服务器 ══");
 
-  // 获取认证
-  const cred = await resolveAuth();
+  // 获取 windsurf 认证 (允许失败 → 降级 gh-only mode)
+  let cred = { apiKey: null, apiServerUrl: null, source: "none" };
+  try {
+    cred = await resolveAuth();
+    ok("PROXY", `windsurf cred OK · ${mask(cred.apiKey)}`);
+  } catch (e) {
+    warn(
+      "PROXY",
+      `windsurf auth fail: ${e.message.slice(0, 100)} · 限 gh-only mode运行中`,
+    );
+  }
+
+  // 检查: 至少一个 backend 可用
+  if (!cred.apiKey && !getGhToken()) {
+    fail(
+      "PROXY",
+      "无 windsurf cred 且无 GITHUB_TOKEN/DAO_GH_PAT · 拒绝启动 (至少设一个)",
+    );
+    process.exit(1);
+  }
+
   const port = parseInt(process.env.HUB_PORT || "7799");
 
   // 印 271 反审升级: 初始化 CRED_BOX (支 multi-account fallback)
@@ -1353,7 +1714,7 @@ async function modeProxy() {
   }
   ok(
     "PROXY",
-    `CRED_BOX 初载 · email=${mask(CRED_BOX.email || "?")} · ACCOUNTS=${ACCOUNTS_LIST.length} · CRED_IDX=${CRED_IDX}`,
+    `CRED_BOX 初载 · email=${mask(CRED_BOX.email || "?")} · ACCOUNTS=${ACCOUNTS_LIST.length} · CRED_IDX=${CRED_IDX} · gh_token=${getGhToken() ? "✓" : "✗"}`,
   );
 
   // 启动 HTTP 服务器
@@ -1466,11 +1827,40 @@ async function modeProxy() {
 
 async function modeLocal() {
   log("LOCAL", "══ 本地模式 ══");
-  const cred = await resolveAuth();
+
+  // 允许 windsurf 认证失败 → gh-only 模式仍可启 (反者道之动)
+  let cred = { apiKey: null, apiServerUrl: null, source: "none" };
+  try {
+    cred = await resolveAuth();
+    CRED_BOX.apiKey = cred.apiKey;
+    CRED_BOX.apiServerUrl = cred.apiServerUrl;
+    CRED_BOX.email =
+      cred.email ||
+      (cred.source === "auth:windsurf"
+        ? ((process.env.DAO_ACCOUNTS || "").split(",")[0] || "").split(":")[0]
+        : null);
+    ACCOUNTS_LIST = parseAccountsEnv();
+    ok("LOCAL", `windsurf cred OK · ${mask(cred.apiKey)}`);
+  } catch (e) {
+    warn(
+      "LOCAL",
+      `windsurf auth fail: ${e.message.slice(0, 100)} · gh-only mode运行中`,
+    );
+  }
+
+  if (!cred.apiKey && !getGhToken()) {
+    fail("LOCAL", "无 windsurf cred 且无 GITHUB_TOKEN/DAO_GH_PAT · 拒绝启动");
+    process.exit(1);
+  }
+
   const port = parseInt(process.env.HUB_PORT || "7799");
   startProxyServer(cred.apiKey, cred.apiServerUrl, port);
   ok("LOCAL", `API 就绪 · http://localhost:${port}/v1/chat/completions`);
   ok("LOCAL", `模型列表 · http://localhost:${port}/v1/models`);
+  ok(
+    "LOCAL",
+    `backends: windsurf=${cred.apiKey ? "✓" : "✗"} · gh_models=${getGhToken() ? "✓" : "✗"}`,
+  );
   await new Promise(() => {});
 }
 
