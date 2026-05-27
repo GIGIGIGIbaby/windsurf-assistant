@@ -53,7 +53,9 @@ const lines = extSrc.split("\n");
 {
   const m = extSrc.match(/^const VERSION = "([0-9.]+)";/m);
   const v = m ? m[1] : "??";
-  expect("VERSION === 2.6.10", v === "2.6.10", "actual=" + v);
+  const [ma, mi, pa] = v.split('.').map(Number);
+  const isGe2610 = ma > 2 || (ma === 2 && (mi > 6 || (mi === 6 && pa >= 10)));
+  expect("VERSION >= 2.6.10", isGe2610, "actual=" + v);
 }
 
 // 1.2 v2.6.9: _firePbSettle 函数已删 (settle 信号源本错位 · 雪崩本源)

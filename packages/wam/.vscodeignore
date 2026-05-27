@@ -1,8 +1,9 @@
-# Windsurf Assistant · v17.36 · WAM 纯切号 · bundled-origin 已剥离
+# Windsurf Assistant · v3.10.0 · WAM 归一 · 卡住引擎集成
 **
 !package.json
 !README.md
 !CHANGELOG.md
 !LICENSE
 !extension.js
+!dao_stuck.js
 !media/**

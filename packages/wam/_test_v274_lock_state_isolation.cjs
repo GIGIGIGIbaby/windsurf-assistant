@@ -55,7 +55,12 @@ console.log("\n[§1] 静态契约 · v2.7.4 治法关键标记");
 
 check(
   "§1.A VERSION ≥ 2.7.4 (治 multi-window race)",
-  /const\s+VERSION\s*=\s*"2\.7\.([4-9]|\d{2,})"/.test(src),
+  (() => {
+    const m = src.match(/const\s+VERSION\s*=\s*"([\d.]+)"/);
+    if (!m) return false;
+    const [ma, mi, pa] = m[1].split('.').map(Number);
+    return ma > 2 || (ma === 2 && (mi > 7 || (mi === 7 && pa >= 4)));
+  })(),
 );
 
 check(

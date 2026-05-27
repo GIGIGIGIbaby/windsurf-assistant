@@ -209,9 +209,18 @@ process.on("uncaughtException", (err) => {
   const msg = `[${new Date().toISOString()}] UNCAUGHT_EXCEPTION: ${err.stack || err.message || err}`;
   process.stderr.write(msg + "\n");
   try {
-    const LOG_DIR_ = require("path").join(require("os").homedir(), ".wam", "stuck-detect");
-    try { require("fs").mkdirSync(LOG_DIR_, { recursive: true }); } catch {}
-    require("fs").appendFileSync(require("path").join(LOG_DIR_, "v9.log"), msg + "\n");
+    const LOG_DIR_ = require("path").join(
+      require("os").homedir(),
+      ".wam",
+      "stuck-detect",
+    );
+    try {
+      require("fs").mkdirSync(LOG_DIR_, { recursive: true });
+    } catch {}
+    require("fs").appendFileSync(
+      require("path").join(LOG_DIR_, "v9.log"),
+      msg + "\n",
+    );
   } catch {}
   // 不 exit — 让 extension.js 的心跳超时来重启, 期间引擎继续尝试
 });
@@ -219,51 +228,70 @@ process.on("unhandledRejection", (reason) => {
   const msg = `[${new Date().toISOString()}] UNHANDLED_REJECTION: ${reason}`;
   process.stderr.write(msg + "\n");
   try {
-    const LOG_DIR_ = require("path").join(require("os").homedir(), ".wam", "stuck-detect");
-    try { require("fs").mkdirSync(LOG_DIR_, { recursive: true }); } catch {}
-    require("fs").appendFileSync(require("path").join(LOG_DIR_, "v9.log"), msg + "\n");
+    const LOG_DIR_ = require("path").join(
+      require("os").homedir(),
+      ".wam",
+      "stuck-detect",
+    );
+    try {
+      require("fs").mkdirSync(LOG_DIR_, { recursive: true });
+    } catch {}
+    require("fs").appendFileSync(
+      require("path").join(LOG_DIR_, "v9.log"),
+      msg + "\n",
+    );
   } catch {}
 });
 
 // ─── 路径 ───
-const APPDATA = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+const APPDATA =
+  process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
 const USERPROFILE = process.env.USERPROFILE || os.homedir();
-const PB_DIR   = path.join(USERPROFILE, ".codeium", "windsurf", "cascade");
-const VSCDB    = path.join(APPDATA, "Windsurf", "User", "globalStorage", "state.vscdb");
+const PB_DIR = path.join(USERPROFILE, ".codeium", "windsurf", "cascade");
+const VSCDB = path.join(
+  APPDATA,
+  "Windsurf",
+  "User",
+  "globalStorage",
+  "state.vscdb",
+);
 // v12.9-wam: 日志/状态全部写入 ~/.wam/stuck-detect/ (不再用 __dirname · 插件目录可能只读)
 const WAM_STUCK_DIR = path.join(os.homedir(), ".wam", "stuck-detect");
-const LOG_DIR  = WAM_STUCK_DIR;
-const SIG_DIR  = path.join(WAM_STUCK_DIR, "_signals");
+const LOG_DIR = WAM_STUCK_DIR;
+const SIG_DIR = path.join(WAM_STUCK_DIR, "_signals");
 const LOG_FILE = path.join(LOG_DIR, "v9.log");
-const HB_FILE  = path.join(LOG_DIR, "heartbeat_v9.json");
+const HB_FILE = path.join(LOG_DIR, "heartbeat_v9.json");
 const PID_FILE = path.join(LOG_DIR, "engine_v9.pid");
 const STATE_FILE = path.join(LOG_DIR, "stuck_state_v9.json");
 
 // ─── 默认参数 ───
 function parseArgs() {
-  const a = process.argv.slice(2), c = {
-    warnThreshold: 60,    // 秒: .pb 停止增长 60s = WARNING (v12.1: 回归快速检测; 初始发消息用 INITIAL_SEND_GRACE 单独保护)
-    critThreshold: 120,   // 秒: 2分钟无增长 = CRITICAL (v12.1: 快速卡死检测; 对话进行中卡死2min必报)
-    poll: 10,             // 秒: 轮询间隔
-    port: 19901,          // HTTP 看板端口
-    toast: true,          // 弹 WinRT Toast
-    beep: true,           // PC 蜂鸣
-    flash: true,          // 任务栏闪烁 (不抢焦点)
-    once: false,          // 单次扫描
-    status: false,        // 查看引擎状态
-    cooldown: 300,        // 秒: 同一对话通知冷却 (5分钟)
-    logMax: 5*1024*1024,
-    ignoreAge: 3600,      // 秒: .pb 超过此时间没变化, 不再监控 (老对话)
-  };
+  const a = process.argv.slice(2),
+    c = {
+      warnThreshold: 60, // 秒: .pb 停止增长 60s = WARNING (v12.1: 回归快速检测; 初始发消息用 INITIAL_SEND_GRACE 单独保护)
+      critThreshold: 120, // 秒: 2分钟无增长 = CRITICAL (v12.1: 快速卡死检测; 对话进行中卡死2min必报)
+      poll: 10, // 秒: 轮询间隔
+      port: 19901, // HTTP 看板端口
+      toast: true, // 弹 WinRT Toast
+      beep: true, // PC 蜂鸣
+      flash: true, // 任务栏闪烁 (不抢焦点)
+      once: false, // 单次扫描
+      status: false, // 查看引擎状态
+      cooldown: 300, // 秒: 同一对话通知冷却 (5分钟)
+      logMax: 5 * 1024 * 1024,
+      ignoreAge: 3600, // 秒: .pb 超过此时间没变化, 不再监控 (老对话)
+    };
   for (let i = 0; i < a.length; i++) {
-    if (a[i] === "-t" || a[i] === "--threshold") c.critThreshold = +a[++i] || 300;
+    if (a[i] === "-t" || a[i] === "--threshold")
+      c.critThreshold = +a[++i] || 300;
     else if (a[i] === "--warn") c.warnThreshold = +a[++i] || 120;
     else if (a[i] === "-p" || a[i] === "--poll") c.poll = +a[++i] || 10;
     else if (a[i] === "--port") c.port = +a[++i] || 19901;
     else if (a[i] === "--no-toast") c.toast = false;
     else if (a[i] === "--no-beep") c.beep = false;
     else if (a[i] === "--no-flash") c.flash = false;
-    else if (a[i] === "--no-msgbox") c.flash = false; // 兼容旧参数
+    else if (a[i] === "--no-msgbox")
+      c.flash = false; // 兼容旧参数
     else if (a[i] === "--once") c.once = true;
     else if (a[i] === "--status") c.status = true;
     else if (a[i] === "--ignore-age") c.ignoreAge = +a[++i] || 3600;
@@ -288,20 +316,37 @@ function parseArgs() {
 const CFG = parseArgs();
 
 // ─── 基础工具 ───
-function ensureDir(d) { try { fs.mkdirSync(d, { recursive: true }); } catch {} }
-function nowMs() { return Date.now(); }
-function isoTs() { return new Date().toISOString(); }
-function shortId(u) { return u ? u.substring(0, 8) : "?"; }
-function shortTitle(t, max) { if (!t) return "(unnamed)"; return t.length > (max||60) ? t.substring(0, max||60) + "…" : t; }
+function ensureDir(d) {
+  try {
+    fs.mkdirSync(d, { recursive: true });
+  } catch {}
+}
+function nowMs() {
+  return Date.now();
+}
+function isoTs() {
+  return new Date().toISOString();
+}
+function shortId(u) {
+  return u ? u.substring(0, 8) : "?";
+}
+function shortTitle(t, max) {
+  if (!t) return "(unnamed)";
+  return t.length > (max || 60) ? t.substring(0, max || 60) + "…" : t;
+}
 
 function log(msg) {
   const line = `[${isoTs()}] ${msg}`;
   process.stdout.write(line + "\n");
   try {
-    try { if (fs.statSync(LOG_FILE).size > CFG.logMax) {
-      try { fs.unlinkSync(LOG_FILE + ".old"); } catch {}
-      fs.renameSync(LOG_FILE, LOG_FILE + ".old");
-    }} catch {}
+    try {
+      if (fs.statSync(LOG_FILE).size > CFG.logMax) {
+        try {
+          fs.unlinkSync(LOG_FILE + ".old");
+        } catch {}
+        fs.renameSync(LOG_FILE, LOG_FILE + ".old");
+      }
+    } catch {}
     fs.appendFileSync(LOG_FILE, line + "\n");
   } catch {}
 }
@@ -324,9 +369,15 @@ if (CFG.status) {
     if (hb.stuckList && hb.stuckList.length) {
       console.log("───────────────────────────────────────────────────");
       console.log(`  异常对话 (${hb.stuckList.length} 个):`);
-      hb.stuckList.forEach(s => console.log(`    [${s.level || '?'}] [${s.staleMin}min] ${s.title || shortId(s.uuid)} vscdb=${s.vscdbStatus||'?'}`));
+      hb.stuckList.forEach((s) =>
+        console.log(
+          `    [${s.level || "?"}] [${s.staleMin}min] ${s.title || shortId(s.uuid)} vscdb=${s.vscdbStatus || "?"}`,
+        ),
+      );
     }
-  } catch { console.log("  v9 引擎未运行"); }
+  } catch {
+    console.log("  v9 引擎未运行");
+  }
   process.exit(0);
 }
 
@@ -343,27 +394,37 @@ function loadState() {
         e.activeSinceTs = 0;
         e.stuckTicks = 0;
         e.errorTicks = 0;
-        e._turnGrowth = 0;      // v12.9: 清零累计增长
+        e._turnGrowth = 0; // v12.9: 清零累计增长
         e._awaitingUser = false; // v12.9: 清零状态标志
       }
     }
     return s;
+  } catch {
+    return { conversations: {}, lastUpdate: 0 };
   }
-  catch { return { conversations: {}, lastUpdate: 0 }; }
 }
 function saveState(state) {
-  try { fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2)); } catch {}
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+  } catch {}
 }
 
 // ─── SOURCE 1: vscdb metadataCache.sessions ───
 let Database = null;
 // v12.9-wam: 多路径尝试加载 better-sqlite3 (全局 → 旧引擎目录 → 插件包邻近)
-try { Database = require("better-sqlite3"); } catch {
+try {
+  Database = require("better-sqlite3");
+} catch {
   const _tryPaths = [
     path.join(__dirname, "..", "node_modules", "better-sqlite3"),
     path.join(__dirname, "node_modules", "better-sqlite3"),
   ];
-  for (const p of _tryPaths) { try { Database = require(p); break; } catch {} }
+  for (const p of _tryPaths) {
+    try {
+      Database = require(p);
+      break;
+    } catch {}
+  }
 }
 
 let sessionCache = new Map(); // uuid → {status, title, updatedAt}
@@ -389,19 +450,21 @@ let lastVscdbRefresh = 0;
 // ═══════════════════════════════════════════════════════════════════════════════
 // ─── WAL 保护: 滚动高水位 ───
 let _walHigh = { count: 0, ts: 0 }; // 2分钟内的峰值 session 数
-const WAL_ROLLING_MS   = 120000; // 2分钟窗口
-const WAL_PARTIAL_RATIO = 0.60;  // < 60% 视为坏读
+const WAL_ROLLING_MS = 120000; // 2分钟窗口
+const WAL_PARTIAL_RATIO = 0.6; // < 60% 视为坏读
 // v12.5 · 反者道之动 · WAL 状态陈旧保护 (active 骤降检测)
 //   根因: WAL checkpoint 期间 sessions 以旧 status 出现 (active→stale end_turn/error)
 //   总 count 过关(>60%) 但 active 骤降 → 面板「活跃8」突跳「活跃1」
 //   治法: active 计数滚动高水位 · < 50% 峰值 → WAL 状态陈旧 · 保留旧 cache
 let _walActiveHigh = { count: 0, ts: 0 };
-const WAL_ACTIVE_RATIO = 0.50;  // < 50% active 骤降 = WAL 状态陈旧
+const WAL_ACTIVE_RATIO = 0.5; // < 50% active 骤降 = WAL 状态陈旧
 function tryReadMetadataFromDb(dbPath) {
   let db;
   try {
     db = new Database(dbPath, { readonly: true, fileMustExist: true });
-    const row = db.prepare("SELECT value FROM ItemTable WHERE key = ?").get("windsurf.acp.metadataCache");
+    const row = db
+      .prepare("SELECT value FROM ItemTable WHERE key = ?")
+      .get("windsurf.acp.metadataCache");
     db.close();
     db = null;
     if (!row) return null;
@@ -409,7 +472,10 @@ function tryReadMetadataFromDb(dbPath) {
     if (!cache.sessions || !Array.isArray(cache.sessions)) return null;
     return cache.sessions;
   } catch (e) {
-    if (db) try { db.close(); } catch {}
+    if (db)
+      try {
+        db.close();
+      } catch {}
     return null;
   }
 }
@@ -442,9 +508,9 @@ function refreshVscdb() {
     }
   }
 
-  const newCount   = newCache.size;
-  const nowT       = nowMs();
-  const highValid  = (nowT - _walHigh.ts) < WAL_ROLLING_MS;
+  const newCount = newCache.size;
+  const nowT = nowMs();
+  const highValid = nowT - _walHigh.ts < WAL_ROLLING_MS;
 
   // 更新滚动高水位
   // v11.1: 用 >= 而非 > — 同等 sessions 数也刷新时间戳, 防止 2分钟后 WAL保护过期导致 bypass
@@ -453,10 +519,17 @@ function refreshVscdb() {
   }
 
   // 坏读检测: 2分钟内 count < 60% 峰值 → WAL checkpoint 瞬间读到旧主文件
-  if (highValid && _walHigh.count > 20 && newCount < _walHigh.count * WAL_PARTIAL_RATIO && sessionCache.size > 0) {
+  if (
+    highValid &&
+    _walHigh.count > 20 &&
+    newCount < _walHigh.count * WAL_PARTIAL_RATIO &&
+    sessionCache.size > 0
+  ) {
     if (newCount !== _lastSessionLogCount) {
-      const perc = Math.round(newCount / _walHigh.count * 100);
-      log(`VSCDB_WAL_SKIP sessions=${newCount} (peak=${_walHigh.count} ${perc}%) → WAL坏读,保留旧cache`);
+      const perc = Math.round((newCount / _walHigh.count) * 100);
+      log(
+        `VSCDB_WAL_SKIP sessions=${newCount} (peak=${_walHigh.count} ${perc}%) → WAL坏读,保留旧cache`,
+      );
       _lastSessionLogCount = newCount;
     }
     return; // 保留旧 sessionCache, 不替换
@@ -465,13 +538,21 @@ function refreshVscdb() {
   // ★ v12.5: WAL 状态陈旧保护 — active 骤降必是坏读 (反者道之动)
   //   WAL checkpoint 主文件中 sessions status 可能为旧值(end_turn/error)
   //   总 count 过关但 active 骤降 → 面板突跳 → 此乃根因
-  const _newActive = [...newCache.values()].filter(v => v.status === "active").length;
-  const _aHV = (nowT - _walActiveHigh.ts) < WAL_ROLLING_MS;
+  const _newActive = [...newCache.values()].filter(
+    (v) => v.status === "active",
+  ).length;
+  const _aHV = nowT - _walActiveHigh.ts < WAL_ROLLING_MS;
   if (_newActive >= _walActiveHigh.count || !_aHV) {
     _walActiveHigh = { count: _newActive, ts: nowT };
   }
-  if (_aHV && _walActiveHigh.count >= 3 && _newActive < _walActiveHigh.count * WAL_ACTIVE_RATIO) {
-    log(`VSCDB_WAL_STATUS_SKIP active=${_newActive}(peak=${_walActiveHigh.count}) sessions=${newCount} → status stale, keeping old cache`);
+  if (
+    _aHV &&
+    _walActiveHigh.count >= 3 &&
+    _newActive < _walActiveHigh.count * WAL_ACTIVE_RATIO
+  ) {
+    log(
+      `VSCDB_WAL_STATUS_SKIP active=${_newActive}(peak=${_walActiveHigh.count}) sessions=${newCount} → status stale, keeping old cache`,
+    );
     return;
   }
 
@@ -480,7 +561,9 @@ function refreshVscdb() {
 
   // 记录 session 数量变化 (便于诊断)
   if (newCount !== _lastSessionLogCount) {
-    const active = [...newCache.values()].filter(v => v.status === "active").length;
+    const active = [...newCache.values()].filter(
+      (v) => v.status === "active",
+    ).length;
     log(`VSCDB_REFRESH sessions=${newCount} active=${active}`);
     _lastSessionLogCount = newCount;
   }
@@ -521,10 +604,18 @@ function getUserState() {
     //   1=QUNS_NOT_PRESENT, 2=QUNS_BUSY, 3=QUNS_RUNNING_D3D_FULL_SCREEN,
     //   4=QUNS_PRESENTATION_MODE, 5=QUNS_ACCEPTS_NOTIFICATIONS
     // 2,3,4 = 不应打扰用户 (全屏游戏、D3D独占、演示模式)
-    const r = spawnSync("powershell", ["-NoProfile", "-WindowStyle", "Hidden", "-Command",
-      `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class QU{[DllImport("shell32.dll")]public static extern int SHQueryUserNotificationState(out int s);}' -Language CSharp;` +
-      `$s=0;[QU]::SHQueryUserNotificationState([ref]$s)|Out-Null;$s`
-    ], { timeout: 3000, windowsHide: true, encoding: "utf8" });
+    const r = spawnSync(
+      "powershell",
+      [
+        "-NoProfile",
+        "-WindowStyle",
+        "Hidden",
+        "-Command",
+        `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class QU{[DllImport("shell32.dll")]public static extern int SHQueryUserNotificationState(out int s);}' -Language CSharp;` +
+          `$s=0;[QU]::SHQueryUserNotificationState([ref]$s)|Out-Null;$s`,
+      ],
+      { timeout: 3000, windowsHide: true, encoding: "utf8" },
+    );
     const val = parseInt(String(r.stdout).trim(), 10);
     const busy = val >= 2 && val <= 4;
     _userStateCache = { state: busy ? "busy" : "free", ts: now };
@@ -537,7 +628,13 @@ function getUserState() {
 
 // ─── Toast 通知 (WinRT, 永不抢焦点) ───
 function tryWinRTToast(title, body, urgent) {
-  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/'/g,"&apos;").replace(/"/g,"&quot;");
+  const esc = (s) =>
+    String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/'/g, "&apos;")
+      .replace(/"/g, "&quot;");
   // ★ 根因修复 (2026-05-25):
   //   旧代码用 scenario="reminder" + 自定义 AppId "DaoStuckDetect"
   //   → Windows 未注册此 AppId → toast 静默进入 Action Center，不弹出
@@ -560,12 +657,23 @@ $appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\power
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show($toast)
 } catch { Write-Error $_.Exception.Message }`;
   try {
-    const child = spawn("powershell", ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
-      { detached: true, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
-    child.stderr.on("data", d => { log(`TOAST_ERR: ${d.toString().trim()}`); });
+    const child = spawn(
+      "powershell",
+      ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+      {
+        detached: true,
+        stdio: ["ignore", "ignore", "pipe"],
+        windowsHide: true,
+      },
+    );
+    child.stderr.on("data", (d) => {
+      log(`TOAST_ERR: ${d.toString().trim()}`);
+    });
     child.unref();
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 // ─── 任务栏闪烁 (FlashWindowEx, 永不抢焦点, 人类余光可感知) ───
@@ -588,21 +696,28 @@ public class DaoFlash{
     `$fi=New-Object DaoFlash+FI;` +
     `$fi.s=[uint32][Runtime.InteropServices.Marshal]::SizeOf($fi);` +
     `$fi.h=$_.MainWindowHandle;` +
-    `$fi.f=14;` +   // FLASHW_TRAY | FLASHW_TIMERNOFG
+    `$fi.f=14;` + // FLASHW_TRAY | FLASHW_TIMERNOFG
     `$fi.c=${times};` +
     `$fi.t=0;` +
     `[DaoFlash]::FlashWindowEx([ref]$fi)|Out-Null}`;
   try {
-    spawn("powershell", ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
-      { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    spawn(
+      "powershell",
+      ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+      { detached: true, stdio: "ignore", windowsHide: true },
+    ).unref();
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 // ─── BalloonTip (系统托盘气泡, 不抢焦点) ───
 function tryBalloonTip(title, body) {
-  const esc = s => String(s).replace(/'/g, "''").replace(/\n/g, " ").replace(/`/g, "``");
-  const ps = `Add-Type -AssemblyName System.Windows.Forms;` +
+  const esc = (s) =>
+    String(s).replace(/'/g, "''").replace(/\n/g, " ").replace(/`/g, "``");
+  const ps =
+    `Add-Type -AssemblyName System.Windows.Forms;` +
     `$n=New-Object System.Windows.Forms.NotifyIcon;` +
     `$n.Icon=[System.Drawing.SystemIcons]::Warning;` +
     `$n.Visible=$true;` +
@@ -610,10 +725,15 @@ function tryBalloonTip(title, body) {
     `[System.Windows.Forms.Application]::DoEvents();` +
     `Start-Sleep 10;$n.Dispose()`;
   try {
-    spawn("powershell", ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
-      { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    spawn(
+      "powershell",
+      ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+      { detached: true, stdio: "ignore", windowsHide: true },
+    ).unref();
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 // ─── 温和蜂鸣 (不抢焦点, 纯音频感知) ───
@@ -624,15 +744,23 @@ function tryBeep(pattern) {
   if (pattern === "gentle") {
     seq = `[Console]::Beep(600, 200)`;
   } else if (pattern === "urgent") {
-    seq = Array(5).fill(0).map((_, i) =>
-      `[Console]::Beep(${700 + i*80}, 150); Start-Sleep -Milliseconds 80`).join(";");
+    seq = Array(5)
+      .fill(0)
+      .map(
+        (_, i) =>
+          `[Console]::Beep(${700 + i * 80}, 150); Start-Sleep -Milliseconds 80`,
+      )
+      .join(";");
   } else {
     // "alert" 默认: 三声递升, 柔和
     seq = `[Console]::Beep(600, 200); Start-Sleep -Milliseconds 150; [Console]::Beep(750, 200); Start-Sleep -Milliseconds 150; [Console]::Beep(900, 250)`;
   }
   try {
-    spawn("powershell", ["-NoProfile", "-WindowStyle", "Hidden", "-Command", seq],
-      { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    spawn(
+      "powershell",
+      ["-NoProfile", "-WindowStyle", "Hidden", "-Command", seq],
+      { detached: true, stdio: "ignore", windowsHide: true },
+    ).unref();
   } catch {}
 }
 
@@ -659,7 +787,12 @@ function notify(level, kind, title, body) {
       const b = tryBalloonTip(title, body);
       tryFlashTaskbar(6);
       tryBeep("alert");
-      channels.push(t ? "toast:ok" : "toast:fail", b ? "balloon:ok" : "balloon:fail", "flash:6", "beep:alert");
+      channels.push(
+        t ? "toast:ok" : "toast:fail",
+        b ? "balloon:ok" : "balloon:fail",
+        "flash:6",
+        "beep:alert",
+      );
     }
   } else {
     // WARN 级
@@ -674,20 +807,26 @@ function notify(level, kind, title, body) {
     }
   }
 
-  log(`NOTIFY level=${level} kind=${kind} user=${userState} channels=[${channels.join(",")}]`);
+  log(
+    `NOTIFY level=${level} kind=${kind} user=${userState} channels=[${channels.join(",")}]`,
+  );
 }
 
 // ─── 信号文件 ───
 function writeSignal(uuid, kind, data) {
   ensureDir(SIG_DIR);
   const name = `${kind}_${shortId(uuid)}_${nowMs()}.signal`;
-  try { fs.writeFileSync(path.join(SIG_DIR, name), JSON.stringify(data, null, 2)); } catch {}
+  try {
+    fs.writeFileSync(path.join(SIG_DIR, name), JSON.stringify(data, null, 2));
+  } catch {}
 }
 function clearSignals(uuid, kind) {
   try {
     for (const f of fs.readdirSync(SIG_DIR)) {
       if (f.startsWith(`${kind}_${shortId(uuid)}_`))
-        try { fs.unlinkSync(path.join(SIG_DIR, f)); } catch {}
+        try {
+          fs.unlinkSync(path.join(SIG_DIR, f));
+        } catch {}
     }
   } catch {}
 }
@@ -697,14 +836,47 @@ function clearSignals(uuid, kind) {
 // ═══════════════════════════════════════════════════════════════════════════════
 let state = loadState();
 let _startupTs = nowMs(); // v9.2: 启动时间戳, 用于 grace period
-const STARTUP_GRACE = 30000;      // v9.2: 启动后 30s 内不报 WARNING (让 lastGrowth 自然沉淀)
+const STARTUP_GRACE = 30000; // v9.2: 启动后 30s 内不报 WARNING (让 lastGrowth 自然沉淀)
 const INITIAL_SEND_GRACE = 180000; // v12.1: 用户发消息后 3分钟 内不报警 — 守护 AI 思考初始窗口
-const DEAD_EXPIRE_MS    = 600000; // v12.2: dead 对话10分钟无恢复 → 悄悄淡出面板 (用户已放弃)
+const DEAD_EXPIRE_MS = 600000; // v12.2: dead 对话10分钟无恢复 → 悄悄淡出面板 (用户已放弃)
 // v12.9: 状态驱动 — 去掉 POST_STREAM_GRACE(时间延迟) · 用 _awaitingUser 状态标志代替
 //   AI 已完成回复 (_turnGrowth>4KB + staleSec≥1min) → _awaitingUser=true → 不检测卡住
 //   用户发提示词 (USER_PROMPT_DETECT) → _awaitingUser=false → 恢复检测
 //   无任何时间魔法数字 · 纯粹用户行为驱动 · 道法自然
 const AWAITING_USER_THRESHOLD = 4096; // 字节: 累计增长超过此值才确认 AI 已实际输出
+
+// ═══ v13.0 · 备份标题缓存 — 从 _index.json 补充 vscdb 缺失标题 ═══
+// 根因: vscdb SQLITE_BUSY 时 title=null → 显示 UUID → 用户迷惑
+// 修复: 启动时从最近3个备份批次预加载 uuid→title · 永久内存缓存
+let _backupTitleCache = {};
+function _loadBackupTitles() {
+  try {
+    const bkRoot = path.join(os.homedir(), ".wam", "conversation_backups");
+    if (!fs.existsSync(bkRoot)) return;
+    const batches = fs
+      .readdirSync(bkRoot)
+      .filter((d) => d.startsWith("backup_"))
+      .sort()
+      .reverse()
+      .slice(0, 3);
+    let loaded = 0;
+    for (const batch of batches) {
+      const idxPath = path.join(bkRoot, batch, "_index.json");
+      if (!fs.existsSync(idxPath)) continue;
+      try {
+        const idx = JSON.parse(fs.readFileSync(idxPath, "utf8"));
+        for (const [uuid, meta] of Object.entries(idx)) {
+          if (meta.title && !_backupTitleCache[uuid]) {
+            _backupTitleCache[uuid] = meta.title;
+            loaded++;
+          }
+        }
+      } catch {}
+    }
+    if (loaded > 0)
+      log(`TITLE_CACHE: loaded ${loaded} titles from backup index`);
+  } catch {}
+}
 
 function scan() {
   const t = nowMs();
@@ -714,18 +886,22 @@ function scan() {
 
   // SOURCE 2: 扫描 .pb 文件
   let pbFiles;
-  try { pbFiles = fs.readdirSync(PB_DIR).filter(f => f.endsWith(".pb")); }
-  catch (e) { log(`SCAN_ERR pb_dir: ${e.message}`); return null; }
+  try {
+    pbFiles = fs.readdirSync(PB_DIR).filter((f) => f.endsWith(".pb"));
+  } catch (e) {
+    log(`SCAN_ERR pb_dir: ${e.message}`);
+    return null;
+  }
 
   const summary = {
     totalSessions: sessionCache.size,
     totalPb: pbFiles.length,
-    active: 0,     // vscdb status=active
-    streaming: 0,  // active + .pb 增长中
-    stuck: 0,      // active + .pb 停滞
-    endTurn: 0,    // vscdb status=end_turn
-    error: 0,      // vscdb status=unknown_error
-    pbOnly: 0,     // 有 .pb 无 vscdb 记录
+    active: 0, // vscdb status=active
+    streaming: 0, // active + .pb 增长中
+    stuck: 0, // active + .pb 停滞
+    endTurn: 0, // vscdb status=end_turn
+    error: 0, // vscdb status=unknown_error
+    pbOnly: 0, // 有 .pb 无 vscdb 记录
   };
 
   const stuckList = [];
@@ -736,7 +912,11 @@ function scan() {
     const fpath = path.join(PB_DIR, fname);
 
     let st;
-    try { st = fs.statSync(fpath); } catch { continue; }
+    try {
+      st = fs.statSync(fpath);
+    } catch {
+      continue;
+    }
 
     // 获取 vscdb 元数据
     const meta = sessionCache.get(uuid);
@@ -750,12 +930,24 @@ function scan() {
     if (_pbAgeSec > CFG.ignoreAge) {
       let entry = state.conversations[uuid];
       if (!entry) {
-        entry = { uuid, size: st.size, lastGrowth: st.mtimeMs, mtime: st.mtimeMs, state: "old", stuckSince: 0, lastNotify: 0, title: null, firstSeen: t };
+        entry = {
+          uuid,
+          size: st.size,
+          lastGrowth: st.mtimeMs,
+          mtime: st.mtimeMs,
+          state: "old",
+          stuckSince: 0,
+          lastNotify: 0,
+          title: null,
+          firstSeen: t,
+        };
         state.conversations[uuid] = entry;
       }
       if (title) entry.title = title;
-      entry.size = st.size; entry.mtime = st.mtimeMs;
-      entry.state = "old"; entry.stuckTicks = 0;
+      entry.size = st.size;
+      entry.mtime = st.mtimeMs;
+      entry.state = "old";
+      entry.stuckTicks = 0;
       continue; // 跳过卡住检测 · 此对话已过 ignoreAge
     }
 
@@ -763,16 +955,24 @@ function scan() {
     let entry = state.conversations[uuid];
     if (!entry) {
       entry = {
-        uuid, size: st.size, lastGrowth: st.mtimeMs,
-        mtime: st.mtimeMs, state: "init",
-        stuckSince: 0, lastNotify: 0,
-        title: null, firstSeen: t,
+        uuid,
+        size: st.size,
+        lastGrowth: st.mtimeMs,
+        mtime: st.mtimeMs,
+        state: "init",
+        stuckSince: 0,
+        lastNotify: 0,
+        title: null,
+        firstSeen: t,
       };
       state.conversations[uuid] = entry;
     }
 
-    // 更新标题 (vscdb 为准)
+    // 更新标题 (vscdb 为准 · 备份缓存兜底)
     if (title) entry.title = title;
+    // v13.0: 备份缓存兜底 — vscdb无标题时从预加载缓存补充 (彻底消除UUID显示)
+    if (!entry.title && _backupTitleCache[uuid])
+      entry.title = _backupTitleCache[uuid];
 
     // 检测 .pb 增长
     const grew = st.size > entry.size;
@@ -787,10 +987,12 @@ function scan() {
       const _prevIdleSec = Math.round((t - entry.lastGrowth) / 1000);
       if (_prevIdleSec > 30) {
         entry.activeSinceTs = t; // 用户发了新消息 → 保护期重新开始
-        entry.stuckTicks = 0;    // 防抖计数清零
-        entry._turnGrowth = 0;      // v12.9: 新一轮 → 累计增长归零
+        entry.stuckTicks = 0; // 防抖计数清零
+        entry._turnGrowth = 0; // v12.9: 新一轮 → 累计增长归零
         entry._awaitingUser = false; // v12.9: 用户发了新消息 → 恢复卡住检测
-        log(`USER_PROMPT_DETECT uuid=${shortId(uuid)} idleBefore=${_prevIdleSec}s sizeDelta=${st.size - entry.size}`);
+        log(
+          `USER_PROMPT_DETECT uuid=${shortId(uuid)} idleBefore=${_prevIdleSec}s sizeDelta=${st.size - entry.size}`,
+        );
       }
       entry._turnGrowth = (entry._turnGrowth || 0) + (st.size - entry.size); // v12.8: 累计本轮增长
       entry.lastGrowth = t;
@@ -821,25 +1023,25 @@ function scan() {
     if (vscdbStatus === "active") {
       // Windsurf 确认 AI 应该在响应 → 这是唯一能确认卡住的情况
       entry.lastKnownVscdbStatus = "active"; // v11: 持久化已知状态 (修复fallback从未生效的bug)
-      entry.lastVscdbActiveTs = t;            // v11: WAL保护时间戳
-      entry.errorTicks = 0;                   // v12.3: 恢复活跃·重置 error 确认计数
+      entry.lastVscdbActiveTs = t; // v11: WAL保护时间戳
+      entry.errorTicks = 0; // v12.3: 恢复活跃·重置 error 确认计数
       // v12.1: 追踪本轮 turn 开始时刻 (用户发消息 → vscdb 从非active转为active的那一刻)
       //   prevVscdbStatus !== "active" → 本轮刚开始 → 重置 activeSinceTs
       //   目的: 为「初始发消息保护期」提供精准时间起点
       if (prevVscdbStatus !== "active") {
         entry.activeSinceTs = t; // 新一轮 turn: 用户发送了消息
-        entry._turnGrowth = 0;      // v12.9: 新 turn → 累计增长归零
+        entry._turnGrowth = 0; // v12.9: 新 turn → 累计增长归零
         entry._awaitingUser = false; // v12.9: 新 turn → 恢复卡住检测
       } else if (!entry.activeSinceTs) {
         entry.activeSinceTs = t; // 引擎首次见到此对话为 active
       }
       const _timeSinceActive = t - (entry.activeSinceTs || t);
-      const _inInitialGrace  = _timeSinceActive < INITIAL_SEND_GRACE; // 发消息后3分钟保护
+      const _inInitialGrace = _timeSinceActive < INITIAL_SEND_GRACE; // 发消息后3分钟保护
       summary.active++;
       if (grew || staleSec < CFG.warnThreshold) {
-        newState = "streaming";  // .pb 在增长 = AI 正常流式输出
+        newState = "streaming"; // .pb 在增长 = AI 正常流式输出
         summary.streaming++;
-        entry.stuckTicks = 0;    // 重置防抖计数器
+        entry.stuckTicks = 0; // 重置防抖计数器
         entry._awaitingUser = false; // AI 在输出 → 不是「等待用户」状态
       } else if (entry._awaitingUser) {
         // v12.9: 状态驱动 — AI 已完成回复·等待用户发下一轮提示词
@@ -867,11 +1069,13 @@ function scan() {
         entry.stuckTicks = 0;
         newState = "streaming";
         summary.streaming++;
-        log(`AWAITING_USER uuid=${shortId(uuid)} turnGrowth=${entry._turnGrowth} staleSec=${staleSec}`);
+        log(
+          `AWAITING_USER uuid=${shortId(uuid)} turnGrowth=${entry._turnGrowth} staleSec=${staleSec}`,
+        );
       } else if (staleSec < CFG.critThreshold) {
         // AI 从未产生 >4KB 输出 + 停滞 >60s → 可能真卡住
         entry.stuckTicks = (entry.stuckTicks || 0) + 1;
-        const inGrace = (nowMs() - _startupTs) < STARTUP_GRACE;
+        const inGrace = nowMs() - _startupTs < STARTUP_GRACE;
         if (entry.stuckTicks >= 2 && !inGrace) {
           newState = "warning";
           summary.stuck++;
@@ -883,12 +1087,12 @@ function scan() {
         // AI 从未产生 >4KB 输出 + 停滞 >2min → 真正卡死
         //   _turnGrowth < 4KB = AI 根本没开始正常响应 → 确认卡死
         entry.stuckTicks = (entry.stuckTicks || 0) + 1;
-        const inGrace = (nowMs() - _startupTs) < STARTUP_GRACE;
+        const inGrace = nowMs() - _startupTs < STARTUP_GRACE;
         if (entry.stuckTicks >= 2 && !inGrace) {
-          newState = 'stuck';
+          newState = "stuck";
           summary.stuck++;
         } else {
-          newState = 'warning'; // 首 tick 防抖 (20s 内确认)
+          newState = "warning"; // 首 tick 防抖 (20s 内确认)
           summary.stuck++;
         }
       }
@@ -905,14 +1109,19 @@ function scan() {
       } else {
         // ═══ DEAD 首次检测: 双路径 + errorTicks 防抖 ═══
         // 路径A: 实时转换 — active→error (prevVscdbStatus=active + 曾在响应)
-        const liveTransition = prevVscdbStatus === "active" &&
-          (entry.state === "streaming" || entry.state === "warning" || entry.state === "stuck");
-        const updatedMs = meta && meta.updatedAt ? new Date(meta.updatedAt).getTime() : 0;
+        const liveTransition =
+          prevVscdbStatus === "active" &&
+          (entry.state === "streaming" ||
+            entry.state === "warning" ||
+            entry.state === "stuck");
+        const updatedMs =
+          meta && meta.updatedAt ? new Date(meta.updatedAt).getTime() : 0;
         // 路径B: updatedAt检测 — 引擎重启后无历史时判断近期死亡
-        const recentlyKilled = !liveTransition &&
+        const recentlyKilled =
+          !liveTransition &&
           updatedMs > 0 &&
-          (t - updatedMs < 3600000) && // 1小时内更新过
-          (st.size > 10240);           // .pb > 10KB (真实对话)
+          t - updatedMs < 3600000 && // 1小时内更新过
+          st.size > 10240; // .pb > 10KB (真实对话)
         if (liveTransition || recentlyKilled) {
           // v12.3: 多窗口防误杀 — 需 N 个连续 unknown_error ticks 才确认 DEAD
           //   liveTransition (强信号·active直接转error): 2 ticks = 20s 确认
@@ -925,11 +1134,20 @@ function scan() {
             if (!entry.stuckSince) entry.stuckSince = updatedMs || t;
             if (recentlyKilled && !liveTransition) {
               entry._recentlyKilled = true;
-              entry._killedAgo = Math.round((t - updatedMs)/60000);
-              writeSignal(uuid, "dead", { type: "dead_on_startup", uuid, title: entry.title,
-                timestamp: isoTs(), staleSec, size: st.size, vscdbUpdatedAt: meta.updatedAt });
+              entry._killedAgo = Math.round((t - updatedMs) / 60000);
+              writeSignal(uuid, "dead", {
+                type: "dead_on_startup",
+                uuid,
+                title: entry.title,
+                timestamp: isoTs(),
+                staleSec,
+                size: st.size,
+                vscdbUpdatedAt: meta.updatedAt,
+              });
             }
-            log(`DEAD_CONFIRM uuid=${shortId(uuid)} errorTicks=${entry.errorTicks} path=${liveTransition?'A-live':'B-recent'}`);
+            log(
+              `DEAD_CONFIRM uuid=${shortId(uuid)} errorTicks=${entry.errorTicks} path=${liveTransition ? "A-live" : "B-recent"}`,
+            );
           } else {
             newState = "error"; // errorTicks 观察期: 等待确认 (多窗口WAL抖动保护)
           }
@@ -963,21 +1181,28 @@ function scan() {
             if (newState === "streaming") summary.streaming++;
           }
         } else if (_cached === "end_turn") {
-          newState = "completed"; summary.endTurn++;
+          newState = "completed";
+          summary.endTurn++;
         } else if (_cached === "unknown_error") {
-          newState = "error"; summary.error++;
+          newState = "error";
+          summary.error++;
         } else {
           // 无历史 → 保持前态
           newState = entry.state === "init" ? "streaming" : entry.state;
-          if (grew) { summary.streaming++; entry.stuckTicks = 0; }
+          if (grew) {
+            summary.streaming++;
+            entry.stuckTicks = 0;
+          }
         }
       } else {
         // sessionCache 有数据但此 UUID 不在
         // v11: 先判断是否是 WAL 坏读 (N秒内曾经active的对话突然消失)
         // ★ 启动grace(120s内): 扩展至5min窗口, 防STATE恢复的lastVscdbActiveTs过期→WAL保护完全失效
         // v12.3: 多窗口 WAL 压力更大 → 保护窗口由 90s 扩展至 180s
-        const _recentWindow = ((t - _startupTs) < 120000) ? 300000 : 180000;
-        const _recentActive = entry.lastVscdbActiveTs && (t - entry.lastVscdbActiveTs) < _recentWindow;
+        const _recentWindow = t - _startupTs < 120000 ? 300000 : 180000;
+        const _recentActive =
+          entry.lastVscdbActiveTs &&
+          t - entry.lastVscdbActiveTs < _recentWindow;
         if (_recentActive) {
           // ★ WAL checkpoint 坏读: 90s内确认过active, UUID消失是WAL瞬时问题
           //   继续按active处理: 不归零stuckTicks, 继续累积, 确保stuck检测不中断
@@ -1007,13 +1232,15 @@ function scan() {
             summary.streaming++;
           } else if (staleSec < CFG.critThreshold) {
             entry.stuckTicks = (entry.stuckTicks || 0) + 1;
-            const inGrace = (nowMs() - _startupTs) < STARTUP_GRACE;
-            newState = (entry.stuckTicks >= 2 && !inGrace) ? "warning" : "streaming";
-            if (newState === "warning") summary.stuck++; else summary.streaming++;
+            const inGrace = nowMs() - _startupTs < STARTUP_GRACE;
+            newState =
+              entry.stuckTicks >= 2 && !inGrace ? "warning" : "streaming";
+            if (newState === "warning") summary.stuck++;
+            else summary.streaming++;
           } else {
             entry.stuckTicks = (entry.stuckTicks || 0) + 1;
-            const inGrace = (nowMs() - _startupTs) < STARTUP_GRACE;
-            newState = (entry.stuckTicks >= 2 && !inGrace) ? "stuck" : "warning";
+            const inGrace = nowMs() - _startupTs < STARTUP_GRACE;
+            newState = entry.stuckTicks >= 2 && !inGrace ? "stuck" : "warning";
             summary.stuck++;
           }
         } else {
@@ -1040,44 +1267,85 @@ function scan() {
       if (newState === "stuck") {
         if (!entry.stuckSince) entry.stuckSince = entry.lastGrowth;
         const name = entry.title || shortId(uuid);
-        transitions.push({ type: "CRITICAL_STUCK", uuid, name, staleSec, size: st.size, vscdbStatus: vscdbStatus || "n/a" });
+        transitions.push({
+          type: "CRITICAL_STUCK",
+          uuid,
+          name,
+          staleSec,
+          size: st.size,
+          vscdbStatus: vscdbStatus || "n/a",
+        });
         writeSignal(uuid, "stuck", {
-          type: "stuck", uuid, title: entry.title,
-          timestamp: isoTs(), staleSec, size: st.size,
+          type: "stuck",
+          uuid,
+          title: entry.title,
+          timestamp: isoTs(),
+          staleSec,
+          size: st.size,
           vscdbStatus: vscdbStatus || "n/a",
         });
       } else if (newState === "warning" && prevState !== "stuck") {
         // 仅从 streaming/init 进入 warning 时记录 (从 stuck 降级到 warning 不重复记)
         if (!entry.stuckSince) entry.stuckSince = entry.lastGrowth;
         const name = entry.title || shortId(uuid);
-        transitions.push({ type: "WARN_STUCK", uuid, name, staleSec, size: st.size, vscdbStatus: vscdbStatus || "n/a" });
+        transitions.push({
+          type: "WARN_STUCK",
+          uuid,
+          name,
+          staleSec,
+          size: st.size,
+          vscdbStatus: vscdbStatus || "n/a",
+        });
       } else if (newState === "dead") {
         entry.stuckSince = t;
         const name = entry.title || shortId(uuid);
         // v11.1: 携带路径B标识 (_recentlyKilled) 供日志/通知使用
         const _rk = entry._recentlyKilled || false;
         const _ka = entry._killedAgo || 0;
-        transitions.push({ type: "DEAD", uuid, name, staleSec, size: st.size,
+        transitions.push({
+          type: "DEAD",
+          uuid,
+          name,
+          staleSec,
+          size: st.size,
           vscdbStatus: vscdbStatus || "n/a",
           prevStatus: _rk ? "active(估计)" : prevVscdbStatus,
-          _recentlyKilled: _rk, _updatedAgo: _ka });
+          _recentlyKilled: _rk,
+          _updatedAgo: _ka,
+        });
         // 路径B已在classification段写了signal, 避免重复写
         if (!_rk) {
           writeSignal(uuid, "dead", {
-            type: "dead", uuid, title: entry.title,
-            timestamp: isoTs(), staleSec, size: st.size,
+            type: "dead",
+            uuid,
+            title: entry.title,
+            timestamp: isoTs(),
+            staleSec,
+            size: st.size,
             vscdbStatus: vscdbStatus || "n/a",
           });
         }
         // 清除路径B标识 (一次性)
         delete entry._recentlyKilled;
         delete entry._killedAgo;
-      } else if ((prevState === "stuck" || prevState === "warning" || prevState === "dead") && (newState === "streaming" || newState === "completed")) {
+      } else if (
+        (prevState === "stuck" ||
+          prevState === "warning" ||
+          prevState === "dead") &&
+        (newState === "streaming" || newState === "completed")
+      ) {
         const dur = Math.round((t - (entry.stuckSince || t)) / 1000);
         const name = entry.title || shortId(uuid);
         // ★ 仅在之前真正发过通知时才发 RECOVER 通知 (避免假 STUCK 后的假 RECOVER)
-        const wasNotified = entry.lastNotify > 0 && (t - entry.lastNotify < CFG.cooldown * 1000);
-        transitions.push({ type: "RECOVER", uuid, name, stuckDur: dur, wasNotified });
+        const wasNotified =
+          entry.lastNotify > 0 && t - entry.lastNotify < CFG.cooldown * 1000;
+        transitions.push({
+          type: "RECOVER",
+          uuid,
+          name,
+          stuckDur: dur,
+          wasNotified,
+        });
         clearSignals(uuid, "stuck");
         clearSignals(uuid, "dead");
         entry.stuckSince = 0;
@@ -1090,16 +1358,26 @@ function scan() {
     // ─── 卡住列表 (包含 warning + stuck + dead) ───
     if (newState === "stuck" || newState === "warning" || newState === "dead") {
       // v12.2: dead 自动淡出 — 超过 10分钟 无恢复 → 静默移出面板 (用户已放弃此对话)
-      const _isDeadExpired = newState === "dead"
-        && entry.deadSince
-        && (t - entry.deadSince) > DEAD_EXPIRE_MS;
+      const _isDeadExpired =
+        newState === "dead" &&
+        entry.deadSince &&
+        t - entry.deadSince > DEAD_EXPIRE_MS;
       if (!_isDeadExpired) {
         stuckList.push({
-          uuid, title: entry.title, shortId: shortId(uuid),
-          staleSec, staleMin: Math.round(staleSec / 60),
-          size: st.size, vscdbStatus: vscdbStatus || "n/a",
+          uuid,
+          title: entry.title,
+          shortId: shortId(uuid),
+          staleSec,
+          staleMin: Math.round(staleSec / 60),
+          size: st.size,
+          vscdbStatus: vscdbStatus || "n/a",
           updatedAt: meta ? meta.updatedAt : null,
-          level: newState === "stuck" ? "CRITICAL" : newState === "dead" ? "DEAD" : "WARNING",
+          level:
+            newState === "stuck"
+              ? "CRITICAL"
+              : newState === "dead"
+                ? "DEAD"
+                : "WARNING",
         });
       }
     }
@@ -1111,7 +1389,7 @@ function scan() {
   // 可能原因: .pb 尚未创建(新建对话) / .pb 被清理 / 运行在不同机器
   // 道法自然: 不知则不妄断, 但必须让用户知道这些存在
   // ═══════════════════════════════════════════════════════════════════════════
-  const currentPbUuids = new Set(pbFiles.map(f => f.replace(".pb", "")));
+  const currentPbUuids = new Set(pbFiles.map((f) => f.replace(".pb", "")));
   let noPbActive = 0;
   for (const [uuid, meta] of sessionCache) {
     if (meta.status !== "active") continue;
@@ -1120,18 +1398,23 @@ function scan() {
     noPbActive++;
     // 加入 stuckList 供前端展示 (level=NO_PB)
     const updatedMs2 = meta.updatedAt ? new Date(meta.updatedAt).getTime() : 0;
-    const noPbStaleSec = updatedMs2 > 0 ? Math.round((t - updatedMs2) / 1000) : 0;
+    const noPbStaleSec =
+      updatedMs2 > 0 ? Math.round((t - updatedMs2) / 1000) : 0;
     stuckList.push({
-      uuid, title: meta.title, shortId: shortId(uuid),
-      staleSec: noPbStaleSec, staleMin: Math.round(noPbStaleSec / 60),
-      size: 0, vscdbStatus: "active",
+      uuid,
+      title: meta.title,
+      shortId: shortId(uuid),
+      staleSec: noPbStaleSec,
+      staleMin: Math.round(noPbStaleSec / 60),
+      size: 0,
+      vscdbStatus: "active",
       updatedAt: meta.updatedAt,
       level: "NO_PB", // 新级别: vscdb=active 但无 .pb 文件
       _noPb: true,
     });
   }
   summary.noPbActive = noPbActive;
-  summary.activeTotal = summary.activeTotal || (summary.active + noPbActive);
+  summary.activeTotal = summary.activeTotal || summary.active + noPbActive;
   for (const uuid of Object.keys(state.conversations)) {
     if (!currentPbUuids.has(uuid)) {
       delete state.conversations[uuid];
@@ -1143,40 +1426,75 @@ function scan() {
     const entry = state.conversations[tr.uuid];
     if (tr.type === "CRITICAL_STUCK") {
       const _n1 = shortTitle(tr.name);
-      log(`CRITICAL_STUCK uuid=${shortId(tr.uuid)} name="${_n1}" stale=${tr.staleSec}s size=${tr.size} vscdb=${tr.vscdbStatus}`);
+      log(
+        `CRITICAL_STUCK uuid=${shortId(tr.uuid)} name="${_n1}" stale=${tr.staleSec}s size=${tr.size} vscdb=${tr.vscdbStatus}`,
+      );
       // v12.4: staleSec > 600 (10min) → 静默 · 已无时效性
-      if (tr.staleSec > 600) { /* 10min+ 不通知 */ }
-      else if (t - entry.lastNotify > CFG.cooldown * 1000 && (entry._notifyCount || 0) < 2) {
-        notify("critical", "stuck", "道·对话卡死!", `${_n1}\n已停滞 ${Math.round(tr.staleSec/60)} 分钟!\n状态: ${tr.vscdbStatus}`);
+      if (tr.staleSec > 600) {
+        /* 10min+ 不通知 */
+      } else if (
+        t - entry.lastNotify > CFG.cooldown * 1000 &&
+        (entry._notifyCount || 0) < 2
+      ) {
+        notify(
+          "critical",
+          "stuck",
+          "道·对话卡死!",
+          `${_n1}\n已停滞 ${Math.round(tr.staleSec / 60)} 分钟!\n状态: ${tr.vscdbStatus}`,
+        );
         entry.lastNotify = t;
         entry._notifyCount = (entry._notifyCount || 0) + 1;
       }
     } else if (tr.type === "WARN_STUCK") {
       const _n2 = shortTitle(tr.name);
-      log(`WARN_STUCK uuid=${shortId(tr.uuid)} name="${_n2}" stale=${tr.staleSec}s vscdb=${tr.vscdbStatus}`);
+      log(
+        `WARN_STUCK uuid=${shortId(tr.uuid)} name="${_n2}" stale=${tr.staleSec}s vscdb=${tr.vscdbStatus}`,
+      );
       // v12.4: staleSec > 600 (10min) → 静默 · 已无时效性
-      if (tr.staleSec > 600) { /* 10min+ 不通知 */ }
-      else if (t - entry.lastNotify > CFG.cooldown * 1000 && (entry._notifyCount || 0) < 2) {
-        notify("warn", "stuck", "道·对话疑似卡住", `${_n2}\n停滞 ${Math.round(tr.staleSec/60)} 分钟\nvscdb: ${tr.vscdbStatus}`);
+      if (tr.staleSec > 600) {
+        /* 10min+ 不通知 */
+      } else if (
+        t - entry.lastNotify > CFG.cooldown * 1000 &&
+        (entry._notifyCount || 0) < 2
+      ) {
+        notify(
+          "warn",
+          "stuck",
+          "道·对话疑似卡住",
+          `${_n2}\n停滞 ${Math.round(tr.staleSec / 60)} 分钟\nvscdb: ${tr.vscdbStatus}`,
+        );
         entry.lastNotify = t;
         entry._notifyCount = (entry._notifyCount || 0) + 1;
       }
     } else if (tr.type === "DEAD") {
       const _n3 = shortTitle(tr.name);
-      log(`DEAD uuid=${shortId(tr.uuid)} name="${_n3}" stale=${tr.staleSec}s vscdb=${tr.vscdbStatus} prev=${tr.prevStatus}`);
+      log(
+        `DEAD uuid=${shortId(tr.uuid)} name="${_n3}" stale=${tr.staleSec}s vscdb=${tr.vscdbStatus} prev=${tr.prevStatus}`,
+      );
       // v12.4: staleSec > 600 (10min) → 静默; DEAD 仅通知1次
-      if (tr.staleSec > 600) { /* 10min+ 不通知 */ }
-      else if (t - entry.lastNotify > 60000 && (entry._notifyCount || 0) < 2) {
-        notify("critical", "dead", "道·对话死亡!", `${_n3}\n状态: active → ${tr.vscdbStatus}\n请检查并重试`);
+      if (tr.staleSec > 600) {
+        /* 10min+ 不通知 */
+      } else if (
+        t - entry.lastNotify > 60000 &&
+        (entry._notifyCount || 0) < 2
+      ) {
+        notify(
+          "critical",
+          "dead",
+          "道·对话死亡!",
+          `${_n3}\n状态: active → ${tr.vscdbStatus}\n请检查并重试`,
+        );
         entry.lastNotify = t;
         entry._notifyCount = (entry._notifyCount || 0) + 1;
       }
     } else if (tr.type === "RECOVER") {
       const _n4 = shortTitle(tr.name);
-      log(`RECOVER uuid=${shortId(tr.uuid)} name="${_n4}" stuckDur=${tr.stuckDur}s notified=${tr.wasNotified}`);
+      log(
+        `RECOVER uuid=${shortId(tr.uuid)} name="${_n4}" stuckDur=${tr.stuckDur}s notified=${tr.wasNotified}`,
+      );
       // ★ 仅在之前真正发过 STUCK 通知时才发 RECOVER 通知
       if (tr.wasNotified && tr.stuckDur > 60) {
-      // v11.3: RECOVER通知已移除 — 用户可在对话追踪面板查看恢复状态，减少通知密度
+        // v11.3: RECOVER通知已移除 — 用户可在对话追踪面板查看恢复状态，减少通知密度
       }
     }
   }
@@ -1191,7 +1509,12 @@ function scan() {
     if (!entry) continue;
     if ((entry._notifyCount || 0) >= 2) continue; // v12.4: 已通知2次·不再打扰
     if (t - entry.lastNotify > CFG.cooldown * 1000) {
-      notify("critical", "stuck", "道·对话仍卡死", `${item.title || item.shortId}\n已停滞 ${item.staleMin} 分钟\n状态: ${item.vscdbStatus}`);
+      notify(
+        "critical",
+        "stuck",
+        "道·对话仍卡死",
+        `${item.title || item.shortId}\n已停滞 ${item.staleMin} 分钟\n状态: ${item.vscdbStatus}`,
+      );
       entry.lastNotify = t;
       entry._notifyCount = (entry._notifyCount || 0) + 1;
     }
@@ -1203,10 +1526,12 @@ function scan() {
   // v10: 从 vscdb 统计全量真实 cascade active 数
   let activeTotal = 0;
   for (const [, meta] of sessionCache) {
-    if (meta.status === "active" && meta.providerId === "cascade") activeTotal++;
+    if (meta.status === "active" && meta.providerId === "cascade")
+      activeTotal++;
   }
   // DB锁时 (sessionCache空) → 用 summary.active (含缓存状态) 作 fallback、最差用streaming
-  summary.activeTotal = activeTotal > 0 ? activeTotal : (summary.active || summary.streaming || 0);
+  summary.activeTotal =
+    activeTotal > 0 ? activeTotal : summary.active || summary.streaming || 0;
 
   state.lastUpdate = t;
   state.lastSummary = summary;
@@ -1220,21 +1545,37 @@ function scan() {
 // HTTP 看板
 // ═══════════════════════════════════════════════════════════════════════════════
 function dashboardHtml(summary, stuckList) {
-  summary = summary || { totalSessions:0, totalPb:0, active:0, streaming:0, stuck:0, endTurn:0, error:0, pbOnly:0 };
+  summary = summary || {
+    totalSessions: 0,
+    totalPb: 0,
+    active: 0,
+    streaming: 0,
+    stuck: 0,
+    endTurn: 0,
+    error: 0,
+    pbOnly: 0,
+  };
   stuckList = stuckList || [];
 
-  const rows = stuckList.map(s => {
-    const cls = s.level === "DEAD" ? "dead" : s.level === "CRITICAL" ? "critical" : "warning";
-    return `<tr class="${cls}">
+  const rows = stuckList
+    .map((s) => {
+      const cls =
+        s.level === "DEAD"
+          ? "dead"
+          : s.level === "CRITICAL"
+            ? "critical"
+            : "warning";
+      return `<tr class="${cls}">
       <td><span class="level ${cls}">${s.level}</span></td>
       <td>${s.staleMin}min (${s.staleSec}s)</td>
       <td>${(s.title || s.shortId).replace(/</g, "&lt;")}</td>
       <td><code>${s.shortId}</code></td>
-      <td>${(s.size/1024).toFixed(0)}KB</td>
+      <td>${(s.size / 1024).toFixed(0)}KB</td>
       <td>${s.vscdbStatus}</td>
       <td>${s.updatedAt ? new Date(s.updatedAt).toLocaleTimeString("zh-CN") : "?"}</td>
     </tr>`;
-  }).join("");
+    })
+    .join("");
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="10">
@@ -1290,9 +1631,10 @@ code{background:#0e0e0e;padding:2px 6px;border-radius:3px;color:#ce9178}
 
 <div class="box">
   <h2 style="color:#f48771;margin-top:0;font-size:16px">异常对话 (${stuckList.length})</h2>
-  ${stuckList.length === 0
-    ? '<div class="empty">&#10003; 当前没有异常对话</div>'
-    : `<table><thead><tr><th>级别</th><th>停滞时间</th><th>对话名称</th><th>UUID</th><th>.pb大小</th><th>vscdb状态</th><th>最后更新</th></tr></thead><tbody>${rows}</tbody></table>`
+  ${
+    stuckList.length === 0
+      ? '<div class="empty">&#10003; 当前没有异常对话</div>'
+      : `<table><thead><tr><th>级别</th><th>停滞时间</th><th>对话名称</th><th>UUID</th><th>.pb大小</th><th>vscdb状态</th><th>最后更新</th></tr></thead><tbody>${rows}</tbody></table>`
   }
 </div>
 
@@ -1644,21 +1986,35 @@ function startHttpServer() {
   const server = http.createServer((req, res) => {
     const url = req.url || "/";
     if (url === "/api/status") {
-      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" });
-      res.end(JSON.stringify({
-        timestamp: isoTs(),
-        summary: state.lastSummary || {},
-        stuckList: state.lastStuckList || [],
-        pid: process.pid,
-        version: "v9.2",
-        uptime: Math.round(process.uptime()),
-        sources: { pb: PB_DIR, vscdb: VSCDB },
-      }, null, 2));
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(
+        JSON.stringify(
+          {
+            timestamp: isoTs(),
+            summary: state.lastSummary || {},
+            stuckList: state.lastStuckList || [],
+            pid: process.pid,
+            version: "v9.2",
+            uptime: Math.round(process.uptime()),
+            sources: { pb: PB_DIR, vscdb: VSCDB },
+          },
+          null,
+          2,
+        ),
+      );
       return;
     }
     if (url === "/api/all") {
       // ★ 全量对话状态: 显示所有被跟踪的对话
-      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" });
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*",
+      });
       const now = nowMs();
       const all = [];
       for (const [uuid, entry] of Object.entries(state.conversations)) {
@@ -1673,8 +2029,11 @@ function startHttpServer() {
           size: entry.size || 0,
           sizeKB: Math.round((entry.size || 0) / 1024),
           staleSec,
-          staleStr: staleSec < 60 ? `${staleSec}s` : `${Math.round(staleSec/60)}m`,
-          lastGrowth: entry.lastGrowth ? new Date(entry.lastGrowth).toISOString() : null,
+          staleStr:
+            staleSec < 60 ? `${staleSec}s` : `${Math.round(staleSec / 60)}m`,
+          lastGrowth: entry.lastGrowth
+            ? new Date(entry.lastGrowth).toISOString()
+            : null,
           mtime: entry.mtime ? new Date(entry.mtime).toISOString() : null,
           providerId: meta ? meta.providerId : null,
           stuckTicks: entry.stuckTicks || 0,
@@ -1682,49 +2041,80 @@ function startHttpServer() {
       }
       // 排序: active/streaming 在前, 然后按 staleSec 升序
       all.sort((a, b) => {
-        const order = { streaming: 0, warning: 1, stuck: 2, dead: 3, completed: 4, error: 5, old: 6, init: 7 };
-        const oa = order[a.state] ?? 8, ob = order[b.state] ?? 8;
+        const order = {
+          streaming: 0,
+          warning: 1,
+          stuck: 2,
+          dead: 3,
+          completed: 4,
+          error: 5,
+          old: 6,
+          init: 7,
+        };
+        const oa = order[a.state] ?? 8,
+          ob = order[b.state] ?? 8;
         if (oa !== ob) return oa - ob;
         return a.staleSec - b.staleSec;
       });
-      res.end(JSON.stringify({
-        timestamp: isoTs(),
-        summary: state.lastSummary || {},
-        conversations: all,
-        stuckList: state.lastStuckList || [],   // v10+: 含 no_pb + dead 条目供前端展示
-        sessionCacheSize: sessionCache.size,
-        pid: process.pid,
-        uptime: Math.round(process.uptime()),
-      }, null, 2));
+      res.end(
+        JSON.stringify(
+          {
+            timestamp: isoTs(),
+            summary: state.lastSummary || {},
+            conversations: all,
+            stuckList: state.lastStuckList || [], // v10+: 含 no_pb + dead 条目供前端展示
+            sessionCacheSize: sessionCache.size,
+            pid: process.pid,
+            uptime: Math.round(process.uptime()),
+          },
+          null,
+          2,
+        ),
+      );
       return;
     }
     if (url === "/api/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, pid: process.pid, version: "v9.2", uptime: Math.round(process.uptime()) }));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          pid: process.pid,
+          version: "v9.2",
+          uptime: Math.round(process.uptime()),
+        }),
+      );
       return;
     }
     if (url === "/api/notify-test") {
       // 测试通知通道
-      notify("critical", "test", "道·通知测试", `如果你看到这条消息，通知通道正常\n时间: ${new Date().toLocaleTimeString("zh-CN")}`);
+      notify(
+        "critical",
+        "test",
+        "道·通知测试",
+        `如果你看到这条消息，通知通道正常\n时间: ${new Date().toLocaleTimeString("zh-CN")}`,
+      );
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, message: "Notification sent" }));
       return;
     }
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
     res.end(fullDashboardHtml());
   });
   let portRetries = 0;
   server.listen(CFG.port, "127.0.0.1", () => {
     log(`DASHBOARD http://127.0.0.1:${CFG.port}`);
   });
-  server.on("error", e => {
+  server.on("error", (e) => {
     if (e.code === "EADDRINUSE" && portRetries < 1) {
       portRetries++;
       const alt = CFG.port + 1;
       log(`PORT ${CFG.port} in use, trying ${alt}`);
       server.listen(alt, "127.0.0.1");
     } else if (e.code === "EADDRINUSE") {
-      log(`PORT ${CFG.port}/${CFG.port+1} both in use, dashboard disabled`);
+      log(`PORT ${CFG.port}/${CFG.port + 1} both in use, dashboard disabled`);
     } else {
       log(`HTTP_ERR ${e.message}`);
     }
@@ -1745,7 +2135,9 @@ function _writeHub(stuckData) {
   try {
     ensureDir(HUB_DIR);
     let hub = {};
-    try { hub = JSON.parse(fs.readFileSync(HUB_PATH, "utf8")); } catch {}
+    try {
+      hub = JSON.parse(fs.readFileSync(HUB_PATH, "utf8"));
+    } catch {}
     hub.stuck = stuckData;
     // v12.5: atomic write (tmp+rename) — 防 extension 读到半写 JSON (道法自然·大制无割)
     const _tmp = HUB_PATH + "." + process.pid + ".tmp";
@@ -1753,8 +2145,12 @@ function _writeHub(stuckData) {
     try {
       fs.renameSync(_tmp, HUB_PATH);
     } catch {
-      try { fs.copyFileSync(_tmp, HUB_PATH); } catch {}
-      try { fs.unlinkSync(_tmp); } catch {}
+      try {
+        fs.copyFileSync(_tmp, HUB_PATH);
+      } catch {}
+      try {
+        fs.unlinkSync(_tmp);
+      } catch {}
     }
   } catch {}
 }
@@ -1764,50 +2160,101 @@ function _buildHubCurrent() {
   const entries = Object.values(state.conversations);
   // 优先找 streaming (正常活跃)
   const streaming = entries
-    .filter(e => e.state === "streaming")
+    .filter((e) => e.state === "streaming")
     .sort((a, b) => b.lastGrowth - a.lastGrowth);
   if (streaming.length > 0) {
     const e = streaming[0];
     return {
-      uuid: shortId(e.uuid), title: e.title,
-      phase: "streaming", staleSec: Math.round((nowMs() - e.lastGrowth) / 1000),
-      sizeKB: Math.round((e.size || 0) / 1024)
+      uuid: shortId(e.uuid),
+      title: e.title,
+      phase: "streaming",
+      staleSec: Math.round((nowMs() - e.lastGrowth) / 1000),
+      sizeKB: Math.round((e.size || 0) / 1024),
     };
   }
   // 其次找 completed
-  const completed = entries.filter(e => e.state === "completed").sort((a, b) => b.mtime - a.mtime);
+  const completed = entries
+    .filter((e) => e.state === "completed")
+    .sort((a, b) => b.mtime - a.mtime);
   if (completed.length > 0) {
     const e = completed[0];
-    return { uuid: shortId(e.uuid), title: e.title, phase: "completed", staleSec: 0, sizeKB: Math.round((e.size || 0) / 1024) };
+    return {
+      uuid: shortId(e.uuid),
+      title: e.title,
+      phase: "completed",
+      staleSec: 0,
+      sizeKB: Math.round((e.size || 0) / 1024),
+    };
   }
   return null;
 }
 
 function writeHeartbeat(extra) {
-  try { fs.writeFileSync(HB_FILE, JSON.stringify({
-    timestamp: isoTs(), pid: process.pid, state: "running",
-    version: "v9.1", port: CFG.port, ...extra,
-  })); } catch {}
+  try {
+    fs.writeFileSync(
+      HB_FILE,
+      JSON.stringify({
+        timestamp: isoTs(),
+        pid: process.pid,
+        state: "running",
+        version: "v9.1",
+        port: CFG.port,
+        ...extra,
+      }),
+    );
+  } catch {}
   // 同步写 Hub 总线 (供 WAM extension 读取)
   try {
+    // ═══ v13.0 止跳法 — 单对话真相 ═══
+    // 根因①: activeTotal=vscdb全量active(含多窗口/历史session) → 4/8/N
+    // 根因②: streamingList=ALL state=streaming对话(含_awaitingUser积累) → 8条UUID
+    // 根因③: vscdb BUSY → title=null → UUID显示
+    // 修复: 只展示"当前对话"(5min内最近有活动的那一个) · active/streaming=0或1
+    const _now13 = nowMs();
+    // 当前对话: 5分钟内有PB活动、非old状态、按lastGrowth降序取第一个
+    const _recentConvs = Object.values(state.conversations)
+      .filter((e) => e.state !== "old" && _now13 - e.lastGrowth < 300000)
+      .sort((a, b) => b.lastGrowth - a.lastGrowth);
+    const _curConv = _recentConvs[0] || null;
+    // 真正流式: PB 60s内有增长 + 非「等待用户」+ 非已完成
+    const _isCurStreaming =
+      _curConv &&
+      !_curConv._awaitingUser &&
+      _curConv.state !== "completed" &&
+      _now13 - _curConv.lastGrowth < 60000;
     const hubData = {
-      ts: nowMs(), pid: process.pid,
-      // v10: active = vscdb全量cascade active (activeTotal) · streaming = .pb增长中
-      active: extra.activeTotal || extra.active || 0,
-      activeVscdb: extra.active || 0,     // 有.pb文件的active数
-      streaming: extra.streaming || 0,
-      stuck: extra.stuck || 0, error: extra.error || 0,
-      stuckList: (extra.stuckList || []).slice(0, 20).map(s => ({
-        uuid: s.uuid, shortId: s.shortId, title: s.title,
-        staleSec: s.staleSec, level: s.level, vscdbStatus: s.vscdbStatus, sizeKB: Math.round((s.size || 0) / 1024)
+      ts: _now13,
+      pid: process.pid,
+      // v13.0: active/streaming 仅反映"当前对话"状态 (0或1) · 彻底止跳
+      active: _curConv ? 1 : 0,
+      streaming: _isCurStreaming ? 1 : 0,
+      stuck: extra.stuck || 0,
+      error: extra.error || 0,
+      stuckList: (extra.stuckList || []).slice(0, 20).map((s) => ({
+        uuid: s.uuid,
+        shortId: s.shortId,
+        title: s.title,
+        staleSec: s.staleSec,
+        level: s.level,
+        vscdbStatus: s.vscdbStatus,
+        sizeKB: Math.round((s.size || 0) / 1024),
       })),
       current: _buildHubCurrent(),
-      // v10: 对话详情供前端展示 (最多10个streaming)
-      streamingList: Object.values(state.conversations)
-        .filter(e => e.state === "streaming")
-        .sort((a, b) => b.lastGrowth - a.lastGrowth)
-        .slice(0, 10)
-        .map(e => ({ shortId: shortId(e.uuid), title: e.title, sizeKB: Math.round((e.size||0)/1024), staleSec: Math.round((nowMs()-e.lastGrowth)/1000) }))
+      // v13.0: streamingList最多1条(当前对话) · 含uuid供前端title fallback
+      // 不再累积所有historical streaming对话 · 止跳·止乱·止UUID
+      streamingList: _curConv
+        ? [
+            {
+              uuid: _curConv.uuid, // v13.0: 加入uuid供前端title缓存查询
+              shortId: shortId(_curConv.uuid),
+              title: _curConv.title, // 已含备份缓存兜底
+              sizeKB: Math.round((_curConv.size || 0) / 1024),
+              staleSec: Math.round((_now13 - _curConv.lastGrowth) / 1000),
+              isAwaitingUser: _curConv._awaitingUser || false, // 是否等待用户下一轮
+              state: _curConv.state, // 供前端区分 streaming/warning/stuck等
+            },
+          ]
+        : [],
     };
     _writeHub(hubData);
   } catch {}
@@ -1832,8 +2279,15 @@ function main() {
     log(`WARN: better-sqlite3 不可用 (将仅依赖 .pb 文件跟踪, 无标题/状态信息)`);
   }
 
-  try { fs.writeFileSync(PID_FILE, String(process.pid)); } catch {}
-  log(`START v12.9 warn=${CFG.warnThreshold}s crit=${CFG.critThreshold}s initial_grace=${INITIAL_SEND_GRACE/1000}s awaiting_user_threshold=${AWAITING_USER_THRESHOLD}B ignore_age=${CFG.ignoreAge}s dead_expire=${DEAD_EXPIRE_MS/60000}min poll=${CFG.poll}s port=${CFG.port} pid=${process.pid} user_prompt_idle=30s`);
+  // v13.0: 启动时预加载备份标题缓存 (补充vscdb缺失标题)
+  _loadBackupTitles();
+
+  try {
+    fs.writeFileSync(PID_FILE, String(process.pid));
+  } catch {}
+  log(
+    `START v13.0 warn=${CFG.warnThreshold}s crit=${CFG.critThreshold}s initial_grace=${INITIAL_SEND_GRACE / 1000}s awaiting_user_threshold=${AWAITING_USER_THRESHOLD}B ignore_age=${CFG.ignoreAge}s dead_expire=${DEAD_EXPIRE_MS / 60000}min poll=${CFG.poll}s port=${CFG.port} pid=${process.pid} user_prompt_idle=30s`,
+  );
   log(`SOURCE1: ${VSCDB} (${Database ? "OK" : "NO better-sqlite3"})`);
   log(`SOURCE2: ${PB_DIR}`);
 
@@ -1841,13 +2295,23 @@ function main() {
     const r = scan();
     if (r) {
       console.log("");
-      console.log(`扫描结果: active=${r.summary.active} streaming=${r.summary.streaming} stuck=${r.summary.stuck} end_turn=${r.summary.endTurn} error=${r.summary.error}`);
-      console.log(`数据源: vscdb=${r.summary.totalSessions}sessions .pb=${r.summary.totalPb}files`);
-      console.log(`阈值: WARNING>${CFG.warnThreshold}s CRITICAL>${CFG.critThreshold}s`);
+      console.log(
+        `扫描结果: active=${r.summary.active} streaming=${r.summary.streaming} stuck=${r.summary.stuck} end_turn=${r.summary.endTurn} error=${r.summary.error}`,
+      );
+      console.log(
+        `数据源: vscdb=${r.summary.totalSessions}sessions .pb=${r.summary.totalPb}files`,
+      );
+      console.log(
+        `阈值: WARNING>${CFG.warnThreshold}s CRITICAL>${CFG.critThreshold}s`,
+      );
       if (r.stuckList.length) {
         console.log("");
         console.log("异常对话:");
-        r.stuckList.forEach(s => console.log(`  [${s.level}] [${s.staleMin}min] ${s.title || s.shortId} (${s.shortId}) vscdb=${s.vscdbStatus}`));
+        r.stuckList.forEach((s) =>
+          console.log(
+            `  [${s.level}] [${s.staleMin}min] ${s.title || s.shortId} (${s.shortId}) vscdb=${s.vscdbStatus}`,
+          ),
+        );
       } else {
         console.log("✓ 当前无异常");
       }
@@ -1864,16 +2328,21 @@ function main() {
     if (r) {
       writeHeartbeat({
         tick,
-        active: r.summary.active, activeTotal: r.summary.activeTotal,
+        active: r.summary.active,
+        activeTotal: r.summary.activeTotal,
         streaming: r.summary.streaming,
-        stuck: r.summary.stuck, endTurn: r.summary.endTurn,
-        error: r.summary.error, totalPb: r.summary.totalPb,
+        stuck: r.summary.stuck,
+        endTurn: r.summary.endTurn,
+        error: r.summary.error,
+        totalPb: r.summary.totalPb,
         totalSessions: r.summary.totalSessions,
         stuckList: r.stuckList.slice(0, 10),
         uptime: tick * CFG.poll,
       });
       if (tick % Math.max(1, Math.round(60 / CFG.poll)) === 0) {
-        log(`STATUS active=${r.summary.active} streaming=${r.summary.streaming} stuck=${r.summary.stuck} end_turn=${r.summary.endTurn} error=${r.summary.error} pb=${r.summary.totalPb} sessions=${r.summary.totalSessions}`);
+        log(
+          `STATUS active=${r.summary.active} streaming=${r.summary.streaming} stuck=${r.summary.stuck} end_turn=${r.summary.endTurn} error=${r.summary.error} pb=${r.summary.totalPb} sessions=${r.summary.totalSessions}`,
+        );
       }
     }
   }, CFG.poll * 1000);
@@ -1893,29 +2362,55 @@ function main() {
   if (r) {
     writeHeartbeat({
       tick: 0,
-      active: r.summary.active, activeTotal: r.summary.activeTotal,
+      active: r.summary.active,
+      activeTotal: r.summary.activeTotal,
       streaming: r.summary.streaming,
-      stuck: r.summary.stuck, endTurn: r.summary.endTurn,
-      error: r.summary.error, totalPb: r.summary.totalPb,
+      stuck: r.summary.stuck,
+      endTurn: r.summary.endTurn,
+      error: r.summary.error,
+      totalPb: r.summary.totalPb,
       totalSessions: r.summary.totalSessions,
-      stuckList: r.stuckList.slice(0, 10), uptime: 0,
+      stuckList: r.stuckList.slice(0, 10),
+      uptime: 0,
     });
-    log(`READY active=${r.summary.active} streaming=${r.summary.streaming} stuck=${r.summary.stuck} end_turn=${r.summary.endTurn} error=${r.summary.error}`);
+    log(
+      `READY active=${r.summary.active} streaming=${r.summary.streaming} stuck=${r.summary.stuck} end_turn=${r.summary.endTurn} error=${r.summary.error}`,
+    );
     if (r.stuckList.length) {
       log(`INITIAL_STUCK count=${r.stuckList.length}`);
-      r.stuckList.forEach(s => log(`  STUCK [${s.staleMin}min] ${shortTitle(s.title||s.shortId)} (${s.shortId}) vscdb=${s.vscdbStatus}`));
+      r.stuckList.forEach((s) =>
+        log(
+          `  STUCK [${s.staleMin}min] ${shortTitle(s.title || s.shortId)} (${s.shortId}) vscdb=${s.vscdbStatus}`,
+        ),
+      );
       if (CFG.toast) {
         // v11.2: 检查持久化cooldown，重启后5分钟内不重复发送初始通知
         // lastNotify 已存入 STATE_FILE，重启后 loadState() 恢复
-        const needNotify = r.stuckList.filter(s => {
+        const needNotify = r.stuckList.filter((s) => {
           const ent = state.conversations[s.uuid];
-          return !ent || !ent.lastNotify || (nowMs() - ent.lastNotify > CFG.cooldown * 1000);
+          return (
+            !ent ||
+            !ent.lastNotify ||
+            nowMs() - ent.lastNotify > CFG.cooldown * 1000
+          );
         });
         if (needNotify.length > 0) {
-          const top3 = needNotify.slice(0, 3).map(s => `[${s.staleMin}min] ${shortTitle(s.title||s.shortId)}`).join("\n");
-          notify("critical", "initial", `道·发现 ${needNotify.length} 个异常对话`, top3);
+          const top3 = needNotify
+            .slice(0, 3)
+            .map(
+              (s) => `[${s.staleMin}min] ${shortTitle(s.title || s.shortId)}`,
+            )
+            .join("\n");
+          notify(
+            "critical",
+            "initial",
+            `道·发现 ${needNotify.length} 个异常对话`,
+            top3,
+          );
         } else {
-          log(`INITIAL_STUCK cooldown=${Math.round((nowMs()-(state.conversations[r.stuckList[0].uuid]?.lastNotify||0))/1000)}s → skip notify`);
+          log(
+            `INITIAL_STUCK cooldown=${Math.round((nowMs() - (state.conversations[r.stuckList[0].uuid]?.lastNotify || 0)) / 1000)}s → skip notify`,
+          );
         }
       }
     }

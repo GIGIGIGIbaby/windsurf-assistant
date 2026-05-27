@@ -51,7 +51,13 @@ console.log("\n[§1] 静态契约 · v2.7.3 治法关键标记");
 
 check(
   "§1.A VERSION ≥ 2.7.3 (治🔒回退·守一)",
-  /const\s+VERSION\s*=\s*"2\.7\.([3-9]|\d{2,})"/.test(src),
+  (() => {
+    const m = src.match(/const\s+VERSION\s*=\s*"([\d.]+)"/);
+    if (!m) return false;
+    const [ma, mi, pa] = m[1].split('.').map(Number);
+    // 2.7.3+ 或 3.x+ 均满足
+    return ma > 2 || (ma === 2 && (mi > 7 || (mi === 7 && pa >= 3)));
+  })()
 );
 
 check(
@@ -65,7 +71,9 @@ check(
 check(
   "§1.C banner 标 v2.7.3 治法 ('治🔒回退·save 守一') 或 v2.7.4 超越版 ('LOCK_FILE 守一')",
   /治🔒回退[·\s]*save\s*守一/.test(src) ||
-    /LOCK_FILE\s*守一|万物自宾/.test(src),
+    /LOCK_FILE\s*守一|万物自宾/.test(src) ||
+    /LOCK_FILE\s*独立持久化/.test(src) ||   // v3.0.2 真实 banner 文本
+    /save\(\)\s*守一同步|守一同步\s*_savedAccountMeta/.test(src),
   "兼容 v2.7.4 升级 (banner 升级真本源治法)",
 );
 
