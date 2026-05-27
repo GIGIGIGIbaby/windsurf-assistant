@@ -1,0 +1,132 @@
+{
+  "name": "dao-agi-min",
+  "displayName": "道Agent · 极简 (WAM + 反代二态热切)",
+  "description": "道法自然 · 无为而无不为 · 反者道之动 · 二核归一: WAM 010 本体 (444KB · 切号 19命) + 进程内反代 (源.js · 道德经 SP 替换 · settings.json 单一锚 · per-user 端口). 损 v18.3.1 之冗 (无 essence/bensource/assembler/ls-gate/water-virtues/锚.py) · 道官二态互斥 · 默 passthrough 首装零侵入 · 共生死无 zombie · 'Bug fixing discipline: 单一职 · 防回归' v20.0",
+  "version": "20.0.0",
+  "publisher": "dao-agi",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhouyoukang/windsurf-assistant.git"
+  },
+  "homepage": "https://github.com/zhouyoukang/windsurf-assistant",
+  "icon": "media/icon.png",
+  "categories": ["AI", "Other"],
+  "keywords": ["windsurf", "cascade", "system-prompt", "dao", "wam", "proxy", "minimal", "道德经"],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:dao.toggle",
+    "onView:wam.panel"
+  ],
+  "main": "./extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true, "description": "dao-agi-min runs in all workspaces" },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "wam-container",
+          "title": "道Agent · 极简",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "wam-container": [
+        {
+          "id": "dao.toggle",
+          "name": "道Agent · 模式",
+          "type": "webview"
+        },
+        {
+          "id": "wam.panel",
+          "name": "切号面板",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "wam.originInvert", "title": "道Agent: 启 (道德经 SP · 绝侧信道)", "category": "道Agent" },
+      { "command": "wam.originPassthrough", "title": "官方Agent: 启 (锚归云 · 反代停)", "category": "道Agent" },
+      { "command": "dao.toggleMode", "title": "道Agent: 切换模式 (道 ⇄ 官方)", "category": "道Agent" },
+      { "command": "dao.openPreview", "title": "道Agent: 浏览器观真 SP (/origin/preview)", "category": "道Agent" },
+      { "command": "wam.verifyEndToEnd", "title": "全链路自检 (E2E · 反代+锚定+模式)", "category": "道Agent" },
+      { "command": "wam.openEditor", "title": "切号: 管理面板", "category": "道Agent" },
+      { "command": "wam.status", "title": "切号: 状态", "category": "道Agent" },
+      { "command": "wam.wamMode", "title": "切号: WAM 模式 (自动轮转)", "category": "道Agent" },
+      { "command": "wam.officialMode", "title": "切号: 官方登录模式 (暂停轮转)", "category": "道Agent" },
+      { "command": "wam.switchAccount", "title": "切号: 切换账号", "category": "道Agent" },
+      { "command": "wam.panicSwitch", "title": "切号: 紧急切换", "category": "道Agent" },
+      { "command": "wam.refreshAll", "title": "切号: 刷新全部", "category": "道Agent" },
+      { "command": "wam.addAccount", "title": "切号: 添加账号", "category": "道Agent" },
+      { "command": "wam.autoRotate", "title": "切号: 智能轮转", "category": "道Agent" },
+      { "command": "wam.injectToken", "title": "切号: 注入 Token", "category": "道Agent" },
+      { "command": "wam.verifyAll", "title": "切号: 验证清理 (剔除过期/无效号)", "category": "道Agent" },
+      { "command": "wam.scanExpiry", "title": "切号: 刷新有效期", "category": "道Agent" },
+      { "command": "wam.selfTest", "title": "切号: 自诊断", "category": "道Agent" },
+      { "command": "wam.diagWrite", "title": "切号: 写盘诊断", "category": "道Agent" },
+      { "command": "wam.healthCheck", "title": "切号: 健康诊断 + 自愈", "category": "道Agent" },
+      { "command": "wam.restore", "title": "切号: 从归档恢复账号", "category": "道Agent" },
+      { "command": "wam.clearBlacklist", "title": "切号: 清空黑名单 (Devin 复活)", "category": "道Agent" },
+      { "command": "wam.testDevinSwitch", "title": "切号: 测试 Devin 链路", "category": "道Agent" },
+      { "command": "wam.checkUpdate", "title": "切号: 检查更新", "category": "道Agent" }
+    ],
+    "configuration": {
+      "title": "道Agent · 极简 (WAM + Proxy)",
+      "properties": {
+        "dao.origin.port": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "源.js 反代端口 (0=自动取 per-user FNV-1a hash · 8889..8988 · 多账号自然隔离). 用户主动设非 0 则覆盖. env DAO_PORT 优先级最高."
+        },
+        "dao.origin.defaultMode": {
+          "type": "string",
+          "default": "passthrough",
+          "enum": ["invert", "passthrough"],
+          "enumDescriptions": [
+            "invert — 道Agent · 道德经 SP 替换 + 深度净化侧信道",
+            "passthrough — 官方Agent · 锚归云 · 直连 server.codeium.com (默 · 首装零侵入)"
+          ],
+          "description": "首次激活默模 (二态互斥 · 无 off · 道官分而治之)"
+        },
+        "dao.origin.banner": {
+          "type": "boolean",
+          "default": true,
+          "description": "启动时显道德经横幅"
+        },
+        "wam.autoRotate": { "type": "boolean", "default": true, "description": "切号: 额度变动时自动切到最优账号" },
+        "wam.invisible": { "type": "boolean", "default": false },
+        "wam.notify.level": { "type": "string", "default": "notify" },
+        "wam.productName": { "type": "string", "default": "" },
+        "wam.dataDir": { "type": "string", "default": "" },
+        "wam.wamHotDir": { "type": "string", "default": "" },
+        "wam.relayHost": { "type": "string", "default": "" },
+        "wam.monitorIntervalMs": { "type": "number", "default": 3000 },
+        "wam.scanIntervalMs": { "type": "number", "default": 45000 },
+        "wam.tokenCacheTtlMin": { "type": "number", "default": 50 },
+        "wam.autoSwitchThreshold": { "type": "number", "default": 5 },
+        "wam.predictiveThreshold": { "type": "number", "default": 25 },
+        "wam.preferDevinFirst": { "type": "boolean", "default": true },
+        "wam.firebaseMaxTimeoutMs": { "type": "number", "default": 4000 },
+        "wam.autoUpdate.enabled": { "type": "boolean", "default": false },
+        "wam.messageAnchor.enabled": { "type": "boolean", "default": true },
+        "wam.turn.enabled": { "type": "boolean", "default": true }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package --no-dependencies --allow-missing-repository -o dao-agi-min.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.84.0",
+    "@vscode/vsce": "^3.6.0"
+  }
+}

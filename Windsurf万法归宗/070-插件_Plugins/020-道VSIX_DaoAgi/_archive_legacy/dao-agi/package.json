@@ -1,0 +1,399 @@
+{
+	"name": "dao-agi",
+	"displayName": "道Agent · 无感切号 (万法归宗)",
+	"description": "道Agent 本源 v18.3.2 · 万法归宗 · 反者道之动 · 损 v17.86 重构残痕 · 治 _autoLsGateGuard 568/591 行 autoApply 未声明致 ReferenceError (cfg 字段重构 autoApply→lsGateAutoApply 时遗 2 处旧名 · 用户开 dao-agi.lsGate.autoApply=true 时静默失能 stale-patch 自愈链) · 顶层补单行 const autoApply = !!(c && c.lsGateAutoApply) · 不动其余 · 大制不割 · 谱系: 阶七v18.3.2 autoApply修 阶六v18.3.1 onView直起 阶五v18.2.2 bensource闭闸 阶四v18.2.1 主壳拆解 阶三v18.1 单锚 阶二v18.0 进程内化 阶一v17.88 去芜 · “为学日益, 为道日损. 损之又损, 以至于无为. 无为而无不为” (第四十八章)",
+	"version": "18.3.2",
+	"publisher": "dao-agi",
+	"license": "Apache-2.0",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/zhouyoukang/windsurf-assistant.git"
+	},
+	"homepage": "https://github.com/zhouyoukang/windsurf-assistant",
+	"icon": "media/icon.png",
+	"categories": [
+		"AI",
+		"Other"
+	],
+	"keywords": [
+		"windsurf",
+		"cascade",
+		"agent",
+		"dao",
+		"system-prompt",
+		"account",
+		"quota",
+		"switch",
+		"auto"
+	],
+	"activationEvents": [
+		"onView:dao.essence",
+		"onView:wam.panel"
+	],
+	"main": "./extension.js",
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": true,
+			"description": "dao-agi runs in all workspaces"
+		},
+		"virtualWorkspaces": true
+	},
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "wam-container",
+					"title": "道Agent · 万法归宗",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"wam-container": [
+				{
+					"id": "dao.essence",
+					"name": "道Agent · 本源",
+					"type": "webview"
+				},
+				{
+					"id": "wam.panel",
+					"name": "切号面板",
+					"type": "webview"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "wam.originInvert",
+				"title": "道Agent: 启 (道德经 SP · 绝侧信道)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.originPassthrough",
+				"title": "道Agent: 启 (官方原味 · 零改写)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.openEditor",
+				"title": "切号: 管理面板",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.status",
+				"title": "切号: 状态",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.wamMode",
+				"title": "切号: WAM 模式 (自动轮转)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.officialMode",
+				"title": "切号: 官方登录模式 (暂停轮转)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.switchAccount",
+				"title": "切号: 切换账号",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.panicSwitch",
+				"title": "切号: 紧急切换",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.refreshAll",
+				"title": "切号: 刷新全部",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.addAccount",
+				"title": "切号: 添加账号",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.autoRotate",
+				"title": "切号: 智能轮转",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.injectToken",
+				"title": "切号: 注入 Token",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.verifyAll",
+				"title": "切号: 验证清理 (剔除过期/无效号)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.scanExpiry",
+				"title": "切号: 刷新有效期",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.selfTest",
+				"title": "切号: 自诊断",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.diagWrite",
+				"title": "切号: 写盘诊断",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.restore",
+				"title": "切号: 从归档恢复账号",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.clearBlacklist",
+				"title": "切号: 清空黑名单 (Devin 复活)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.testDevinSwitch",
+				"title": "切号: 测试 Devin 链路",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.checkUpdate",
+				"title": "道Agent: 检查更新",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.verifyEndToEnd",
+				"title": "全链路自检 (E2E)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.toggleMode",
+				"title": "道Agent: 切换模式 (道/官方)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.showEssence",
+				"title": "道Agent: 本源一览 (观注入)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.lsGate.apply",
+				"title": "LS Gate Lift: 施补丁 (反代真生效)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.lsGate.status",
+				"title": "LS Gate Lift: 查状态 (扫 extensions)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.lsGate.revert",
+				"title": "LS Gate Lift: 还原补丁 (回官方行为)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.sp.set",
+				"title": "自定义SP: 设置注入 (替换道德经)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.sp.get",
+				"title": "自定义SP: 查看当前",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.sp.reset",
+				"title": "自定义SP: 清除 · 归道",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.water.status",
+				"title": "水之四德: 状态 (选举/降频/滘切/熔断)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.water.reset",
+				"title": "水之四德: 重置 (释 leader lock + 清熔断)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.water.test",
+				"title": "水之四德: 自检 (验四德是否在工作)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.water.config",
+				"title": "水之四德: 查配置 (env + settings)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.uninstall",
+				"title": "道Agent: 卸载即归无 (水过而无痕 · 五事毕)",
+				"category": "道Agent"
+			}
+		],
+		"configuration": {
+			"title": "道Agent · 切号",
+			"properties": {
+				"wam.autoRotate": {
+					"type": "boolean",
+					"default": true,
+					"description": "额度变动时自动切到最优账号 (唯一用户开关 · 其他参数内化)"
+				},
+				"wam.productName": {
+					"type": "string",
+					"default": "",
+					"description": "产品名 (留空=自动检测)"
+				},
+				"wam.dataDir": {
+					"type": "string",
+					"default": "",
+					"description": "数据目录 (留空=自动检测)"
+				},
+				"wam.wamHotDir": {
+					"type": "string",
+					"default": "",
+					"description": "WAM 工作目录 (留空=~/.wam-hot)"
+				},
+				"wam.relayHost": {
+					"type": "string",
+					"default": "",
+					"description": "中继域名 (留空=禁用)"
+				},
+				"dao-agi.dao.banner": {
+					"type": "boolean",
+					"default": true,
+					"description": "启动时显示道德经横幅"
+				},
+				"dao.origin.port": {
+					"type": "number",
+					"default": 8889,
+					"description": "源.js 反代端口 (唯变所适)"
+				},
+				"dao.origin.defaultMode": {
+					"type": "string",
+					"default": "passthrough",
+					"enum": [
+						"invert",
+						"passthrough"
+					],
+					"description": "v18.3.0 · default=passthrough · 与 _isUserOptedIn 合作 · 首装/升级首启 = passive (跳 loadWamCore + 跳 _installMessageAnchor + 跳 anchorRestore + 跳 autoRestoreOrigin) · 仅 onView (sidebar 点击) 或 onCommand (命令调用) 时 activate · 用户点 启道Agent / 启官方Agent 后 · 标 wam.userOptedIn.v18_3=true + lazy 加载 vendor WAM + 起 proxy + 锚 settings (三事一气贯通) · 下次 activate 自动恢复已表之意"
+				},
+				"wam.monitorIntervalMs": {
+					"type": "number",
+					"default": 3000
+				},
+				"wam.scanIntervalMs": {
+					"type": "number",
+					"default": 45000
+				},
+				"wam.tokenCacheTtlMin": {
+					"type": "number",
+					"default": 50
+				},
+				"wam.autoSwitchThreshold": {
+					"type": "number",
+					"default": 5
+				},
+				"wam.predictiveThreshold": {
+					"type": "number",
+					"default": 25
+				},
+				"wam.preferDevinFirst": {
+					"type": "boolean",
+					"default": true
+				},
+				"wam.firebaseMaxTimeoutMs": {
+					"type": "number",
+					"default": 4000
+				},
+				"wam.autoUpdate.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "v17.87.1 · default=false · L4 第四道防线 · 不自从 jsdelivr 拉 vendor 新版 (圣人之道为而不争 · 不夺老用户已设 true 之意 · 仅首装默 false). 用户主动开方走公网更新."
+				},
+				"wam.autoUpdate.notifyUser": {
+					"type": "boolean",
+					"default": false
+				},
+				"wam.messageAnchor.enabled": {
+					"type": "boolean",
+					"default": true
+				},
+				"dao-agi.water.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "水之四德 · 选举/降频/滘切/熔断 · false=完全禁用"
+				},
+				"dao-agi.water.electionTtlMs": {
+					"type": "number",
+					"default": 90000,
+					"description": "leader lock TTL (需设 DAO_WATER_ELECTION_TTL_MS env 才生效)"
+				},
+				"dao-agi.water.followerSlowdown": {
+					"type": "number",
+					"default": 3,
+					"description": "follower 实例定时器减速倍数 (需设 DAO_WATER_FOLLOWER_SLOWDOWN env 才生效)"
+				},
+				"dao-agi.water.idleAfterMs": {
+					"type": "number",
+					"default": 600000,
+					"description": "多久无活动视为 idle (需设 DAO_WATER_IDLE_AFTER_MS env 才生效)"
+				},
+				"dao-agi.water.idleSlowdown": {
+					"type": "number",
+					"default": 4,
+					"description": "idle 状减速倍数 (需设 DAO_WATER_IDLE_SLOWDOWN env 才生效)"
+				},
+				"dao-agi.water.logMaxBytes": {
+					"type": "number",
+					"default": 5242880,
+					"description": "*.log 滘切阈值 · 字节 (需设 DAO_WATER_LOG_MAX_BYTES env 才生效)"
+				},
+				"dao-agi.water.cbFailThreshold": {
+					"type": "number",
+					"default": 10,
+					"description": "同 host 累计失败达阈即熔断 (需设 DAO_WATER_CB_FAIL_THRESHOLD env 才生效)"
+				},
+				"dao-agi.water.cbOpenMs": {
+					"type": "number",
+					"default": 300000,
+					"description": "熔断持续时间 · ms (需设 DAO_WATER_CB_OPEN_MS env 才生效)"
+				},
+				"dao-agi.lsGate.autoApply": {
+					"type": "boolean",
+					"default": false,
+					"description": "v17.86 · default=false · 三道防线: ①stale-patch自愈(activate头检指纹·异版残留自动revert) ②sentinel扩vscdb(uninstall 5s清codeium api锚) ③用户配 true 才在 activate 5s 后自施(默认零副作用)·见141/179事故根治"
+				},
+				"dao-agi.lsGate.includeBuiltin": {
+					"type": "boolean",
+					"default": false,
+					"description": "v17.86 · default=false · 是否让手动 dao.lsGate.apply patch Windsurf 安装目录之 builtin extensions (全机共享 · 多 Windows 账号均受影响 · 141 事故根因). true 时调 dao.lsGate.apply / .revert 会弹 modal 警 · 用户必须明示授权 · 仅运维场景与应用于全机零守下取用."
+				},
+				"dao-agi.lsGate.includeOtherUsers": {
+					"type": "boolean",
+					"default": false,
+					"description": "v17.86 · default=false · 是否让手动 dao.lsGate.apply / dao.uninstall 扫 C:\\Users\\* 他户 .windsurf/extensions/ 与 settings.json (跨用户文件 · 他户验证未予 · 不推). true 时 dao.lsGate.* 会弹 modal 警."
+				},
+				"dao-agi.bensource.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "v18.2.2 · default=false · L0 本源直取 (PEB 内存扫) 默闭 · 防 webview 高频触发 fork PowerShell + Add-Type JIT + 80GB 扫 LS 内存 · 141 事故根治 (LS 收 ~150 RPC/s GetCascadeTrajectorySteps · ext-host 阻塞 14s). proxy.before 已为 LS 真注 SP · 默路无须 L0. 仅运维 / 调试场景启此. 启时附带: in-flight 去重 + LS 发现 2min 缓存 + 路三 trajectory 默关 (防洪水)."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"package": "vsce package --no-dependencies --allow-missing-repository -o dao-agi.vsix"
+	},
+	"devDependencies": {
+		"@types/node": "^20.14.0",
+		"@types/vscode": "^1.84.0",
+		"@vscode/vsce": "^3.6.0"
+	}
+}
