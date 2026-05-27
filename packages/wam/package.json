@@ -2,7 +2,7 @@
 	"name": "rt-flow",
 	"displayName": "Runtime Flow",
 	"description": "Runtime flow management · adaptive scheduling",
-	"version": "3.3.0",
+	"version": "3.10.1",
 	"publisher": "devaid",
 	"repository": {
 		"type": "git",
@@ -307,25 +307,80 @@
 					"default": 5000,
 					"description": "v2.6.14 守三·WAL 启动暖启窗 — _installWalWatcher 后首 N ms 内 WAL fire 全跳 · 防 activate 首 stat 累积差引启动雪崩 (实证 reload 0.5s 即火) · 默 5000ms · 0=关"
 				},
-				"wam.autoActivate": {
-					"type": "boolean",
-					"default": true,
-					"description": "v2.8.4 Devin双轨·自动激活 — 验号时检测到账号尚无 Extra Usage 余额自动触发激活流程 (true=开·false=关)"
-				},
-				"wam.autoActivate.pollN": {
-					"type": "number",
-					"default": 5,
-					"description": "v2.8.4 激活轮询次数 — _pollForOverage 最多轮询 N 次 (默 5 · 5×3s=15s 快验)"
-				},
-				"wam.autoActivate.pollMs": {
-					"type": "number",
-					"default": 3000,
-					"description": "v2.8.4 激活轮询间隔 — _pollForOverage 每轮间隔 ms (默 3000ms)"
-				},
 				"wam.preferOverageFirst": {
 					"type": "boolean",
 					"default": true,
 					"description": "v3.3.0 💎 额度绝对优先 — true=有 Extra Usage 余额($)的账号永远先于百分比账号(无论W%/D%多高) · 内部按$多寡排 · overage耗尽才轮到百分比 · 解构本源: overage=存量(不用即损) 百分比=流量(重置可循环) · false=回退v3.2.1统一打分(兼容)"
+				},
+				"wam.expiryFirst": {
+					"type": "boolean",
+					"default": true,
+					"description": "v3.3.1 临期优先 — true=剩余有效期<60天的账号得到 expBonus加分(临期越近加分越高) · 临期维度主导额度次排 · false=关闭临期优先回退v3.3.0"
+				},
+				"wam.creditsThreshold": {
+					"type": "number",
+					"default": 1000,
+					"description": "v3.7.0 余额门控 — promptCredits+flowCredits 总量达到此阈值才视为「余额可用」(默 1000) · 影响: _isValidAutoTarget放行 + _tick耗尽保护 + _scoreOf加分起点 · 0=关闭credits维度"
+				},
+				"wam.creditsInScore": {
+					"type": "boolean",
+					"default": true,
+					"description": "v3.7.0 余额纳入评分 — true=promptCredits+flowCredits计入_scoreOf评分 (per 200 credits=+1分·上限+500) · false=credits静默不参与排序 · 不影响_isValidAutoTarget/切号触发逻辑"
+				},
+				"wam.hubNotifyCooldownMs": {
+					"type": "number",
+					"default": 300000,
+					"description": "v3.7.1 对话卡住通知单等待 — 同一对话具体通知冒沫 N ms 后再推 (默 300000=5min · 超过此时间未恢复才再通知)"
+				},
+				"wam.hubNotifyGlobalCdMs": {
+					"type": "number",
+					"default": 5000,
+					"description": "v3.7.1 对话卡住全局冷却 — 两次任意通知间最小间隔 (默 5000=5s · 允许多对话快速连续通知)"
+				},
+				"wam.hubRenotifyIntervalMs": {
+					"type": "number",
+					"default": 300000,
+					"description": "v3.7.1 对话持续卡住周期再推 — 同一对话持续卡住每 N ms 再推一次 (默 300000=5min)"
+				},
+				"wam.hubDataStaleMs": {
+					"type": "number",
+					"default": 60000,
+					"description": "v3.7.1 Hub数据过期阈值 — 引擎嵌入Hub数据连续 N ms 未更新则认为引擎已停·不处理岡死途知 (默 60000=1min)"
+				},
+				"wam.autoBackupStartDelayMs": {
+					"type": "number",
+					"default": 8000,
+					"description": "v3.7.1 备份岕动延迟 — 插件激活后 N ms 再执行初始全量备份·等待所有组件初始化完母 (默 8000=8s)"
+				},
+				"wam.incrementalBackupDebounceMs": {
+					"type": "number",
+					"default": 3000,
+					"description": "v3.7.1 增量备份防抖 — .pb文件发生变化后延迟 N ms 再备份·合并高频小批写防颠繁 (默 3000=3s)"
+				},
+				"wam.stuckNotify": {
+					"type": "boolean",
+					"default": true,
+					"description": "v3.4.0 对话追踪通知 — 当 Cascade 对话卡住/死亡/恢复时在 Windsurf 左下角弹通知 (true=开 false=关 · 不走 Windows Toast)"
+				},
+				"wam.conversationBackupDir": {
+					"type": "string",
+					"default": "",
+					"description": "v3.4.0 对话备份目录 — Cascade .pb 对话文件备份存储位置 (空=默认 ~/.wam/conversation_backups)"
+				},
+				"wam.autoSwitchDailyMin": {
+					"type": "number",
+					"default": 5,
+					"description": "v3.8.4 日额度最低门槛 — 低于此值 (%) 的账号不进入自动切号候选池 · 即 D<5% 不切入 (默认 5 · 0=关闭日额度守门)"
+				},
+				"wam.autoSwitchWeeklyMin": {
+					"type": "number",
+					"default": 3,
+					"description": "v3.8.4 周额度最低门槛 — 低于等于此值 (%) 且非干旱模式时不进入候选池 · 即 W≤3% 不切入 (默认 3 · 0=关闭周额度守门)"
+				},
+				"wam.zeroQuotaRetickMs": {
+					"type": "number",
+					"default": 2000,
+					"description": "v3.10.1 零额度紧急重触延迟 — 切号后发现新账号 D=0/W=0 时 N ms 后立即重触 _tick 换号 · 减少「Trial - Quota Exhausted」停留时间 (默认 2000ms · 0=禁用紧急重触)"
 				}
 			}
 		}

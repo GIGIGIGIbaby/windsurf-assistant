@@ -1,4 +1,4 @@
-// WAM · 万法归宗 v3.0.0 · 道极版 · 道法自然 · 太上下知有之
+// WAM · 万法归宗 v3.10.1 · 零额度紧急重触 · 切号防御双完善 · 道法自然
 //
 // 本源需求: 用户在 Cascade panel 发消息 → WAM 自动切健康号 (用户无为 · 插件无不为)
 //
@@ -8,6 +8,36 @@
 //   · 不禁账号   · 失败仅记数 · 号永远可选 · rate-limit 退让 30s 即回池
 //   · 上善如水   · 不 kill 进程 · 不抢路 · 等 cascade 流完再切
 //   · 大制无割   · 198KB → ~80KB · 一层 hook 一条真路 (从 v2.4.13b 损之又损)
+//
+// v3.7.0 · 道法自然 · 三维度归一 · 锁止复元 · 彻底完善自动切号底层体系 (2026-05-25):
+//
+//   ━━━ 五大根治 (逆流审视 v3.6.0 · 反者道之动) ━━━
+//
+//   「一」三维度归一 — promptCredits/flowCredits 余额独立资源池入场
+//     根因: _scoreOf/_isValidAutoTarget/_tick 完全忽略 credits 维度
+//     现象: quota%耗尽但余额充裕的账号被误判「不可用」→ 不用即废 (不可逆损失)
+//     治法: 新增 _hasUsableCredits(h) / creditsBonus 评分 / _tick 耗尽判定含credits
+//     道: 「大成若缺·其用不敝·大盈若盅·其用不窘」
+//
+//   「二」锁止机制复元 — isInUse 降分回归 _scoreOf
+//     根因: v3.0 以「全号平等」为由移除 isInUse 检查 → 锁止形存实亡
+//     现象: A→B 切号后 A 立即可回选 → 来回震荡 · 无冷却效果
+//     治法: _scoreOf 内加 _applyInUse(×0.01) → 锁中号降至1%分值 · 非 -∞ 仍可兜底
+//     道: 「知止所以不殆」
+//
+//   「三」周日边沿修正 — hoursUntilWeeklyReset 精准化
+//     根因: (7-0)%7=0 → 旧 ||7 强制跳下周 → 周日未重置前(UTC 07:59)算成7天后
+//     现象: 周日16:00前系统误以为距重置7天 → waitResetHours判断失准
+//     治法: dts=(7-day)%7 · 若算出时刻<=now再+7天 · 正确定位当前轮次
+//     道: 「知常·明也·不知常·亡亡作凶」
+//
+//   「四」有效期临期+余额协同 — 临期号有credits双重加持
+//     现象: daysLeft<7 账号若有 credits 应更强优先 (即将过期·credits+quota双废)
+//     治法: expBonus 与 creditsBonus 同时生效 → 临期+充裕credits → 分值极高
+//
+//   「五」新增配置项: wam.creditsThreshold / wam.creditsInScore
+//     creditsThreshold: credits 视为「可用」的最低总量 (默 1000)
+//     creditsInScore: credits 是否纳入 _scoreOf 评分 (默 true)
 //
 // v3.0.0 · 道法自然 · 无为而无不为 · 全量解构自封体系 (2026-05-21):
 //   「一」移除一切自动限制 · 有密码即可用 · Free/Trial/Pro 皆可进入候选池
@@ -593,7 +623,129 @@ const { URL } = require("node:url");
 //   "优先把有额度的账号先用完，而非先把有百分比的账号先用完"
 //   → 完全实现 · 道法自然 · 无为而无不为
 //
-const VERSION = "3.3.0";
+// v3.7.2 · 两向根治「未验证」· 道法自然 · 无为而无不为 (2026-05-25):
+//   ━━━ 正向 (防止问题) ━━━
+//   「一」store.load 备份恢复链: 主文件损坏/缺失 → 自动降级 ~/.wam/backups/ 日备份 → 无感恢复
+//   「二」_persistSessionCache 防抖 500ms→100ms · 缩短断电丢 token 窗口
+//   ━━━ 反向 (出现即自动修复) ━━━
+//   「三」startup auto-verify: 不管何因 · 只要检测到未验号 → 立即全量自动加速验证
+//         cache空+未验号>0 → verifyAllAccounts({onlyStale:false}) 全量加速
+//         现有 isFirstTime 保护 (>50%未验→parallel=2·1500ms gap) 保驾护航
+//         用户启动IDE → 后台自动验 → 2-5min全池复活 · 无需任何手动操作
+//         cache非空 → 走原 _cacheOnly 快路 · v3.7.1 行为完全兼容 · 零退化
+//   道: 「无为而无不为」·「民莫之令而自均焉」· 未验自愈 · 断电无感
+//   守门: _test_v372_bidir.cjs · §A版本 · §B备份恢复 · §C启动反向 · §D sessionCache
+//
+// v3.7.3 · 断电防护集成 · 取两对话精华于WAM · 道法自然 · 无为而无以为 (2026-05-25):
+//   来源: Conversation Loss Recovery 对话 (断电五层链式失效根因分析)
+//   「一」_isValidPb() — .pb 健康识别函数
+//       断电特征: size < 28B (12B nonce + 16B GCM tag 最小加密单元)
+//       备份时跳过损常文件 → 不把断电祝事存入备份 → 备份质量保证
+//   「二」_checkCascadeHealth() — 启动健康扫描函数
+//       扫描 cascade/ 内所有 .pb 文件的健康状态
+//       发现损常文件 → 日志 + Windsurf 内部警告 + 指引修复路径
+//       正常却不打扰: 静默扫描 → 五感无为
+//   「三」备份质量防守 — _backupConversations + _doIncrementalBackup 加健康检查
+//       备份前先过 _isValidPb() 关 → 损常文件不备份入库
+//       无为而无以为: 用户不知知 → 备份本身绽不受损
+//
+// v3.7.5 · 反者道之动 · 对话追踪前端关闭 + 提醒频率根治 · 道法自然 (2026-05-25):
+//
+//   ━━━ 三治 (逆流审视 v3.7.4 · 反者道之动) ━━━
+//
+//   「一」对话面板手动关闭 — 每条卡住/死亡对话新增 × 关闭按钮
+//     根因: 用户无法主动关闭卡住通知 · 只能等 10min 自动消退 · 体验差
+//     现象: DEAD 对话残留面板 · 须等引擎自然清理 · 用户无为但体感有为
+//     治法: 新增 _dismissedConvUuids(Map) · 用户点 × → 本地静默 10min
+//           面板立即消失 · 通知暂停 · 10min 自动过期重新显示
+//     道: 「民之不畏威·则大威将至」· 轻叩即散 · 无为而无以为
+//
+//   「二」提醒频率根治 — HUB_RENOTIFY_INTERVAL 5min → 2.5min (150000ms)
+//     根因: 5min 间隔太长 · CRITICAL 对话卡死时用户感知严重滞后
+//     治法: 改为 2.5min · 保持默认值可通过 wam.hubRenotifyIntervalMs 覆盖
+//     道: 「善行者无辙迹」· 频率适中 · 水善利万物
+//
+//   「三」手动关闭联动 _processHubStuck — dismiss 后 10min 内彻底静默
+//     治法: stuck 循环先 add curStuckUuids(防误触 recover) · 再检查 dismiss
+//           dismiss 未过期 → continue 跳过通知; 过期 → 自动清除并恢复
+//     道: 「反也者道之动」· 柔弱胜刚强 · 10min 后自然复生
+//
+// v3.7.6 · 道法自然 · 三根修 · 切号守门+关闭持久化+多窗同步 (2026-05-26):
+//
+//   ━━━ 三根修 (逆流审视 v3.7.5 · 反者道之动) ━━━
+//
+//   「一」切号守门根治 — 彻底封堪 D=0/W=0/过期账号进入切号路径
+//     根因一: rotateNext 未调 _isValidAutoTarget → 0%/过期号被尝试登录
+//     根因二: _scoreOf 双零真耗尽返回 1分而非 -Infinity → 中殼候选池
+//     根因三: _isValidAutoTarget 未检 credits → quota=0但credits充裕的号被拒
+//     根因四: _tick isExhausted 未豆免 credits → credits充裕时仍触发切号
+//     治法: rotateNext for-loop 加 _isValidAutoTarget(守门二层)
+//           _scoreOf 双零+无credits+无overage → -Infinity(真排除)
+//           _isValidAutoTarget 加 credits 可用 → 放行
+//           _tick isExhausted 加 credits 豁免
+//     道: 「知止所以不殺」· 守门不争 · 耗尽即止
+//
+//   「二」× 关闭即时响应 — 点击立即消失· 无需等服务端
+//     根因: dismissConv() 发 postMessage 后需等服务端渲染回传 → 用户感知延迟
+//     治法: button 加 data-uuid 属性 · 点击立即 .remove() 本地消除 · 服务端异步确认
+//     道: 「动其机·万化安」· 先动后静 · 轻叩即散
+//
+//   「三」 dismiss 跨窗口持久化 — DISMISS_FILE 专司持久·多窗自宾
+//     根因: _dismissedConvUuids 仅内存 → 重启丢失·多窗口互不感知
+//     治法: _saveDismissedToDisk/_loadDismissedFromDisk · atomicWrite 长存
+//           fs.watchFile(_conv_dismiss.json) 跨窗同步: A窗口dismiss
+//           → 写_conv_dismiss.json → B窗口watchFile触发 → B自动同步
+//           启动时加载磁盘状态 · 10min 过期自动清理
+//     道: 「小邦寺民·各得其欲·大者宜为下」· 多窗共守一文件 · 无为而自均
+//
+// v3.8.0 · 道法自然 · 四根修 · 10min静默+通知频控+计数修正+启动围栏 (2026-05-26):
+//
+//   ━━━ 四根修 (逆流审视 v3.7.6 · 反者道之动 · 弱者道之用) ━━━
+//
+//   「一」 10min 以上卡住 → 静默 (不通知·不显示)
+//     根因: 卡住>10分钟的对话已无时效性 · 持续弹窗只打扰用户
+//     现象: staleSec=25min/57min/58min 持续弹 Toast · 用户不胜其烦
+//     治法: STUCK_STALE_MAX=600 · staleSec>600 → 自动 dismiss + 不弹通知
+//     道: 「多言数穷·不如守中」· 已过时效则静默无扰
+//
+//   「二」 同一对话最多通知2次 · 降低频率
+//     根因: CRITICAL 对话每2.5min周期再通知 · 无限循环骚扰
+//     现象: 同一对话 Toast 反复弹出 (初始+仍+仍+仍...)
+//     治法: STUCK_NOTIFY_MAX_PER_UUID=2 · _hubLastStuckUuids 追踪 count
+//           初始通知1次 → 过一段时间再通知1次 → 不再打扰
+//     道: 「知止不殆·可以长久」· 两次足矣·过犹不及
+//
+//   「三」 有效计数从 visibleStuck 直算 (彻底修正错误17)
+//     根因: hub.error=17 含所有历史 unknown_error 对话 (大量陈旧)
+//     现象: 面板「错误17」与实际可见卡住列表严重不符
+//     治法: _effectiveStuck/_effectiveError 从 visibleStuck 按 level 直接统计
+//           DEAD→error · WARNING/CRITICAL→stuck · 历史数据不再污染
+//     道: 「扣其锐·解其纷」· 眼见为实·不虚标
+//
+//   「四」 Windsurf 重启围栏 — 预启动卡住对话自动清零
+//     根因: SP 跟踪器独立于 Windsurf · _hub.json 跨重启持久
+//     现象: 重启后仍显示前一会话的「DEAD」/「CRITICAL」对话 (staleSec=54min)
+//     治法: _wamStartTs 启动时间戳 · staleSec*1000 > uptime+缓冲
+//           → 该对话卡住于 WAM启动前 → 自动 dismiss + 上盘
+//     道: 「那个不是这个」· 前会话不守后会话 · 启启即清
+//
+// v3.7.4 · 反者道之动 · 根治「未验号永远未验」· 道法自然 · 太上下知有之 (2026-05-25):
+//   ━━━ 病灶逆流审视 ━━━
+//   v3.7.2 修复逻辑: if (_sessionCache.size === 0) { 检测未验号 → 全量验证 }
+//     错误根因: _loadSessionCacheFromDisk() 在 activate 时已从磁盘加载
+//     实际效果: _sessionCache.size 几乎永远 > 0 → 此门永远不开
+//     全量验证路径: 从未被走到 → 未验号永久停留「未验」
+//   ━━━ 三处根治 ━━━
+//   「一」启动验证 — 先查未验号数量·再决策 (不受 cache 状态影响)
+//       _uncheckedOnStart > 0 → onlyStale:false 全量验证 (无论 cache 多满)
+//       无未验号 + cache空 → 跳过
+//       无未验号 + cache非空 → _cacheOnly stale 快路 (v3.7.1 兼容)
+//   「二」手动刷新 — 同步查未验号 · 有则走全量而非 onlyStale
+//   「三」周期验证 — 同步查未验号 · 有则走全量
+//   ━━━ 道 ━━━
+//   未验号本不该留 · 只是门没开 · 门一开 · 民自化 · 无为而无不为
+//
+const VERSION = "3.10.1";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
 const WINDSURF = "https://windsurf.com";
@@ -639,9 +791,16 @@ const STATE_FILE = path.join(WAM_DIR, "wam-state.json");
 //   独立🔒持久化 · 专司一事 · 不被 multi-window race 污染 wam-state.json 大对象
 //   只有 toggleSkip 读写 · save() 从此文件读 · multi-process 自宾不争
 const LOCK_FILE = path.join(WAM_DIR, "lock-state.json");
+// v3.7.6 · dismiss 跨窗口持久化 · 小邦寺民·各得其欲·大者宜为下
+const DISMISS_FILE = path.join(WAM_DIR, "_conv_dismiss.json"); // uuid→ts 共享持久文件·多窗口共守
+const CONV_DISMISS_TTL = 600000; // 10min dismiss 自动过期时长
 const BACKUP_DIR = path.join(WAM_DIR, "backups");
 const PENDING_TOKEN_FILE = path.join(WAM_DIR, "_pending_token.json");
 const MAX_BACKUPS = 10;
+// v3.4.0 · 三界归一 · Hub 总线 + 对话追踪 (卅辐同一毂·当其无有·车之用也)
+const HUB_FILE = path.join(WAM_DIR, "_hub.json");
+const PB_DIR = path.join(os.homedir(), ".codeium", "windsurf", "cascade"); // v4.2: os.homedir() 跨平台统一 (USERPROFILE 仅 Windows)
+const CONV_BACKUP_DEFAULT = path.join(WAM_DIR, "conversation_backups");
 // 道法自然 · 居善地 · 不再硬编码盘符 (v2.1.2: V:\ → __dirname 自适应)
 // 扩展安装目录优先 (随扩展走) · 工作目录开发模式可见 · 兼容 VSIX/symlink/源码三种部署
 const ACCOUNTS_DEFAULT_MD = path.join(__dirname, "账号库最新.md");
@@ -683,7 +842,30 @@ let _output = null,
   _lastRotateToastAt = 0, // 状态栏切号反馈 3s 高亮
   _lastRotateToastEmail = "", // 状态栏切号反馈上次 email
   _layer6Stop = null, // Layer 6 dispose 函数
-  _resetRefreshTimer = null; // v3.2.1 · 额度重置感知定时器 · 精准唤醒
+  _resetRefreshTimer = null, // v3.2.1 · 额度重置感知定时器 · 精准唤醒
+  // v3.5.0 · 道法自然 · 对话追踪 Hub 状态 (天下之至柔·驰骋于天下之致坚)
+  _hubData = null, // Hub 总线最新数据 (stuck 字段)
+  _hubLastNotifyAt = 0, // Hub stuck 通知冷却时间戳
+  _hubLastStuckUuids = new Map(), // uuid → notifyTimestamp (带时间过期 · 5分钟自动清理)
+  _hubWatchDebounce = null, // Hub 文件监视防抖
+  // v3.6.0 · 自动备份系统 (无为而无不为·不争而善胜)
+  _convPbWatcher = null,     // .pb 目录增量监视器
+  _autoBackupDone = false,   // 本次启动初始全量备份是否已完成
+  _lastBackupDate = "",      // 最近备份日期 (防当日重复)
+  _incrementalDebounce = null, // 增量备份防抖计时器
+  _hubLastRecoverNotify = 0, // 恢复通知冷却
+  _hubPollTimer = null, // Hub 轮询定时器 (fs.watchFile 的保底)
+  _stuckStatusBar = null, // 卡住状态 StatusBar (持久可见 · 根治弹窗消失后零感知)
+  // v3.10.0 · 归一 · 卡住引擎子进程管理 (道生之·德畜之·长之·遂之)
+  _stuckEngineProcess = null, // child_process 实例
+  _stuckEngineRestarts = 0,   // 重启计数 (诊断)
+  _stuckEngineLastStart = 0,  // 最后启动时间戳
+  // v3.7.5 · 对话手动关闭 · 反者道之动 · 道法自然
+  _dismissedConvUuids = new Map(), // uuid → dismissTs · 10min 自动过期 · 用户手动关闭对话提醒
+  // v3.7.6 · dismiss 持久化防抖 · 多窗口同步
+  _dismissWatchDebounce = null, // dismiss 文件监视防抖定时器
+  // v3.7.7 · 启动围栏 · staleSec > uptime+缓冲 → 该对话卡住于 WAM 启动前 → 自动清零
+  _wamStartTs = Date.now(); // WAM activate 时刻 · 启动围栏基准时间戳
 // v2.4.4 · log 落盘 (~/.wam/wam.log · 2MB 滚动 · 外部诊断可读)
 let _logFileInit = false;
 const _logMaxBytes = 2 * 1024 * 1024;
@@ -733,10 +915,1396 @@ function _notify(level, msg) {
   else if (level === "warn") vscode.window.showWarningMessage(msg);
   else vscode.window.showInformationMessage(msg);
 }
+// v3.8.1: 自动消失通知 · 知止不殆 · 可以长久
+// 与 _notify 的区别: 通知会在 ttlMs 后自动从通知中心完全消失
+// 用于卡住/死亡等有时效性的通知 · 无需用户手动清除 · 10min 自然淡去
+// 实现: vscode.window.withProgress(ProgressLocation.Notification)
+//   → Promise resolve 时通知消失 · cancellable=true 支持用户手动关闭
+function _notifyTimed(level, msg, ttlMs) {
+  if (_cfg("invisible", false)) return;
+  const lvl = _cfg("notifyLevel", "notify");
+  if (lvl === "silent") return;
+  if (lvl === "notify" && level === "verbose") return;
+  ttlMs = ttlMs || 600000; // 默认 10min 自动消失
+  vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: msg, cancellable: true },
+    (progress, token) => new Promise(resolve => {
+      const timer = setTimeout(resolve, ttlMs);
+      token.onCancellationRequested(() => { clearTimeout(timer); resolve(); });
+    })
+  );
+}
 function ensureDir(p) {
   try {
     fs.mkdirSync(p, { recursive: true });
   } catch {}
+}
+
+// ═══ § v3.4.0 · 三界归一 · 对话追踪 Hub 集成 (道生之·德畜之) ═══
+//
+// dao_stuck_v9.js 写 ~/.wam/_hub.json → WAM 扩展读取 → Windsurf 左下角通知
+// 不走 Windows Toast/BalloonTip/PowerShell · 道冲而用之有弗盈也
+//
+// Hub stuck 数据结构:
+//   { ts, pid, active, streaming, stuck, error,
+//     stuckList: [{ uuid, shortId, title, staleSec, level, vscdbStatus, sizeKB }],
+//     current: { uuid, title, phase, staleSec, sizeKB } }
+//
+function _readHub() {
+  try {
+    if (!fs.existsSync(HUB_FILE)) return null;
+    const raw = fs.readFileSync(HUB_FILE, "utf8");
+    const hub = JSON.parse(raw);
+    return hub.stuck || null;
+  } catch { return null; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v3.5.0 · 道法自然 · 对话卡住前端通知 根因修复 (天下之至柔·驰骋于天下之致坚)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// v3.4.0 致命缺陷 (实地验证 2026-05-25 铁证):
+//   1. _hubLastStuckUuids 是 Set (一次性锁·永不过期) → 通知只发1次·之后永远静默
+//   2. 全局冷却30s → 3对话同时卡只通知1个 → 其余2个零感知
+//   3. vscode弹窗15秒自动消失 → 无持久UI → 用户miss后零感知
+//   4. 启动时只存数据不处理 → Extension重载后直到下次文件变化才通知
+//   5. fs.watchFile persistent:false → 可能被GC静默停止
+//
+// v3.5.0 修复 (五层彻底):
+//   [A] _hubLastStuckUuids 改 Map{uuid→ts} · 5分钟自动过期 · 允许重复通知
+//   [B] 全局冷却 30s→5s · 允许连续通知多个卡住对话
+//   [C] 新增独立 _stuckStatusBar (红色·持久可见·永不消失直到恢复)
+//   [D] 启动时立即 _processHubStuck(initData) (不再只存不处理)
+//   [E] 新增 10s Hub 轮询保底 (fs.watchFile 失效时的兜底)
+//
+// 哲学: 天下之至柔驰骋于天下之致坚。通知须柔(不抢焦点)而必达(永不漏报)。
+// ═══════════════════════════════════════════════════════════════════════════════
+// v3.7.1 · 软编码软化 · 道法自然 · 以 _cfg() 覆盖 · 保留常量作默认值
+const HUB_NOTIFY_COOLDOWN = 300000; // 5min 同 uuid 冷却 (默认 · 可经 wam.hubNotifyCooldownMs 覆盖)
+const HUB_NOTIFY_GLOBAL_CD = 5000;  // 5s 全局冷却 (默认 · 可经 wam.hubNotifyGlobalCdMs 覆盖)
+const HUB_RENOTIFY_INTERVAL = 150000; // 2.5min 持续卡住周期再通知 (v3.7.5 · 原5min → 2.5min · 可经 wam.hubRenotifyIntervalMs 覆盖)
+// v3.8.0 · 多言数穷不如守中 · 10min 以上卡住静默 + 同一对话最多通知2次
+const STUCK_STALE_MAX = 600;         // 秒: staleSec 超过此值 → 自动 dismiss + 不通知 + 不显示
+const STUCK_NOTIFY_MAX_PER_UUID = 2; // 同一对话 UUID 最多发送通知次数 (初始1次+再提醒1次=2次)
+
+// ── 卡住状态栏 (持久可见 · 根治弹窗消失后零感知) ──
+// v3.7.7「一」过滤已 dismiss/启动围栏 → 状态栏「N卡住」与对话面板同步
+function _updateStuckStatusBar(data) {
+  if (!_stuckStatusBar) return;
+  if (!data || !data.stuckList || data.stuckList.length === 0) {
+    // 无卡住 → 隐藏
+    _stuckStatusBar.hide();
+    return;
+  }
+  // v3.8.0: 过滤已 dismiss + 10min 以上静默 · 与 _getConvTrackingHtml 保持一致
+  const _nowSb = Date.now();
+  const visible = data.stuckList.filter(s => {
+    // v3.8.0「一」staleSec > 10min → 静默 · 已无时效性
+    if (s.staleSec > STUCK_STALE_MAX) return false;
+    if (!s.uuid) return true;
+    const dt = _dismissedConvUuids.get(s.uuid);
+    if (!dt) return true;
+    if (_nowSb - dt < CONV_DISMISS_TTL) return false; // 未过期 → 隐藏
+    _dismissedConvUuids.delete(s.uuid); // 过期 → 自然清除
+    return true;
+  });
+  if (visible.length === 0) {
+    _stuckStatusBar.hide();
+    return;
+  }
+  const count = visible.length;
+  const worst = visible[0]; // stuckList 按严重度排序
+  const staleStr = worst.staleSec >= 60 ? Math.round(worst.staleSec / 60) + "min" : worst.staleSec + "s";
+  _stuckStatusBar.text = "$(warning) " + count + "卡住";
+  _stuckStatusBar.tooltip = "对话卡住! (" + count + "个)\n"
+    + visible.map(s => {
+      const st = s.staleSec >= 60 ? Math.round(s.staleSec / 60) + "min" : s.staleSec + "s";
+      return "[" + (s.level || "?") + "] " + (s.title || s.shortId || "?") + " (" + st + ")";
+    }).join("\n")
+    + "\n\n点击打开看板 http://127.0.0.1:19901";
+  _stuckStatusBar.color = new vscode.ThemeColor("statusBarItem.errorForeground");
+  _stuckStatusBar.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
+  _stuckStatusBar.show();
+}
+
+function _processHubStuck(data) {
+  if (!data) {
+    _updateStuckStatusBar(null);
+    return;
+  }
+  if (!_cfg("stuckNotify", true)) {
+    _updateStuckStatusBar(null);
+    return;
+  }
+  const now = Date.now();
+  // Hub 数据过期判断 (>hubDataStaleMs 不处理 · 可能是 engine 已停) · v3.7.1 软编码
+  const _hubStaleMs = Math.max(10000, +(_cfg('hubDataStaleMs', 60000)) || 60000);
+  if (data.ts && now - data.ts > _hubStaleMs) {
+    _updateStuckStatusBar(null);
+    return;
+  }
+
+  // v3.7.7「二」启动围栏 — 预启动卡住对话自动 dismiss (重启即清·那个不是这个)
+  // staleSec * 1000 > (now - _wamStartTs) + 缓冲 → 该对话卡住于 WAM 启动前 (前会话残留)
+  const _fenceBuffer = 120000; // 2min 缓冲 · 防 Windsurf 启动+插件激活间隙误判
+  const _wamUptime = now - _wamStartTs;
+  let _autoDismissed = 0;
+  if (data.stuckList && data.stuckList.length > 0) {
+    for (const s of data.stuckList) {
+      if (!s.uuid) continue;
+      if (_dismissedConvUuids.has(s.uuid)) continue; // 已 dismiss 跳过
+      const stuckMs = (s.staleSec || 0) * 1000;
+      if (stuckMs > _wamUptime + _fenceBuffer) {
+        // 卡住时长 > WAM 运行时长 → 该对话于 WAM 启动前已卡住 → 前会话残留
+        _dismissedConvUuids.set(s.uuid, now);
+        _autoDismissed++;
+        log("startup-fence: auto-dismiss " + s.uuid.substring(0, 8)
+          + " level=" + (s.level || "?")
+          + " staleSec=" + s.staleSec
+          + " uptimeSec=" + Math.round(_wamUptime / 1000));
+      }
+    }
+    if (_autoDismissed > 0) {
+      _saveDismissedToDisk(); // 持久化 + 多窗口同步
+      log("startup-fence: 共自动清除 " + _autoDismissed + " 个前会话卡住对话");
+      // 异步触发 conv-section 重渲染 (面板初始化可能晚于此处)
+      setTimeout(() => _broadcastConvSection(), 100);
+    }
+  }
+
+  // ★ [C] 持久状态栏: 无论如何先更新 (永远反映最新状态 · 不受冷却影响)
+  _updateStuckStatusBar(data);
+
+  // ★ [A] 清理过期的冷却记录 (5分钟自动过期 · 允许重新通知)
+  // v3.7.1 · 软编码: 三个通知参数均可通过配置覆盖
+  const _notifyCooldown = Math.max(10000, +(_cfg('hubNotifyCooldownMs', HUB_NOTIFY_COOLDOWN)) || HUB_NOTIFY_COOLDOWN);
+  const _notifyGlobalCd = Math.max(1000,  +(_cfg('hubNotifyGlobalCdMs', HUB_NOTIFY_GLOBAL_CD)) || HUB_NOTIFY_GLOBAL_CD);
+  const _renotifyInterval = Math.max(30000, +(_cfg('hubRenotifyIntervalMs', HUB_RENOTIFY_INTERVAL)) || HUB_RENOTIFY_INTERVAL);
+  for (const [uuid, ts] of _hubLastStuckUuids) {
+    if (now - (ts.ts||ts) > _notifyCooldown) {
+      _hubLastStuckUuids.delete(uuid);
+    }
+  }
+
+  const prevStuckUuids = new Set(_hubLastStuckUuids.keys());
+  const curStuckUuids = new Set();
+
+  // ── 检测 stuck/dead 事件 → 通知 ──
+  if (data.stuckList && data.stuckList.length > 0) {
+    for (const s of data.stuckList) {
+      if (!s.uuid) continue;
+      curStuckUuids.add(s.uuid); // 先加入 · 防止 dismiss 后误触 recover 通知
+
+      // v3.8.0「一」staleSec > 10min → 已无时效性 · 不弹通知 (多言数穷·不如守中)
+      if (s.staleSec > STUCK_STALE_MAX) continue;
+
+      // v3.7.5 · 手动关闭联动 · 10min 内静默通知 (自动过期后恢复)
+      const _dismissTs = _dismissedConvUuids.get(s.uuid);
+      if (_dismissTs) {
+        if (now - _dismissTs < CONV_DISMISS_TTL) continue; // 未过期 · 跳过通知
+        _dismissedConvUuids.delete(s.uuid); // 已过期 · 自动清除并恢复
+      }
+
+      // ★ [A] 带时间的冷却: 检查此 uuid 上次通知时间 + 通知次数
+      const _prevEntry = _hubLastStuckUuids.get(s.uuid) || {ts: 0, count: 0};
+      const lastNotifyTs = _prevEntry.ts || 0;
+      const _notifyCount = _prevEntry.count || 0;
+      const sinceLast = now - lastNotifyTs;
+
+      // v3.8.0「二」同一对话最多通知 N 次 (知止不殆·可以长久)
+      if (_notifyCount >= STUCK_NOTIFY_MAX_PER_UUID) continue;
+
+      // v12.2: DEAD = 一次性通知 (已通知过即跳过·不重复); CRITICAL/WARNING = 可周期再通知
+      // DEAD对话: 用户已知悉·死亡状态无需每5分钟打扰; CRITICAL: AI仍卡死·需持续提醒
+      if (lastNotifyTs > 0 && (s.level === "DEAD" || sinceLast < _renotifyInterval)) continue;
+
+      // ★ [B] 全局冷却 (允许多对话快速连续通知 · 可配置)
+      if (now - _hubLastNotifyAt < _notifyGlobalCd) continue;
+
+      // 发 Windsurf 内部通知 (左下角) · v3.8.1: 自动消失 (10min)
+      const name = s.title || s.shortId || s.uuid.substring(0, 8);
+      const levelTag = s.level === "DEAD" ? "死亡" : s.level === "CRITICAL" ? "卡死" : "停滞";
+      const staleStr = s.staleSec >= 60 ? Math.round(s.staleSec / 60) + "min" : s.staleSec + "s";
+      const isRenotify = lastNotifyTs > 0;
+      _notifyTimed(
+        s.level === "DEAD" || s.level === "CRITICAL" ? "warn" : "info",
+        "道·对话" + levelTag + (isRenotify ? "(仍)" : "") + ": " + name + " (停滞 " + staleStr + ")",
+        600000 // 10min 自动消失 · 知止不殆
+      );
+      _hubLastNotifyAt = now;
+      _hubLastStuckUuids.set(s.uuid, {ts: now, name: name, count: _notifyCount + 1});
+      log("hub-stuck: " + levelTag + (isRenotify ? "[re]" : "") + " " + (s.shortId || "?") + " \"" + (s.title || "") + "\" stale=" + s.staleSec + "s count=" + (_notifyCount + 1) + "/" + STUCK_NOTIFY_MAX_PER_UUID);
+    }
+  }
+
+  // ── 检测恢复 (之前 stuck 的 uuid 不在当前 stuckList 中) → 通知 ──
+  for (const uuid of prevStuckUuids) {
+    if (!curStuckUuids.has(uuid) && now - _hubLastRecoverNotify > _notifyGlobalCd) {
+      const _recInfo = _hubLastStuckUuids.get(uuid); const _recName = (_recInfo && _recInfo.name) || uuid.substring(0, 8);
+      // v11.3: RECOVER通知已移除 — 减少通知密度，用户可在对话追踪面板查看恢复
+      _hubLastRecoverNotify = now;
+      _hubLastStuckUuids.delete(uuid);
+      log("hub-recover: " + uuid.substring(0, 8));
+    }
+  }
+
+  // ★ [A] 安全阀: 防无限累积 (理论上不会到这里·但防御性编程)
+  if (_hubLastStuckUuids.size > 100) {
+    _hubLastStuckUuids.clear();
+  }
+
+  _hubData = data;
+}
+
+// ═══ v3.7.6 · dismiss 持久化 · 跨窗口共享 · 多窗自宾不争 ═══
+// 小邦寺民·各得其欲·大者宜为下 · A窗口dismiss → _conv_dismiss.json → B窗口自动同步
+function _loadDismissedFromDisk() {
+  try {
+    if (!fs.existsSync(DISMISS_FILE)) return false;
+    const raw = fs.readFileSync(DISMISS_FILE, "utf8");
+    const obj = JSON.parse(raw);
+    const now = Date.now();
+    let changed = false;
+    for (const [uuid, ts] of Object.entries(obj)) {
+      const t = Number(ts);
+      if (!isNaN(t) && now - t < CONV_DISMISS_TTL) {
+        if (!_dismissedConvUuids.has(uuid) || _dismissedConvUuids.get(uuid) < t) {
+          _dismissedConvUuids.set(uuid, t);
+          changed = true;
+        }
+      }
+    }
+    return changed;
+  } catch { return false; }
+}
+function _saveDismissedToDisk() {
+  try {
+    const now = Date.now();
+    const obj = {};
+    // 合并: 读取磁盘现有 (其他窗口写入的) + 当前内存 (防覆盖其他窗口数据)
+    try {
+      if (fs.existsSync(DISMISS_FILE)) {
+        const diskObj = JSON.parse(fs.readFileSync(DISMISS_FILE, "utf8"));
+        for (const [uuid, ts] of Object.entries(diskObj)) {
+          const t = Number(ts);
+          if (!isNaN(t) && now - t < CONV_DISMISS_TTL) obj[uuid] = t;
+        }
+      }
+    } catch {}
+    // 写入当前内存 (内存优先 · 以最新 dismiss 时间戳为准)
+    for (const [uuid, ts] of _dismissedConvUuids) {
+      if (now - ts < CONV_DISMISS_TTL) obj[uuid] = ts;
+    }
+    atomicWrite(DISMISS_FILE, JSON.stringify(obj));
+  } catch (e) { log("dismiss-save err: " + (e.message || e)); }
+}
+
+// v3.5.0 · 安装 Hub 文件监视器 + 轮询保底 (双保险 · 善闭者无闩钥而不可启也)
+function _installHubWatcher(context) {
+  try {
+    // ── 主通道: fs.watchFile (文件变化即时触发) ──
+    fs.watchFile(HUB_FILE, { persistent: true, interval: 500 }, () => {
+      clearTimeout(_hubWatchDebounce);
+      _hubWatchDebounce = setTimeout(() => {
+        const data = _readHub();
+        if (data) {
+          _processHubStuck(data);
+          // Fix4: 仅更新 conv 区块，不全量重建 sidebar（防点击展开时混叠卡顿）
+          _broadcastConvSection();
+        }
+      }, 300);
+    });
+    context.subscriptions.push({ dispose: () => {
+      try { fs.unwatchFile(HUB_FILE); } catch {}
+      clearTimeout(_hubWatchDebounce);
+    }});
+
+    // ★ [E] 备份通道: 10s 轮询保底 (防 fs.watchFile 静默失效)
+    _hubPollTimer = setInterval(() => {
+      const data = _readHub();
+      if (data) {
+        _processHubStuck(data);
+        // 不调 _broadcastUI() 避免频繁 webview 重建 · 状态栏已在 _processHubStuck 中更新
+      }
+    }, 10000);
+    context.subscriptions.push({ dispose: () => {
+      if (_hubPollTimer) { clearInterval(_hubPollTimer); _hubPollTimer = null; }
+    }});
+
+    // ★ [D] 启动时立即读取并处理 (不再只存不通知)
+    const initData = _readHub();
+    if (initData) {
+      _hubData = initData;
+      // 延迟 2s 处理 (等 statusBar 等 UI 组件就绪)
+      setTimeout(() => {
+        _processHubStuck(initData);
+      }, 2000);
+    }
+
+    // v3.7.6 ★ [F] dismiss 文件监视 · 跨窗口同步 (A窗口 dismiss → B窗口自动更新)
+    _loadDismissedFromDisk(); // 启动时加载磁盘 dismiss 状态
+    fs.watchFile(DISMISS_FILE, { persistent: true, interval: 1000 }, () => {
+      clearTimeout(_dismissWatchDebounce);
+      _dismissWatchDebounce = setTimeout(() => {
+        const changed = _loadDismissedFromDisk();
+        if (changed) {
+          _broadcastConvSection(); // 其他窗口 dismiss 了某对话 · 本窗口同步隐藏
+          log("dismiss-sync: 跨窗口同步 dismiss 状态");
+        }
+      }, 200);
+    });
+    context.subscriptions.push({ dispose: () => {
+      try { fs.unwatchFile(DISMISS_FILE); } catch {}
+      clearTimeout(_dismissWatchDebounce);
+    }});
+
+    log("hub-watcher: 监视+轮询 " + HUB_FILE + " · dismiss-watcher: " + DISMISS_FILE + " (v3.7.6 多窗同步)");
+  } catch (e) {
+    log("hub-watcher init err: " + (e.message || e));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v3.10.0 · 归一 · 卡住引擎子进程管理 (道生之·德畜之·长之·遂之·养之·复之)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// 架构:
+//   extension.js (本进程·Windsurf VS Code 宿主)
+//     └─ dao_stuck.js (子进程·独立 Node.js · 不阻塞 UI)
+//          └─ 写 ~/.wam/_hub.json → extension.js 读取 → 通知/状态栏
+//
+// 生命周期: activate → 启动引擎 → 崩溃自动重启 (最多3次/5min) → deactivate → 优雅关闭
+//
+// 道法自然: 引擎随插件激活而生, 随插件停用而灭, 无需用户手动管理
+// ═══════════════════════════════════════════════════════════════════════════════
+const { spawn: _spawn } = require("child_process");
+const STUCK_ENGINE_SCRIPT = path.join(__dirname, "dao_stuck.js");
+const STUCK_ENGINE_MAX_RESTARTS = 3; // 5分钟内最多重启次数
+const STUCK_ENGINE_RESTART_WINDOW = 300000; // 5分钟
+let _stuckEngineRestartLog = []; // 重启时间戳记录 (滑动窗口)
+
+function _launchStuckEngine() {
+  // 前置检查: 引擎脚本是否存在
+  if (!fs.existsSync(STUCK_ENGINE_SCRIPT)) {
+    log("stuck-engine: dao_stuck.js 不存在 → 跳过 (" + STUCK_ENGINE_SCRIPT + ")");
+    return;
+  }
+  // 防重复启动
+  if (_stuckEngineProcess && !_stuckEngineProcess.killed) {
+    try { _stuckEngineProcess.kill(); } catch {}
+    _stuckEngineProcess = null;
+  }
+  // 滑动窗口限流: 5分钟内最多重启3次 (防无限重启风暴)
+  const now = Date.now();
+  _stuckEngineRestartLog = _stuckEngineRestartLog.filter(t => now - t < STUCK_ENGINE_RESTART_WINDOW);
+  if (_stuckEngineRestartLog.length >= STUCK_ENGINE_MAX_RESTARTS) {
+    log("stuck-engine: 5min内已重启" + _stuckEngineRestartLog.length + "次 → 暂停自动重启 (防风暴)");
+    return;
+  }
+  _stuckEngineRestartLog.push(now);
+  _stuckEngineLastStart = now;
+  _stuckEngineRestarts++;
+
+  // 启动子进程 (detached=false · 跟随 Windsurf 退出自然清理)
+  // 道法自然: process.execPath 在 Windsurf 环境下是 Electron 二进制 · 不能直接运行 Node 脚本
+  // 寻道: 优先 PATH 上的 node · 备选 Electron fork 模式
+  const args = ["--toast", "false"]; // 通知由 extension.js 接管 · 引擎不弹 toast
+  let _nodeExe = "node"; // 默认 PATH 上的 node
+  try {
+    // 检查 PATH 上 node 是否可用
+    const { execFileSync } = require("child_process");
+    execFileSync("node", ["--version"], { timeout: 3000, windowsHide: true, encoding: "utf8" });
+  } catch {
+    // PATH 上无 node · 回退到 process.execPath (Electron 也能跑 JS)
+    _nodeExe = process.execPath;
+    log("stuck-engine: PATH无node · 回退 " + _nodeExe);
+  }
+  try {
+    const child = _spawn(_nodeExe, [STUCK_ENGINE_SCRIPT, ...args], {
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+      detached: false,
+    });
+    _stuckEngineProcess = child;
+    const pid = child.pid || "?";
+    log("stuck-engine: 启动 pid=" + pid + " restarts=" + _stuckEngineRestarts + " script=" + STUCK_ENGINE_SCRIPT);
+
+    // stdout/stderr → WAM output channel (调试可见)
+    if (child.stdout) {
+      child.stdout.on("data", (data) => {
+        const lines = data.toString().trim().split("\n");
+        for (const line of lines) {
+          if (line) log("stuck-engine[out]: " + line);
+        }
+      });
+    }
+    if (child.stderr) {
+      child.stderr.on("data", (data) => {
+        const lines = data.toString().trim().split("\n");
+        for (const line of lines) {
+          if (line) log("stuck-engine[err]: " + line);
+        }
+      });
+    }
+
+    // 崩溃自动重启 (善闭者无闩钥而不可启也)
+    child.on("exit", (code, signal) => {
+      log("stuck-engine: 退出 code=" + code + " signal=" + signal + " pid=" + pid);
+      _stuckEngineProcess = null;
+      // 非正常退出 → 延迟5秒自动重启
+      if (code !== 0 && code !== null) {
+        log("stuck-engine: 异常退出 → 5s后自动重启");
+        setTimeout(() => _launchStuckEngine(), 5000);
+      }
+    });
+    child.on("error", (err) => {
+      log("stuck-engine: 启动失败 " + (err.message || err));
+      _stuckEngineProcess = null;
+    });
+  } catch (e) {
+    log("stuck-engine: spawn 异常 " + (e.message || e));
+    _stuckEngineProcess = null;
+  }
+}
+
+function _stopStuckEngine() {
+  if (_stuckEngineProcess) {
+    const pid = _stuckEngineProcess.pid || "?";
+    try { _stuckEngineProcess.kill("SIGTERM"); } catch {}
+    _stuckEngineProcess = null;
+    log("stuck-engine: 已停止 pid=" + pid);
+  }
+}
+
+// ═══ 道之解密 · 反者道之动 · .pb AES-256-GCM 解密引擎 ═══
+// 格式确定: [12B nonce] + [ciphertext + 16B tag] · 无 AAD
+// 密钥: 从 LS 二进制自动发现 (滑动窗口试解密) · 发现后缓存
+const _crypto = require("crypto");
+const _KEY_CACHE = path.join(WAM_DIR, "_cascade_key.json");
+let _pbDecryptKey = null; // Buffer|null · 运行时缓存
+function _loadDecryptKey() {
+  if (_pbDecryptKey) return _pbDecryptKey;
+  try {
+    const c = JSON.parse(fs.readFileSync(_KEY_CACHE, "utf8"));
+    if (c.key && c.key.length === 32) { _pbDecryptKey = Buffer.from(c.key, "ascii"); return _pbDecryptKey; }
+  } catch {}
+  return null;
+}
+function _saveDecryptKey(key, source) {
+  try { fs.writeFileSync(_KEY_CACHE, JSON.stringify({ key: key.toString("ascii"), hex: key.toString("hex"), source, discoveredAt: new Date().toISOString() }, null, 2)); } catch {}
+}
+function _decryptPb(ciphertext, key) {
+  const nonce = ciphertext.slice(0, 12);
+  const ctTag = ciphertext.slice(12);
+  const tag = ctTag.slice(ctTag.length - 16);
+  const ct = ctTag.slice(0, ctTag.length - 16);
+  const d = _crypto.createDecipheriv("aes-256-gcm", key, nonce);
+  d.setAuthTag(tag);
+  return Buffer.concat([d.update(ct), d.final()]);
+}
+function _tryDecryptPb(ciphertext, candidateKey) {
+  try {
+    const pt = _decryptPb(ciphertext, candidateKey);
+    if (pt.length > 2 && pt[0] === 0x0a) return pt;
+    const wire = pt[0] & 7, field = pt[0] >>> 3;
+    if (field >= 1 && field <= 20 && (wire === 0 || wire === 2)) return pt;
+    return null;
+  } catch { return null; }
+}
+// 从 .pb 解密提取标题 (搜索用户自然语言文本)
+// 策略: 找含空格的 >20 字符可读字符串 (用户输入特征)
+function _extractPbTitle(pbPath) {
+  const key = _loadDecryptKey();
+  if (!key) return "";
+  try {
+    const ct = fs.readFileSync(pbPath);
+    if (ct.length < 29) return "";
+    const pt = _decryptPb(ct, key);
+    // 搜索范围: 前 64KB (用户消息在 step 子消息中)
+    const limit = Math.min(pt.length, 65536);
+    let start = -1;
+    for (let i = 0; i <= limit; i++) {
+      const c = i < limit ? pt[i] : 0;
+      const ok = c >= 0x20 && c <= 0x7e;
+      if (ok) { if (start < 0) start = i; }
+      else if (start >= 0) {
+        const len = i - start;
+        if (len > 20 && len < 500) {
+          const s = pt.slice(start, i).toString("utf8").trim();
+          if (s.length < 10) { start = -1; continue; }
+          // 用户文本特征: 含空格 · 不是模型名/指标/UUID/路径/AI推理
+          // v4.1 道法自然: 扩展过滤 — 排除模型头·AI推理·引用·JSON·路径·系统提示
+          const spaces = (s.match(/ /g) || []).length;
+          if (spaces >= 2 && !/^[0-9a-f-]{36}$/.test(s) && !s.includes("\\") && !s.includes("`") && !/cached_|^MODEL_|^[Cc]laude[ -]|^[Gg][Pp][Tt][-_ ]|^[Gg]emini |tokens"|^Response |^agent_|^Agent |^b\$|^\$|^The user|^They want |^I need to |^I'll |^I cannot |^Let me |^This (translates|is a request|means)|^Based on |^However[, ]|^The system|^As [A-Z]|^You are (Cascade|an AI)|^The USER|^I should |^Then |^@\[|^\{|^",|^[()"<]|^- |^_\w|MatchPerLine/.test(s)) {
+            return s.substring(0, 80);
+          }
+        }
+        start = -1;
+      }
+    }
+  } catch {}
+  return "";
+}
+// ══════════════════════════════════════════════════════════════════════════
+// v3.8.2 · PB→MD 彻底贯通 · 道法自然 · 无为而无不为
+// 原理: AES-256-GCM 解密 → raw protobuf 字段扫描 → 提取用户消息 → 输出 MD
+// 实证: f19@depth1 = 用户输入 · f20@depth2 = 模型统计 · f5@depth0 = UUID
+// ══════════════════════════════════════════════════════════════════════════
+function _protoReadVarint(buf, pos) {
+  let v = 0, s = 0;
+  while (pos < buf.length) {
+    const b = buf[pos++];
+    v += (b & 0x7f) * Math.pow(2, s);
+    if (!(b & 0x80)) break;
+    s += 7;
+    if (s > 49) break;
+  }
+  return { v: Math.floor(v), pos };
+}
+// v3.9.1 · 单层 protobuf 零拷贝扫描 (O(1) 额外内存 · 无 buf.slice)
+// 返回 {fn, len, off} 引用数组 · off 为字段数据在 buf 中的绝对偏移
+// 调用方按需 buf.slice(f.off, f.off+f.len) 取数据 (惰性求值)
+function _protoScanFlat(buf, base, end) {
+  const res = []; let pos = base;
+  while (pos < end - 1) {
+    const ts = pos;
+    try {
+      const t = _protoReadVarint(buf, pos); if (t.v === 0) { pos++; continue; } pos = t.pos;
+      const wt = t.v & 7, fn = t.v >>> 3;
+      if (wt === 0) { const r = _protoReadVarint(buf, pos); pos = r.pos; }
+      else if (wt === 1) { pos += 8; }
+      else if (wt === 2) {
+        const lr = _protoReadVarint(buf, pos); pos = lr.pos; const len = lr.v;
+        if (len < 0 || pos + len > end) { pos = ts + 1; continue; }
+        if (len >= 4) res.push({ fn, len, off: pos });
+        pos += len;
+      } else if (wt === 5) { pos += 4; } else { pos = ts + 1; }
+    } catch { pos = ts + 1; }
+  }
+  return res;
+}
+// 兼容旧接口 · 限制递归深度 + 大小 · 仅用于小缓冲区 (_extractBestStringFromMsg 等)
+function _protoFields(buf, depth, maxDepth) {
+  if (depth > maxDepth || buf.length < 2) return [];
+  const res = []; let pos = 0;
+  while (pos < buf.length - 1) {
+    const ts = pos;
+    try {
+      const t = _protoReadVarint(buf, pos); if (t.v === 0) { pos++; continue; } pos = t.pos;
+      const wt = t.v & 7, fn = t.v >>> 3;
+      if (wt === 0) { const r = _protoReadVarint(buf, pos); pos = r.pos; }
+      else if (wt === 1) { pos += 8; }
+      else if (wt === 2) {
+        const lr = _protoReadVarint(buf, pos); pos = lr.pos; const len = lr.v;
+        if (len < 0 || pos + len > buf.length) { pos = ts + 1; continue; }
+        const data = buf.slice(pos, pos + len); pos += len;
+        if (len >= 4) {
+          res.push({ fn, depth, len, data, byteOffset: pos - len });
+          if (len < 204800) {
+            const nested = _protoFields(data, depth + 1, maxDepth);
+            nested.forEach(n => res.push({ ...n, parentFn: fn }));
+          }
+        }
+      } else if (wt === 5) { pos += 4; } else { pos = ts + 1; }
+    } catch { pos = ts + 1; }
+  }
+  return res;
+}
+// 清洗 proto 字段文本: 保留 ASCII 可见 + CJK + 常用标点 + 换行
+// v3.8.6 · 大道至简 · 12行循环 → 1行正则 · 行为完全等价 · 正则引擎更快
+function _cleanPbText(raw) {
+  return raw.replace(/[^\x20-\x7e\u4e00-\u9fff\u3000-\u30ff\uff00-\uffef\u2000-\u206f\n\t]/g, "").trim();
+}
+// v3.8.7 · 从 proto 子消息中提取最长可读字符串 (仅扫一层深度)
+// 根因: fn=19@depth=1 的 f.data 是 proto 子消息 (含字段标签+长度前缀等二进制噪声)
+//       直接 toString("utf8") → 文本残缺/乱码; 需扫子字段取最长纯文本串
+// 实证: fn=3@depth=2 (最大子字段) = 用户输入的干净文本
+function _extractBestStringFromMsg(buf) {
+  let best = "";
+  let pos = 0;
+  while (pos < buf.length - 1) {
+    const ts = pos;
+    try {
+      const t = _protoReadVarint(buf, pos);
+      if (t.v === 0) { pos++; continue; }
+      pos = t.pos;
+      const wt = t.v & 7;
+      if (wt === 0) { const r = _protoReadVarint(buf, pos); pos = r.pos; }
+      else if (wt === 1) { pos += 8; }
+      else if (wt === 2) {
+        const lr = _protoReadVarint(buf, pos); pos = lr.pos;
+        const len = lr.v;
+        if (len < 0 || pos + len > buf.length) { pos = ts + 1; continue; }
+        const data = buf.slice(pos, pos + len); pos += len;
+        if (len >= 15) {
+          const s = data.toString("utf8");
+          const c = _cleanPbText(s);
+          if (c.length / Math.max(s.length, 1) < 0.35) continue; // 文本密度太低
+          // 排除 URL 编码路径: %XX 占比 > 8% 视为文件路径引用 (如 file:///e%3A/...)
+          const urlEncCount = (c.match(/%[0-9A-Fa-f]{2}/g) || []).length;
+          if ((urlEncCount * 3) / Math.max(c.length, 1) > 0.08) continue;
+          // 得分 = 长度 (URL编码越少得分越高)
+          if (c.length > best.length) best = c;
+        }
+      } else if (wt === 5) { pos += 4; }
+      else { pos = ts + 1; }
+    } catch { pos = ts + 1; }
+  }
+  return best.trim();
+}
+// v3.8.7 · 从 AI 轨迹字段 (fn=72@depth=1) 提取 PLANNER_RESPONSE 文本
+// 实证: Windsurf 对话 PB 中 AI 文本输出被标记为 CORTEX_STEP_TYPE_PLANNER_RESPONSE
+//       位于 fn=72@depth=1 → fn=4@depth=2 (CONTEXT_SNIPPET_TYPE_RAW_SOURCE) 内
+function _extractAiResponseFromTrajectory(buf) {
+  try {
+    const raw = buf.toString("utf8");
+    // 匹配: PLANNER_RESPONSE):\n[文本] 到下一个 Step N ( 或文件末尾
+    const re = /CORTEX_STEP_TYPE_PLANNER_RESPONSE\)[):\n\r ]{0,6}([\s\S]+?)(?=\nStep \d+\s*\(|\s*$)/g;
+    const parts = [];
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+      const txt = _cleanPbText(m[1]).trim();
+      // 去重: 避免同一段落被多个 context snapshot 重复收录
+      if (txt.length > 30 && !parts.some(p => p.includes(txt.substring(0, 40)))) {
+        parts.push(txt);
+      }
+    }
+    // 取最后一条 = 最新的 AI 响应 (轨迹末尾)
+    return parts.length > 0 ? parts[parts.length - 1] : "";
+  } catch { return ""; }
+}
+// v3.9.1 · 从 fn=20 字段中提取 AI 思考/推理文本 (核心突破)
+function _extractAiThinkingText(buf) {
+  try {
+    const cleaned = buf.toString("utf8").replace(/[^\x20-\x7e\u4e00-\u9fff\u3000-\u30ff\uff00-\uffef\u2000-\u206f\n\t]/g, "");
+    // 清除 base64/二进制噪声:
+    //   ① 行尾长连续无空格串 (≥60字符 · 旧规则)
+    //   ② 行内/行间大段无空格字符块 (≥80字符 · 二进制嵌入)
+    const trimmed = cleaned
+      .replace(/[A-Za-z0-9+/=]{80,}/g, " ") // 中间的 base64 块
+      .replace(/[A-Za-z0-9+/=]{40,}$/gm, "") // 行尾 base64
+      .replace(/\s{3,}/g, "\n")              // 多余空白行压缩
+      .trim();
+    if (trimmed.length < 30 || !/[\s\u4e00-\u9fff]/.test(trimmed)) return "";
+    return trimmed;
+  } catch { return ""; }
+}
+// v3.9.2 · 从 fn=28 字段提取工具调用+执行结果 (run_command / write_file / read_file)
+// fn=28 @ depth=1 内部子字段:
+//   sub.fn=21 → 工具结果文本 (file content / command result)
+//   sub.fn=23 → 命令字符串 (CommandLine)
+//   sub.fn=24 → 命令 stdout/stderr
+//   sub.fn=25 → 更多 stdout
+//   sub.fn=29 → 工作目录 (较短)
+function _extractToolBlock(pt, f) {
+  try {
+    const d2 = _protoScanFlat(pt, f.off, f.off + f.len);
+    let cmdStr = "", outParts = [], resultTxt = "";
+    for (const sub of d2) {
+      if (sub.wt !== 2 || sub.len < 4) continue;
+      // 大于 500KB 的子字段跳过 (整个文件内容 · 避免MD过大)
+      const cap = Math.min(sub.len, 50000);
+      const raw = pt.slice(sub.off, sub.off + cap);
+      const txt = _cleanPbText(raw.toString("utf8"));
+      if (txt.length < 4) continue;
+      if (sub.fn === 23 && txt.length < 1000) { cmdStr = txt; }
+      else if ((sub.fn === 24 || sub.fn === 25) && txt.length > 20) { outParts.push(txt.substring(0, 8000)); }
+      else if (sub.fn === 21 && txt.length > resultTxt.length) { resultTxt = txt.substring(0, 8000); }
+    }
+    const parts = [];
+    if (cmdStr) parts.push("`$ " + cmdStr + "`");
+    for (const o of outParts) parts.push(o);
+    if (resultTxt && outParts.length === 0 && !cmdStr) parts.push(resultTxt);
+    return parts.join("\n").trim();
+  } catch { return ""; }
+}
+// v3.9.2 · 从 fn=13 字段提取代码上下文 (AI 当前查看的代码片段)
+function _extractCodeContext(pt, f) {
+  try {
+    const d2 = _protoScanFlat(pt, f.off, f.off + f.len);
+    let best = "";
+    for (const sub of d2) {
+      if (sub.wt !== 2 || sub.len < 20) continue;
+      const raw = pt.slice(sub.off, sub.off + Math.min(sub.len, 20000));
+      const txt = _cleanPbText(raw.toString("utf8"));
+      if (txt.length > best.length && /[\s\n]/.test(txt)) best = txt.substring(0, 5000);
+    }
+    return best;
+  } catch { return ""; }
+}
+// v3.9.2 · 全量对话提取 (道法自然 · 像官方一样提取一切)
+// 字段映射 (实证于真实 Windsurf 对话 PB):
+//   fn=19 → 用户消息        fn=20 → AI思考+回复
+//   fn=28 → 工具调用+结果   fn=24 → 错误/限速消息
+//   fn=13 → 代码上下文      fn=72 → AI轨迹响应
+function _parsePbConversation(pt) {
+  const d0 = _protoScanFlat(pt, 0, pt.length);
+  const stepFields = d0.filter(x => x.fn === 2 && x.len > 50);
+  const allTurns = [], models = new Set(), seenText = new Set();
+  // 内容指纹去重: 取前100字符作为指纹
+  function addTurn(role, off, text) {
+    if (!text || text.length < 10) return;
+    const fp = text.substring(0, 80).replace(/\s+/g, " ");
+    if (seenText.has(fp)) return;
+    seenText.add(fp);
+    allTurns.push({ role, byteOffset: off, text });
+  }
+  for (const step of stepFields) {
+    const d1 = _protoScanFlat(pt, step.off, step.off + step.len);
+    for (const f of d1) {
+      // ① 用户消息
+      if (f.fn === 19 && f.len >= 10) {
+        try {
+          const t = _extractBestStringFromMsg(pt.slice(f.off, f.off + f.len));
+          const m = t.replace(/继续[\s↵]*|^@\[.*?\]\s*/g, "").trim();
+          if (t.length >= 5 && m.length >= 5) addTurn("user", f.off, t);
+        } catch {}
+      }
+      // ② AI 思考/回复
+      else if (f.fn === 20 && f.len >= 30) {
+        try {
+          const t = _extractAiThinkingText(pt.slice(f.off, f.off + f.len));
+          if (t.length >= 30) addTurn("ai", f.off, t);
+        } catch {}
+      }
+      // ③ 工具调用+执行结果 (命令/文件读写)
+      else if (f.fn === 28 && f.len >= 20) {
+        try {
+          const t = _extractToolBlock(pt, f);
+          if (t.length >= 20) addTurn("tool", f.off, t);
+        } catch {}
+      }
+      // ④ 错误/限速消息
+      else if (f.fn === 24 && f.len >= 20) {
+        try {
+          const t = _cleanPbText(pt.slice(f.off, f.off + Math.min(f.len, 2000)).toString("utf8"));
+          if (t.length >= 20) addTurn("error", f.off, t);
+        } catch {}
+      }
+      // ⑤ 代码上下文 (限大小避免 MD 爆炸)
+      else if (f.fn === 13 && f.len >= 50 && f.len < 100000) {
+        try {
+          const t = _extractCodeContext(pt, f);
+          if (t.length >= 50) addTurn("context", f.off, t);
+        } catch {}
+      }
+      // ⑥ AI 轨迹响应
+      else if (f.fn === 72 && f.len >= 100) {
+        try {
+          const t = _extractAiResponseFromTrajectory(pt.slice(f.off, f.off + f.len));
+          if (t.length > 20) addTurn("ai", f.off, t);
+        } catch {}
+      }
+      // ⑦ 模型名称
+      if (f.len > 15 && f.len < 5000) {
+        try {
+          const s = pt.slice(f.off, f.off + f.len).toString("utf8");
+          for (const m of s.matchAll(/Model((?:Claude|Gemini|GPT|DeepSeek|Sonnet|Opus|Haiku|Flash)[\s\S]{2,50}?)(?:\x00|\x08|\x12|\x1a|$)/g)) {
+            const c = _cleanPbText(m[1]).trim();
+            if (c.length > 3 && c.length < 60) models.add(c);
+          }
+        } catch {}
+      }
+    }
+  }
+  allTurns.sort((a, b) => a.byteOffset - b.byteOffset);
+  // 相邻同角色包含去重 (context snapshot 重复)
+  const deduped = [];
+  for (const turn of allTurns) {
+    if (deduped.length > 0) {
+      const prev = deduped[deduped.length - 1];
+      if (prev.role === turn.role) {
+        const short = turn.text.length < prev.text.length ? turn.text : prev.text;
+        const long  = turn.text.length < prev.text.length ? prev.text : turn.text;
+        if (short.length > 10 && long.includes(short.substring(0, Math.floor(short.length * 0.7)))) {
+          deduped[deduped.length - 1] = { ...prev, text: long }; continue;
+        }
+      }
+    }
+    deduped.push(turn);
+  }
+  const userMsgs = deduped.filter(x => x.role === "user");
+  return { userMsgs, turns: deduped, models: [...models], steps: stepFields.length };
+}
+// PB 文件 → MD 内容字符串 (meta 含 title/backedUpAt)
+function _pbToMdContent(pbPath, meta) {
+  const key = _loadDecryptKey();
+  if (!key) return null;
+  try {
+    const ct = fs.readFileSync(pbPath);
+    if (ct.length < 29) return null;
+    const pt = _decryptPb(ct, key);
+    const conv = _parsePbConversation(pt);
+    const uuid = path.basename(pbPath, ".pb");
+    // v3.8.6 · 大道至简 · 三级兜底:
+    //   ① meta.title (调用方已提供)  → 英文/备份索引标题直接用
+    //   ② conv.userMsgs[0] 首条消息截取 → 中/英文对话均适用 (消除 _extractPbTitle ASCII-only 盲区)
+    //   ③ uuid 前8位 (兜底)           → 无消息的空对话
+    // 同时消除原 _extractPbTitle(pbPath) 调用带来的双重 readFileSync + 双重 decryptPb
+    const _rawTitle = (meta && meta.title) || "";
+    const title = _rawTitle
+      || (conv.userMsgs[0] ? conv.userMsgs[0].text.replace(/[\n\r]+/g, " ").trim().substring(0, 60) : "")
+      || uuid.substring(0, 8);
+    const sizeKB = Math.round(ct.length / 1024);
+    const ts = (meta && meta.backedUpAt) || new Date().toISOString();
+    // v3.8.7: 使用 turns[] (user/ai 交织) 代替仅 userMsgs[]
+    const turns = (conv.turns && conv.turns.length > 0)
+      ? conv.turns
+      : conv.userMsgs.map(m => ({ ...m, role: "user" }));
+    const aiCount = turns.filter(x => x.role === "ai").length;
+    const totalTextKB = Math.round(turns.reduce((s, t) => s + t.text.length, 0) / 1024);
+    let md = "# " + title.replace(/[#[\]]/g, "") + "\n\n";
+    md += "> **UUID**: `" + uuid + "`  \n";
+    md += "> **大小**: " + sizeKB + " KB  \n";
+    md += "> **时间**: " + ts.substring(0, 19).replace("T", " ") + "  \n";
+    if (conv.models.length > 0) md += "> **模型**: " + conv.models.join(" · ") + "  \n";
+    md += "> **步骤**: " + conv.steps + " 轮  \n";
+    md += "> **用户消息**: " + conv.userMsgs.length + " 条";
+    if (aiCount > 0) md += "　**AI响应**: " + aiCount + " 条";
+    md += "　**内容**: " + totalTextKB + " KB  \n";
+    md += "\n---\n\n";
+    if (turns.length === 0) {
+      md += "_（未提取到对话内容 — 密钥不匹配或格式变更）_\n";
+    } else {
+      let uIdx = 0, aIdx = 0, tIdx = 0, eIdx = 0, cIdx = 0;
+      turns.forEach((turn, i) => {
+        const role = turn.role || "ai";
+        if (role === "user") {
+          uIdx++; md += "## \u{1F464} 用户 " + uIdx + "\n\n";
+        } else if (role === "ai") {
+          aIdx++; md += "## \u{1F916} AI " + aIdx + "\n\n";
+        } else if (role === "tool") {
+          tIdx++; md += "## \u{1F527} 操作 " + tIdx + "\n\n";
+        } else if (role === "error") {
+          eIdx++; md += "## \u26A0\uFE0F 错误 " + eIdx + "\n\n";
+        } else {
+          cIdx++; md += "## \u{1F4C4} 上下文 " + cIdx + "\n\n";
+        }
+        md += turn.text.trim() + "\n\n";
+        if (i < turns.length - 1) md += "---\n\n";
+      });
+    }
+    return md;
+  } catch (e) {
+    log("pb-to-md err " + path.basename(pbPath) + ": " + (e.message || e));
+    return null;
+  }
+}
+// 将 PB 文件导出为 MD 文件 (pbPath → mdPath · 返回是否成功)
+function _writePbMd(pbPath, mdPath, meta) {
+  try {
+    const content = _pbToMdContent(pbPath, meta);
+    if (!content) return false;
+    fs.writeFileSync(mdPath, content, "utf8");
+    return true;
+  } catch { return false; }
+}
+// v4.2 道法自然 · 软编码适应一切 · 跨平台 LS 二进制自动发现
+// 策略: vscode.env.appRoot 自我定位(最可靠) → 平台候选路径探测 → 全盘扫描
+function _resolveLanguageServerBin() {
+  const plat = process.platform; // win32 | darwin | linux
+  const arch = process.arch;     // x64 | arm64
+  const platName = { win32: "windows", darwin: "darwin", linux: "linux" }[plat] || plat;
+  const archName = { x64: "x64", arm64: "arm64", ia32: "x64" }[arch] || arch;
+  const ext = plat === "win32" ? ".exe" : "";
+  const binName = `language_server_${platName}_${archName}${ext}`;
+  const relBin = path.join("extensions", "windsurf", "bin", binName);
+  const candidates = [];
+  // ① 自我定位 · vscode.env.appRoot (运行时推导 · 最可靠 · 道法自然)
+  try { const ar = vscode.env.appRoot; if (ar) candidates.push(path.join(ar, relBin)); } catch {}
+  // ② 平台候选路径
+  const home = os.homedir();
+  if (plat === "win32") {
+    // 扫描所有磁盘根 (不再硬编码 E:/C:)
+    for (let c = 67; c <= 90; c++) { // C-Z
+      const d = String.fromCharCode(c) + ":";
+      try { if (fs.statSync(d + path.sep).isDirectory()) candidates.push(path.join(d, "Windsurf", "resources", "app", relBin)); } catch {}
+    }
+    candidates.push(path.join(home, "AppData", "Local", "Programs", "Windsurf", "resources", "app", relBin));
+    candidates.push(path.join(home, "AppData", "Local", "Windsurf", "resources", "app", relBin));
+  } else if (plat === "darwin") {
+    candidates.push(path.join("/Applications", "Windsurf.app", "Contents", "Resources", "app", relBin));
+    candidates.push(path.join(home, "Applications", "Windsurf.app", "Contents", "Resources", "app", relBin));
+  } else {
+    candidates.push(path.join("/usr", "share", "windsurf", "resources", "app", relBin));
+    candidates.push(path.join("/opt", "windsurf", "resources", "app", relBin));
+    candidates.push(path.join(home, ".local", "share", "windsurf", "resources", "app", relBin));
+  }
+  for (const c of candidates) { try { if (fs.statSync(c).isFile()) return c; } catch {} }
+  return null;
+}
+// v3.8.7 · 补全所有批次中缺失的 MD (密钥已就绪时调用 · 异步)
+function _retroactiveMdGeneration() {
+  setTimeout(() => {
+    try {
+      const bkRoot = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+      if (!fs.existsSync(bkRoot)) return;
+      let gen = 0, skip = 0, fail = 0;
+      const batches = fs.readdirSync(bkRoot).filter(d => d.startsWith("backup_")).sort();
+      for (const batch of batches) {
+        const batchDir = path.join(bkRoot, batch);
+        try {
+          const pbFiles = fs.readdirSync(batchDir).filter(f => f.endsWith(".pb"));
+          for (const pb of pbFiles) {
+            const pbPath = path.join(batchDir, pb);
+            const mdPath = pbPath.replace(/\.pb$/, ".md");
+            // v3.9.1: 旧版 MD 质量低 (fn=20 遗漏) → 强制重生成
+            // 判定: MD 大小 < PB 大小的 2% = 旧版解析器生成 · 需重建
+            if (fs.existsSync(mdPath)) {
+              try {
+                const pbSz = fs.statSync(pbPath).size;
+                const mdSz = fs.statSync(mdPath).size;
+                if (pbSz > 10000 && mdSz / pbSz < 0.02) {
+                  // 旧版 MD 质量不达标 · 重生成
+                } else { skip++; continue; }
+              } catch { skip++; continue; }
+            }
+            try { if (_writePbMd(pbPath, mdPath, {})) gen++; else fail++; } catch { fail++; }
+          }
+        } catch {}
+      }
+      if (gen > 0 || fail > 0) {
+        log("retroactive-md: ✓补 " + gen + " 个 · 已有 " + skip + " · 失败 " + fail + " (共 " + (gen + skip + fail) + ")");
+      }
+    } catch (e2) { log("retroactive-md err: " + (e2.message || e2)); }
+  }, 3000); // 3s 延迟 · 让备份系统先完成初始化
+}
+// 启动时自动发现密钥 (异步 · 不阻塞)
+function _initDecryptKey() {
+  if (_loadDecryptKey()) {
+    log("decrypt-key: 缓存命中");
+    _retroactiveMdGeneration(); // v3.8.7: 缓存命中时也补全历史MD
+    return;
+  }
+  // 异步扫描 LS 二进制
+  setTimeout(() => {
+    try {
+      // 找样本 (v4.2: HOME → os.homedir() · 修复 ReferenceError)
+      const home = os.homedir();
+      let sample = null;
+      const memPb = path.join(home, ".codeium", "windsurf", "memories", ".pb");
+      if (fs.existsSync(memPb)) { const b = fs.readFileSync(memPb); if (b.length >= 29) sample = b; }
+      if (!sample && fs.existsSync(PB_DIR)) {
+        const files = fs.readdirSync(PB_DIR).filter(f => f.endsWith(".pb"));
+        for (const f of files) {
+          const fp = path.join(PB_DIR, f);
+          try { const b = fs.readFileSync(fp); if (b.length >= 29) { sample = b; break; } } catch {}
+        }
+      }
+      if (!sample) { log("decrypt-key: 无 .pb 样本"); return; }
+      // v4.2: 软编码 LS 二进制发现 (跨平台自适应 · 不再硬编码盘符/路径)
+      const lsBin = _resolveLanguageServerBin();
+      if (!lsBin) { log("decrypt-key: LS 二进制未找到 (" + process.platform + "/" + process.arch + ")"); return; }
+      log("decrypt-key: 扫描 " + lsBin + "...");
+      const fileSize = fs.statSync(lsBin).size;
+      const CHUNK = 32 * 1024 * 1024;
+      const fd = fs.openSync(lsBin, "r");
+      let found = null;
+      for (let off = 0; off < fileSize && !found; off += CHUNK - 64) {
+        const sz = Math.min(CHUNK, fileSize - off);
+        const buf = Buffer.alloc(sz);
+        fs.readSync(fd, buf, 0, sz, off);
+        let runStart = -1;
+        for (let i = 0; i <= buf.length && !found; i++) {
+          const ok = i < buf.length && buf[i] >= 0x21 && buf[i] <= 0x7e;
+          if (ok) { if (runStart < 0) runStart = i; }
+          else if (runStart >= 0) {
+            if (i - runStart >= 32) {
+              for (let j = runStart; j <= i - 32 && !found; j++) {
+                let u = false, l = false;
+                for (let k = 0; k < 32; k++) { const c = buf[j+k]; if (c >= 0x41 && c <= 0x5a) u = true; if (c >= 0x61 && c <= 0x7a) l = true; }
+                if (!u || !l) continue;
+                if (_tryDecryptPb(sample, buf.slice(j, j + 32))) {
+                  found = Buffer.from(buf.slice(j, j + 32));
+                }
+              }
+            }
+            runStart = -1;
+          }
+        }
+      }
+      fs.closeSync(fd);
+      if (found) {
+        _pbDecryptKey = found;
+        _saveDecryptKey(found, "binary-scan:" + lsBin);
+        log("decrypt-key: ★ 发现密钥 " + found.toString("ascii").substring(0, 8) + "...");
+        // v3.8.7: 首次发现密钥 → 立即补全历史MD (共享函数)
+        _retroactiveMdGeneration();
+      } else {
+        log("decrypt-key: 未找到有效密钥 · 60s后单次重试");
+        // v3.8.6 · 单次重试 · 覆盖启动期杀软锁文件/LS二进制延迟就绪等竞争条件
+        setTimeout(_initDecryptKey, 60000);
+      }
+    } catch (e) { log("decrypt-key err: " + (e.message || e)); }
+  }, 5000); // 5s 后扫描 · 不影响插件启动
+}
+
+// ═══ 对话备份系统 v3.6.0 (自动初始+增量监视+目录迁移 · 无为而无不为) ═══
+//
+// 设计原则:
+//   1. 启动即备: 插件激活时自动全量备份 (每天首次)
+//   2. 新增即存: fs.watch PB_DIR → 新.pb立即增量备份
+//   3. 改目录即迁: 用户选新目录 → 旧备份全量迁移 → 无缝切换
+//   4. 防Windsurf删除: 官方只保留50个·我们永久保存所有历史
+//
+const BACKUP_META_FILE = path.join(WAM_DIR, "_backup_meta.json");
+function _loadBackupMeta() {
+  try { return JSON.parse(fs.readFileSync(BACKUP_META_FILE, "utf8")); }
+  catch { return { lastInitDate: "", knownPbs: new Set() }; }
+}
+function _saveBackupMeta(m) {
+  try {
+    const save = { lastInitDate: m.lastInitDate || "", knownPbs: [...(m.knownPbs||[])] };
+    fs.writeFileSync(BACKUP_META_FILE, JSON.stringify(save, null, 2));
+  } catch {}
+}
+
+// v3.7.3: .pb 健康检测 — 小于 28字节为损常 (断电截断写入特征)
+// AES-256-GCM 最小结构: 12B nonce + 16B tag = 28B。小于此候必为空/捕个起头的损常文件
+function _isValidPb(pbPath) {
+  try { return fs.statSync(pbPath).size >= 28; }
+  catch { return false; }
+}
+
+// v3.7.3: 启动 cascade/ 健康扫描 — 检测断电导致的损常文件 · 发现则警告用户
+function _checkCascadeHealth() {
+  try {
+    if (!fs.existsSync(PB_DIR)) return 0;
+    const pbFiles = fs.readdirSync(PB_DIR).filter(f => f.endsWith(".pb"));
+    const zeroed = pbFiles.filter(f => !_isValidPb(path.join(PB_DIR, f)));
+    if (zeroed.length > 0) {
+      const uuids = zeroed.map(f => f.substring(0, 8));
+      log("⚠️ cascade健康扫描: " + zeroed.length + " 个损常文件 " + uuids.join(", "));
+      _notify("warn",
+        "⚠️ 检测到 " + zeroed.length + " 个对话文件损常 (可能因断电导致)\n" +
+        "包含 UUID: " + uuids.join(", ") + "\n" +
+        "可运行: python dao_powerout_repair.py restore 进行修复\n" +
+        "或从对话追踪面板备份中恢复"
+      );
+      return zeroed.length;
+    }
+    log("cascade健康扫描: " + pbFiles.length + " 个文件全部正常");
+    return 0;
+  } catch (e) {
+    log("cascade健康扫描失败: " + (e.message || e));
+    return 0;
+  }
+}
+
+// 全量备份 (targetDir可选) → 返回 {ok, dir, copied, failed}
+function _backupConversations(targetDir) {
+  const dir = targetDir || _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+  ensureDir(dir);
+  let copied = 0, failed = 0;
+  try {
+    if (!fs.existsSync(PB_DIR)) {
+      return { ok: false, error: "Cascade 目录不存在", copied: 0, failed: 0 };
+    }
+    const files = fs.readdirSync(PB_DIR).filter(f => f.endsWith(".pb"));
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").substring(0, 19);
+    const batchDir = path.join(dir, "backup_" + ts);
+    ensureDir(batchDir);
+    // Fix3: 构建 UUID→标题映射 (hub.streamingList + stuckList 匹配)
+    const _titleMap = {};
+    if (_hubData) {
+      const _allItems = [...(_hubData.streamingList || []), ...(_hubData.stuckList || [])];
+      for (const item of _allItems) {
+        if (item.shortId) {
+          // shortId是 UUID 前8位，写入 prefix map
+          _titleMap['_pfx_' + item.shortId] = item.title || '';
+        }
+        if (item.uuid) _titleMap[item.uuid] = item.title || '';
+      }
+    }
+    const _index = {};
+    for (const f of files) {
+      try {
+        const srcPb = path.join(PB_DIR, f);
+        // v3.7.3: 跳过损常文件 — 不把断电祝事存入备份库
+        if (!_isValidPb(srcPb)) { failed++; log("conv-backup: skip " + f + " (损常/过小)"); continue; }
+        fs.copyFileSync(srcPb, path.join(batchDir, f));
+        copied++;
+        // Fix3: 写入 _index.json 条目
+        const uuid = f.replace('.pb', '');
+        const short = uuid.substring(0, 8);
+        const title = _titleMap[uuid] || _titleMap['_pfx_' + short] || _extractPbTitle(path.join(PB_DIR, f)) || '';
+        const backedUpAt = new Date().toISOString();
+        _index[uuid] = { title, sizeBytes: (()=>{ try{return fs.statSync(path.join(PB_DIR, f)).size;}catch{return 0;}})(), backedUpAt };
+        // v3.8.2: 同步导出 MD (无为而无不为 · 备份同时即导出可读文档)
+        if (_loadDecryptKey()) {
+          try {
+            const mdPath = path.join(batchDir, uuid + ".md");
+            _writePbMd(srcPb, mdPath, { title, backedUpAt });
+          } catch {}
+        }
+      } catch { failed++; }
+    }
+    try {
+      fs.writeFileSync(path.join(batchDir, "_index.json"), JSON.stringify(_index, null, 2));
+      fs.writeFileSync(path.join(batchDir, "_meta.json"), JSON.stringify({
+        timestamp: new Date().toISOString(), version: VERSION,
+        totalFiles: files.length, copied, failed,
+        hubSnapshot: _hubData || null, source: PB_DIR,
+        // Fix2: @conversation突破提示
+        restoreNote: "要使用备份对话: cp {uuid}.pb " + PB_DIR + " 即可被 @conversation 引用",
+      }, null, 2));
+    } catch {}
+    log("conv-backup: " + copied + " 文件 → " + batchDir + " (失败 " + failed + ")");
+    return { ok: true, dir: batchDir, copied, failed };
+  } catch (e) {
+    log("conv-backup err: " + (e.message || e));
+    return { ok: false, error: e.message || String(e), copied, failed };
+  }
+}
+
+// 启动时自动初始全量备份 (每天一次)
+function _initAutoBackup(context) {
+  const today = new Date().toISOString().substring(0, 10);
+  const meta = _loadBackupMeta();
+  // v3.7.3: 启动即扫描 cascade/ 健康状态 (断电损常检测) · 2s 后执行 · 静默扫描不打扰
+  setTimeout(() => _checkCascadeHealth(), 2000);
+  if (meta.lastInitDate === today) {
+    _autoBackupDone = true; // 今日已有备份 → 直接标记完成 (防"待备份"误显)
+  } else if (!_autoBackupDone) {
+    _autoBackupDone = true;
+    setTimeout(() => {
+      const bkDir = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+      const r = _backupConversations(bkDir);
+      if (r.ok) {
+        _lastBackupDate = today;
+        // 初始化 knownPbs 集合
+        const pbFiles = fs.existsSync(PB_DIR)
+          ? fs.readdirSync(PB_DIR).filter(f => f.endsWith(".pb"))
+          : [];
+        meta.lastInitDate = today;
+        meta.knownPbs = new Set(pbFiles);
+        _saveBackupMeta(meta);
+        log("auto-backup: 今日初始全量 " + r.copied + " 个 → " + r.dir);
+        _notify("info", "对话自动备份完成: " + r.copied + " 个对话已安全备份");
+        _broadcastUI();
+      }
+    }, Math.max(1000, +_cfg('autoBackupStartDelayMs', 8000) || 8000)); // v3.7.1 软编码·默8s·可经 wam.autoBackupStartDelayMs 覆盖
+  }
+  _installIncrementalWatcher(context);
+}
+
+// 标题户截: 超过n字加… (UI显示用)
+function _truncTitle(t, n) { return t && t.length > n ? t.substring(0, n - 1) + '\u2026' : (t || '?'); }
+
+// 增量监视: 新.pb文件出现时自动备份 (防Windsurf扩展50个对话被官方删除)
+function _installIncrementalWatcher(context) {
+  if (!fs.existsSync(PB_DIR)) return;
+  try {
+    const watcher = fs.watch(PB_DIR, { persistent: false }, (event, fname) => {
+      if (!fname || !fname.endsWith(".pb")) return;
+      clearTimeout(_incrementalDebounce);
+      const _debMs = Math.max(500, +_cfg('incrementalBackupDebounceMs', 3000) || 3000); // v3.7.1 软编码
+      _incrementalDebounce = setTimeout(() => _doIncrementalBackup(fname), _debMs);
+    });
+    _convPbWatcher = watcher;
+    context.subscriptions.push({ dispose: () => {
+      try { if (_convPbWatcher) { _convPbWatcher.close(); _convPbWatcher = null; } } catch {}
+    }});
+    log("auto-backup: 增量监视器已安装 " + PB_DIR);
+  } catch (e) {
+    log("auto-backup watcher err: " + (e.message || e));
+  }
+}
+
+// 增量备份单个新增/变大的.pb文件
+function _doIncrementalBackup(fname) {
+  try {
+    const src = path.join(PB_DIR, fname);
+    if (!fs.existsSync(src)) return;
+    // v3.7.3: 跳过损常文件 — 断电损常的 .pb 不备份入库
+    if (!_isValidPb(src)) { log("auto-backup: skip " + fname + " (损常/过小)"); return; }
+    const bkRoot = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+    if (!fs.existsSync(bkRoot)) return;
+    // 找最新备份目录
+    const dirs = fs.readdirSync(bkRoot)
+      .filter(d => d.startsWith("backup_")).sort().reverse();
+    if (dirs.length === 0) return;
+    const targetDir = path.join(bkRoot, dirs[0]);
+    const dst = path.join(targetDir, fname);
+    const srcSz = fs.statSync(src).size;
+    const needBk = !fs.existsSync(dst) || fs.statSync(dst).size < srcSz;
+    if (needBk) {
+      fs.copyFileSync(src, dst);
+      log("auto-backup: +incr " + fname + " (" + Math.round(srcSz / 1024) + "KB)");
+      // v3.8.2: 增量备份同步导出 MD
+      if (_loadDecryptKey()) {
+        try {
+          const uuid = fname.replace(".pb", "");
+          const title = _extractPbTitle(src) || "";
+          const mdPath = path.join(targetDir, uuid + ".md");
+          _writePbMd(src, mdPath, { title, backedUpAt: new Date().toISOString() });
+        } catch {}
+      }
+    }
+  } catch (e) {
+    log("auto-backup incr err: " + (e.message || e));
+  }
+}
+
+// ═══ Agent 开放 API 接口 (v3.6.0 · 善建者不拔·善结者不可解) ═══
+//
+// 写入 ~/.wam/_api.json 供外部 Agent 读取能力清单·直接调用工具
+// Agent 可通过请求文件 (IPC) 触发 WAM 內部操作
+//
+// @conversation 50限制突破方案 (分析):
+//   1. Windsurf 内置 @conversation 读 vscdb metadataCache (上限 ~86 sessions)
+//   2. 我们的备份包含完整 .pb 文件 (AES-256-GCM加密)
+//   3. 恢复方案: 将备份 .pb 复制回 cascade/ 并平叔 vscdb session 元数据
+//   4. Windsurf 检测到 .pb 存在 → @conversation 可引用 (vscdb 窗口内的)
+//   5. 卷动窗口内的旧会话: vscdb 窗口 = ~86 → 我们可注入先寻找过的会话
+//   6. 临时需要时开启 / 不用时移出 → 动态管理 50个槽位
+const AGENT_API_FILE = path.join(WAM_DIR, "_api.json");
+function _writeAgentApi() {
+  try {
+    const bkRoot = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+    let backupCount = 0;
+    try {
+      if (fs.existsSync(bkRoot)) {
+        backupCount = fs.readdirSync(bkRoot).filter(d => d.startsWith("backup_")).length;
+      }
+    } catch {}
+    const api = {
+      version: VERSION,
+      pid: process.pid,
+      ts: Date.now(),
+      capabilities: [
+        { name: "backup.list",       desc: "列出所有备份目录",                     cmd: "wam.listBackups" },
+        { name: "backup.full",       desc: "触发全量备份",                     cmd: "wam.backupConversations" },
+        { name: "backup.restore",    desc: "将备份.pb恢复到cascade/ (vscdb注入)", cmd: "wam.restoreConversation" },
+        { name: "conv.stuck",        desc: "查询当前卡住对话",                cmd: "via _hub.json" },
+        { name: "conv.active",       desc: "查询活跃对话列表",                cmd: "via _hub.json" },
+        { name: "account.switch",    desc: "切换当前账号",                     cmd: "wam.switchAccount" },
+        { name: "account.verify",    desc: "验证账号额度",                     cmd: "wam.verifyAll" },
+      ],
+      ipc: {
+        hubFile: path.join(WAM_DIR, "_hub.json"),
+        reqFile: path.join(WAM_DIR, "_api_req.json"),
+        resFile: path.join(WAM_DIR, "_api_res.json"),
+      },
+      backup: {
+        dir: bkRoot,
+        count: backupCount,
+        pbDir: PB_DIR,
+        // @conversation 突破: 备份 .pb 可通过恢复函数重新进入 Windsurf @引用库
+        note: "备份.pb + vscdb注入 = 突破官方50对话限制·历史对话可被@引用",
+      },
+    };
+    fs.writeFileSync(AGENT_API_FILE, JSON.stringify(api, null, 2));
+  } catch {}
+}
+
+// ═══ 对话追踪前端 HTML 片段 (buildHtml 内嵌) ═══
+// 读 Hub 数据 + 本地 .pb 目录 → 生成对话追踪区域 HTML
+function _getConvTrackingHtml() {
+  const hub = _hubData;
+  const backupDir = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+  // ── 无 Hub 数据时 · 显示简要状态 ──
+  if (!hub || !hub.ts) {
+    return `<div class="conv-section">
+<div class="conv-header" onclick="toggleConv()"><span>&#128172; 对话追踪</span><span id="convArrow">&#9660;</span></div>
+<div class="conv-body" id="convBody">
+<div class="conv-empty">对话追踪引擎未运行 · 自动备份仍在运行</div>
+<div class="conv-actions">
+<button onclick="doSetBackupDir()" class="conv-btn" title="配置备份目录·已有备份自动迁移·每日自动全量备份·新对话实时增量同步">&#128193; 备份配置</button>
+${_autoBackupDone ? '<span style="color:#4ec9b0;font-size:9px">&#10003; 已自动备份</span>' : '<span style="color:#888;font-size:9px">启动中待备份(8s)</span>'}
+</div>
+<div class="conv-backup-path" title="${_esc(backupDir)}">备份: ${_esc(backupDir)}</div>
+</div></div>`;
+  }
+
+  // ── 有 Hub 数据 · 完整显示 ──
+  const age = Math.round((Date.now() - hub.ts) / 1000);
+  const isStale = age > 60;
+
+  // v3.8.0「三」统一过滤 + 有效计数从 visibleStuck 直算 (扣其锐·解其纷·眼见为实)
+  //   过滤条件: dismiss 未过期 → 隐藏 · staleSec > 10min → 静默隐藏
+  //   有效计数: 直接从 visibleStuck 按 level 统计 (不再依赖 hub.stuck/hub.error 历史数据)
+  //   根治: hub.error=17 含大量历史 unknown_error → 面板不再虚标
+  const _nowCv = Date.now();
+  let visibleStuck = [];
+  if (hub.stuckList && hub.stuckList.length > 0) {
+    visibleStuck = hub.stuckList.filter(s => {
+      // v3.8.0「一」staleSec > 10min → 静默 · 已无时效性 · 不显示
+      if (s.staleSec > STUCK_STALE_MAX) return false;
+      if (!s.uuid) return true;
+      const dt = _dismissedConvUuids.get(s.uuid);
+      if (!dt) return true;
+      if (_nowCv - dt < CONV_DISMISS_TTL) return false; // 未过期 dismiss · 隐藏
+      _dismissedConvUuids.delete(s.uuid); // 10min 已过期 · 自然清除
+      return true;
+    });
+  }
+  // v3.8.0: 有效计数从 visibleStuck 直接按 level 统计 (DEAD→error, 其余→stuck)
+  let _effectiveStuck = 0;
+  let _effectiveError = 0;
+  for (const s of visibleStuck) {
+    if (s.level === "DEAD") _effectiveError++;
+    else _effectiveStuck++;
+  }
+  // 有效计数驱动 dot 指示灯: 有可见卡住/错误→红灯 · 否则绿灯
+  const dotCls = isStale ? "off" : (_effectiveStuck > 0 || _effectiveError > 0) ? "stuck" : "ok";
+  const dotTitle = isStale ? "引擎数据过期 (" + age + "s)" : "引擎运行中 (pid " + (hub.pid || "?") + ")";
+
+  // v10: 展示全部 streaming 对话 (hub.streamingList 优先、降级用 hub.current)
+  // 标题超过25字户截: 天下之至柔·水善利万物而有静
+  let currentHtml = "";
+  if (hub.streamingList && hub.streamingList.length > 0) {
+    currentHtml = hub.streamingList.map(c => {
+      const shortT = _truncTitle(c.title || c.shortId, 25);
+      const st = c.staleSec > 0 ? (c.staleSec >= 60 ? Math.round(c.staleSec/60) + 'min' : c.staleSec + 's') + '前' : '';
+      return `<div class="cv-current"><span class="cv-streaming">&#9654;</span> <b>${_esc(shortT)}</b>${c.sizeKB ? ' · ' + c.sizeKB + 'KB' : ''}${st ? ' · ' + st : ''}</div>`;
+    }).join('');
+  } else if (hub.current) {
+    const c = hub.current;
+    const phaseTag = c.phase === "streaming" ? '<span class="cv-streaming">&#9654; 流式中</span>'
+      : c.phase === "completed" ? '<span class="cv-completed">&#10003; 已完成</span>'
+      : '<span class="cv-other">' + _esc(c.phase || "?") + '</span>';
+    const shortT = _truncTitle(c.title || c.uuid, 25);
+    currentHtml = `<div class="cv-current">${phaseTag} <b>${_esc(shortT)}</b>${c.sizeKB ? " · " + c.sizeKB + "KB" : ""}${c.staleSec > 0 ? " · " + (c.staleSec >= 60 ? Math.round(c.staleSec / 60) + "min" : c.staleSec + "s") + "前" : ""}</div>`;
+  }
+
+  // v10+v3.7.7: 卡住列表 HTML (已统一过滤 · 用 visibleStuck)
+  let stuckHtml = "";
+  if (visibleStuck.length > 0) {
+    stuckHtml = visibleStuck.map(s => {
+      const levelCls = s.level === "DEAD" ? "cv-dead" : s.level === "CRITICAL" ? "cv-crit" : "cv-warn";
+      const staleStr = s.staleSec >= 60 ? Math.round(s.staleSec / 60) + "min" : s.staleSec + "s";
+      const safeUuid = (s.uuid || "").replace(/'/g, "");
+      // v3.7.6: button 加 data-uuid → dismissConv() 点击即刻本地 .remove() 无需等服务端
+      return `<div class="cv-stuck-item ${levelCls}"><span class="cv-level">${_esc(s.level)}</span> <span class="cv-name">${_esc(s.title || s.shortId || "?")}</span> <span class="cv-stale">${staleStr}</span>${s.sizeKB ? `<span class="cv-size"> · ${s.sizeKB}KB</span>` : ""}<button class="cv-close" data-uuid="${safeUuid}" onclick="dismissConv('${safeUuid}')" title="关闭此提醒 (10min后若仍卡住将恢复)">&#10005;</button></div>`;
+    }).join("");
+  }
+
+  // v10+v3.8.0: 统计摘要 · 有效计数从 visibleStuck 直算 (不再虚标历史数据)
+  const sumHtml = `<div class="cv-summary"><span class="cv-dot ${dotCls}" title="${dotTitle}"></span>`
+    + `<span>活跃<b>${hub.active || 0}</b></span>`
+    + `<span>流式<b>${hub.streaming || 0}</b></span>`
+    + (_effectiveStuck > 0 ? `<span class="cv-stuck-n">卡住<b>${_effectiveStuck}</b></span>` : "")
+    + (_effectiveError > 0 ? `<span class="cv-err-n">错误<b>${_effectiveError}</b></span>` : "")
+    + `</div>`;
+
+  // v3.6.0: 备份目录路径 + 自动备份状态
+  const backupStatus = _autoBackupDone
+    ? '<span style="color:#4ec9b0;font-size:9px">&#10003; 已自动备份</span>'
+    : '<span style="color:#888;font-size:9px">待备份</span>';
+
+  // v3.7.7: badge 用 visibleStuck.length (可见卡住数 · 与列表完全一致)
+  const _badgeCount = visibleStuck.length;
+  return `<div class="conv-section">
+<div class="conv-header" onclick="toggleConv()"><span>&#128172; 对话追踪</span>${_badgeCount > 0 ? '<span class="cv-badge">' + _badgeCount + '</span>' : ""}<span id="convArrow">&#9660;</span></div>
+<div class="conv-body" id="convBody">
+${sumHtml}${currentHtml}${stuckHtml ? '<div class="cv-stuck-list">' + stuckHtml + '</div>' : ""}
+<div class="conv-actions">
+<button onclick="doSetBackupDir()" class="conv-btn" title="选择备份目录·已有备份自动迁移·每日自动备份·新对话实时同步">&#128193; 备份配置</button>
+${backupStatus}
+</div>
+<div class="conv-backup-path" title="${_esc(backupDir)}">备份: ${_esc(backupDir)}</div>
+</div></div>`;
 }
 function atomicWrite(filePath, content) {
   ensureDir(path.dirname(filePath));
@@ -861,6 +2429,7 @@ function _evictSessionCache(email) {
 let _persistDebounceTimer = null;
 function _persistSessionCache() {
   // 防抖 · 高频写入合并 (verifyAll 期间可能并发 100+ _cacheSession)
+  // v3.7.2 · 防抖从 500ms 降至 100ms · 减少断电丢 token 窗口 (性能影响极小)
   if (_persistDebounceTimer) clearTimeout(_persistDebounceTimer);
   _persistDebounceTimer = setTimeout(() => {
     _persistDebounceTimer = null;
@@ -882,7 +2451,7 @@ function _persistSessionCache() {
     } catch (e) {
       log("_persistSessionCache fail: " + (e.message || e));
     }
-  }, 500);
+  }, 100); // v3.7.2: 100ms (原500ms) · 减少断电丢token窗口
 }
 function _loadSessionCacheFromDisk() {
   try {
@@ -1071,6 +2640,19 @@ function hoursUntilWeeklyReset() {
 }
 
 // ── 本源 v17.42.7: 自动切号辅助 ──
+
+// v3.7.0 · 三维度归一: credits 资源池可用性检测 (道: 大盈若盅·其用不窘)
+// promptCredits + flowCredits 余量 >= creditsThreshold → credits可用
+// 与 quota% 独立 — quota耗尽但credits充裕时不触发切号
+function _hasUsableCredits(h) {
+  if (!h) return false;
+  const enable = (typeof _cfg === 'function') ? !!_cfg('creditsInScore', true) : true;
+  if (!enable) return false;
+  const thr = (typeof _cfg === 'function') ? (+_cfg('creditsThreshold', 1000) || 1000) : 1000;
+  const total = (h.promptCredits || 0) + (h.flowCredits || 0);
+  return total >= thr;
+}
+
 function isWeeklyDrought() {
   if (!_store) return false;
   const s = _store.getStats();
@@ -1125,23 +2707,45 @@ function isClaudeAvailable(h) {
   //   新法: 一切返 true · 让登录/API实际失败说话 · 不作茧自缚
   return true;
 }
-// v3.1.3 · 道法自然 · 守门候选判定 · effQuota 对齐 (防切入即耗尽)
+// v3.4.1 · 道法自然 · 唯变所适 · 守门候选判定 · 临期感知 (根治守门与临期冲突)
+//
+// 根因 (v3.1.3~v3.4.0 结构性冲突):
+//   effQ<threshold → _isValidAutoTarget 返 false → 账号被所有自动切号路径拒绝
+//   但: 临期号(daysLeft<7) 即使 effQ 低, 其剩余额度是不可逆资产(过期即废)
+//   结果: 系统永远选高额度永久号 · 临期号被冷落至过期
+//
+// 治法 (唯变所适 · 不执一法):
+//   · effQ < threshold 且 daysLeft < 7 且 effQ > 0: 放行 (临期抢救 · 不用即废)
+//   · effQ < threshold 且 (daysLeft >= 7 或 planEnd=0): 拒绝 (等重置 · 无损)
+//   · effQ = 0: 拒绝 (无论临期否 · 真无法使用)
+//   · overageActive: 放行 (存量资产 · 第三层主权)
 function _isValidAutoTarget(i) {
   if (i < 0 || !_store) return false;
   const acc = _store.accounts[i];
-  if (!acc || !acc.password) return false; // 无密码真无法登录
-  if (acc.skipAutoSwitch) return false; // 用户主动设置的锁 · 尊重意愿
-  // v3.1.3 · 有效额度守门 (与 tick effQuota 一以贯之)
-  //   未验号放行 (checked=false · 给机会验证)
-  //   已验号: effQ < threshold → 拒绝 (切入即刻触发耗尽保护 · 无意义)
+  if (!acc || !acc.password) return false;
+  if (acc.skipAutoSwitch) return false;
   const h = _store.getHealth(acc.email);
-  if (h.checked) {
-    const _drought = isWeeklyDrought();
-    const _effQ = _drought ? h.daily : Math.min(h.daily, h.weekly);
-    const _thr = typeof _cfg === 'function' ? +_cfg('autoSwitchThreshold', 5) || 5 : 5;
-    if (_effQ < _thr) return false; // 有效额度不足 · 非有效候选
-  }
-  return true;
+  if (!h.checked) return true;
+  if (h.overageActive) return true;
+  // v3.7.6 「一」credits 可用放行 — quota=0但credits充裕时仍可使用 (credits 与 quota% 独立)
+  if (_hasUsableCredits(h)) return true;
+  if (h.planEnd > 0 && h.planEnd < Date.now()) return false;
+  const _drought = isWeeklyDrought();
+  // v3.8.4 · 绝对最低门槛 (高于临期感知 · 不论临期与否均拒绝)
+  //   根因: 临期感知会放行 effQ>0 的临期号 · 但 D<5 或 W≤3 的账号实际无法提供有效额度
+  //   治法: 在 effQ/临期 判断之前先过最低门槛 · 软编码可覆盖
+  const _dailyMin  = typeof _cfg === 'function' ? (+_cfg('autoSwitchDailyMin',  5) || 5) : 5;
+  const _weeklyMin = typeof _cfg === 'function' ? (+_cfg('autoSwitchWeeklyMin', 3) || 3) : 3;
+  if (h.daily < _dailyMin) return false;                      // D<5 → 拒绝
+  if (!_drought && h.weekly <= _weeklyMin) return false;      // W≤3 (非干旱) → 拒绝
+  const _effQ = _drought ? h.daily : Math.min(h.daily, h.weekly);
+  const _thr = typeof _cfg === 'function' ? +_cfg('autoSwitchThreshold', 5) || 5 : 5;
+  if (_effQ >= _thr) return true;
+  // v3.4.1 临期感知: daysLeft<7 且 effQ>0 → 放行 (不用即废先消耗)
+  //   注: 临期号已通过上方绝对门槛 (D≥5 且 W>3) · 确保真有可用额度
+  const _expiryFirst = typeof _cfg === 'function' ? !!_cfg('expiryFirst', true) : true;
+  if (_expiryFirst && h.planEnd > 0 && h.daysLeft < 7 && _effQ > 0) return true;
+  return false;
 }
 
 function httpsReq(method, urlStr, headers, body, timeoutMs) {
@@ -1781,8 +3385,41 @@ class Store {
   }
   load() {
     try {
-      if (!fs.existsSync(STATE_FILE)) return false;
-      const j = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+      // v3.7.2 · 断电备份恢复链 · 主文件缺/损时自动降级最近日备份 · 用户无感
+      let j = null;
+      let _loadSrc = "STATE_FILE";
+      if (!fs.existsSync(STATE_FILE)) {
+        log("store.load: STATE_FILE 不存在 · 尝试备份恢复");
+      } else {
+        try {
+          j = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+        } catch (pe) {
+          log("store.load: JSON解析失败 · 断电腐化? · 降级备份 · " + pe.message);
+        }
+      }
+      // v3.7.2 · 备份恢复: 主文件缺/损时遍历日备份 · 取最新可用
+      if (!j) {
+        try {
+          if (fs.existsSync(BACKUP_DIR)) {
+            const _bfs = fs.readdirSync(BACKUP_DIR)
+              .filter(f => f.startsWith("wam-state-") && f.endsWith(".json"))
+              .sort().reverse(); // YYYY-MM-DD 字典序=时间序 · 最新在前
+            for (const _bf of _bfs) {
+              try {
+                const _bj = JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, _bf), "utf8"));
+                if (_bj && _bj.health && Object.keys(_bj.health).length > 0) {
+                  j = _bj; _loadSrc = _bf;
+                  log("store.load: 🔄 断电备份恢复 · " + _bf + " · health=" + Object.keys(_bj.health).length + " 号");
+                  break;
+                }
+              } catch (_be) { /* skip corrupted backup */ }
+            }
+          }
+        } catch (_bd) { log("store.load: backup dir err: " + _bd.message); }
+      }
+      if (!j) return false;
+      if (_loadSrc !== "STATE_FILE")
+        log("store.load: ⚠️ 主文件失效 · 备份恢复成功 · src=" + _loadSrc + " · 建议重新验证全部账号");
       if (j.health) this.health = j.health;
       if (j.blacklist) this.blacklist = j.blacklist;
       if (typeof j.switches === "number") this.switches = j.switches;
@@ -2263,21 +3900,30 @@ class Store {
   //   §解构本源:
   //     · overage  = Stock(存量)  · 真金白银 · 不可再生 · 不用即损沉没
   //     · 百分比   = Flow (流量)  · 周期重置 · 自然回潮 · 等待无损
-  //   §病灶 (v3.2.1 之前): 二者塞同一连续坐标系 · overage 上限 460 < 百分比 W50 = 480~
-  //     → 实际行为反向: 百分比账号被优先消耗 · overage 账号被冷落浪费 · 与用户诉求相悖
   //   §治法 (反者道之动 · 九竅之邪在乎三要 · 可以動靜):
-  //     第三层 💎 overage 池   [1_000_000, 1_099_950]  内排按美元数全幅 · 去 min(100,$) 封顶
-  //     第二层 📊 百分比池      [1, 9_999]              沿用 v3.1.3 effQ 守门 · 上限封顶
-  //     候补层 ⏳ 未验号        100                       与 v3.0 一致 · 不夺主权
-  //     -∞   永禁              无密码 / 用户主动锁
-  //   §门控: wam.preferOverageFirst (默认 true) · false 回退 v3.2.1 统一坐标系兼容旧行为
+  //     第三层 💎 overage 池     [1_000_000, 1_099_950]  内排按美元数 (v3.3.0·不变)
+  //     第二层 📊 百分比池       [1, 999_999]             v3.3.1 · 内含临期主导加成
+  //     候补层 ⏳ 未验号           100                       与 v3.0 一致 · 不夺主权
+  //     -∞   永禁                 无密码 / 用户主动锁 / planEnd已过期(v3.3.1)
+  //   §v3.3.1 临期微调 (最小不侵入·反者道之动·不用即废先消耗):
+  //     · 百分比层末加 expBonus = max(0,(60-daysLeft)) × 2000
+  //     · 1日差 = 2000 分 > quota 最大差 ~1880 → 临期维度主导·额度次排
+  //     · daysLeft≥60 或 planEnd=0(永久): bonus=0 · 回退 v3.3.0 行为
+  //     · 封顶 9_999→999_999 (容纳 max bonus 120_000 · 仍远低于第三层 1_000_000)
+  //   §门控: wam.preferOverageFirst (默认 true) · wam.expiryFirst (默认 true·v3.3.1)
   _scoreOf(idx) {
     const a = this.accounts[idx];
     if (!a || !a.password) return -Infinity; // 无密码真无法登录
     if (a.skipAutoSwitch) return -Infinity; // 用户主动锁 · 尊重意愿
-    // v3.0 · 不再检查 isBanned/isInUse · 全号平等参与
+    // v3.7.0 「二」锁止复元: isInUse 降分 × 0.01 (非 -∞ · 可兜底)
+    const _inUse = this.isInUse(a.email);
+    const _applyInUse = s => _inUse ? Math.max(1, Math.round(s * 0.01)) : s;
     const h = this.getHealth(a.email);
-    if (!h.checked) return 100; // 未验号给中等分 · 可与已验号公平竞争
+    if (!h.checked) return _inUse ? 1 : 100; // 未验号中等分 · 锁中降至1分
+    // v3.7.0 「一」三维度: credits 加成 (独立于 quota%)
+    const _creditsOk = _hasUsableCredits(h);
+    const _creditsInScore = (typeof _cfg === 'function') ? !!_cfg('creditsInScore', true) : true;
+    const creditsBonus = (_creditsOk && _creditsInScore) ? Math.min(500, ((h.promptCredits||0)+(h.flowCredits||0))/100) : 0;
     // isClaudeAvailable 永远 true · 不会 -Infinity
     const hrsToDaily = hoursUntilDailyReset();
     const hrsToWeekly = hoursUntilWeeklyReset();
@@ -2296,7 +3942,7 @@ class Store {
       else if (h.staleMin >= 0 && h.staleMin < 60) s += 20;
       else if (h.staleMin >= 60 && h.staleMin < 360) s -= 10;
       else if (h.staleMin >= 360) s -= 30;
-      return s; // 区间 [999_970, 1_099_950]
+      return _applyInUse(s); // 区间 [999_970, 1_099_950]
     }
     // 旧 overage 逻辑 (preferOverageFirst=false · 兼容回退 · 与 v3.2.1 一致)
     if (h.overageActive) {
@@ -2306,45 +3952,71 @@ class Store {
       else if (h.staleMin >= 60 && h.staleMin < 120) s -= 30;
       else if (h.staleMin >= 120 && h.staleMin < 360) s -= 80;
       else if (h.staleMin >= 360) s -= 150;
-      return s;
+      return _applyInUse(s);
     }
 
-    // ═══ 第二层 · 📊 百分比池 (流量 · 沿用 v3.1.3 effQ 守门) ═══
-    //   v3.3.0 上限 9_999 · 绝不突破第三层 · 各得其所
-    if (drought) {
-      // ── 干旱模式: 只看 Daily ──
-      // v3.0 · D=0 也不 -Infinity · 给最低正分
-      let s = Math.max(h.daily, 0) * 15;
-      if (h.daily <= 5 && hrsToDaily <= 2) s += 300;
-      else if (h.daily <= 5 && hrsToDaily <= 6) s += 120;
-      if (h.daily > 50) s += 200;
-      if (h.staleMin >= 0 && h.staleMin < 5) s += 30;
-      return Math.min(9999, Math.max(s, 1)); // v3.3.0 · 上限 9_999 · 不破第三层
-    }
-    // ── 正常模式: effQuota 对齐评分 (v3.1.3 道法自然 · 一以贯之) ──
-    // 核心: tick 判耗尽用 effQ = Math.min(D, W) · 评分必须与此对齐
-    //   否则 D=0/W=50 得高分入选 → 切入即刻 effQ=0 → 再次耗尽 → 无限循环
+    // ═══ 过期排除 (v3.3.1 · planEnd 已过 → 号失效 → -∞ 不浪费切号) ═══
+    if (h.planEnd > 0 && h.planEnd < Date.now()) return -Infinity;
+    // ═══ 临期主导加成 (v3.3.1 · 反者道之动 · 不用即废先消耗) ═══
+    //   (60 - daysLeft) × 2000 · 1日差=2000 > quota 最大差 ~1880 → 临期主导
+    //   daysLeft≥60 或 planEnd=0(永久/Pro): bonus=0 · 与 v3.3.0 同
+    //   daysLeft=2 (截图红): bonus=116_000 · daysLeft=0(<12h): bonus=120_000
+    const expiryFirst = (typeof _cfg === 'function') ? !!_cfg('expiryFirst', true) : true;
+    const expBonus = (expiryFirst && h.planEnd > 0)
+      ? Math.max(0, (60 - h.daysLeft) * 2000)
+      : 0;
+
+    // ═══ 第二层 · 📊 百分比池 (v3.4.1 · 临期主导 + 额度次排 · 唯变所适) ═══
+    //   v3.4.1 核心变更: effQ<threshold 且 daysLeft<7 且 effQ>0 → 仍加 expBonus
+    //   根因: v3.3.1 对 effQ<threshold 不加 → 临期耗尽号永远不被选中 → 不可逆损失
+    //   道: 「天下莫柔弱于水·而攻坚强者莫之能胜也·以其无以易之也」
     const effQ = Math.min(Math.max(h.daily, 0), Math.max(h.weekly, 0));
     const _threshold = typeof _cfg === 'function' ? +_cfg('autoSwitchThreshold', 5) || 5 : 5;
+    const _isExpiryRescue = expiryFirst && h.planEnd > 0 && h.daysLeft < 7 && effQ > 0;
+
+    // v3.7.6 「一」真耗尽守门 — 双零+无credits+无overage = 彻底无法使用 → -Infinity
+    // 知止所以不殺 · 耗尽即清·不入候选池 · 防 rotateNext 尝试登录 0% 账号
+    const _droughtEffQ = drought ? Math.max(h.daily, 0) : effQ;
+    if (_droughtEffQ === 0 && !_creditsOk && !h.overageActive) return -Infinity;
+    // v3.8.4 · 绝对最低门槛对齐 _isValidAutoTarget: D<dailyMin 或 W≤weeklyMin(非干旱) → -Infinity
+    //   目的: getBestIndex 不选这些号 · 与 _isValidAutoTarget 一以贯之 · 不浪费守门机会
+    if (!_creditsOk && !h.overageActive) {
+      const _dMin = typeof _cfg === 'function' ? (+_cfg('autoSwitchDailyMin',  5) || 5) : 5;
+      const _wMin = typeof _cfg === 'function' ? (+_cfg('autoSwitchWeeklyMin', 3) || 3) : 3;
+      if (h.daily < _dMin) return -Infinity;
+      if (!drought && h.weekly <= _wMin) return -Infinity;
+    }
+
+    if (drought) {
+      let s = Math.max(h.daily, 0) * 15;
+      // v3.7.7: 道法自然 — D≤threshold 的号不给"即将重置"奖励分 (与 _isValidAutoTarget 对齐)
+      //   原 h.daily<=5 bonus 使低配额号高分 → getBestIndex 选中 → _isValidAutoTarget 拒绝 → 浪费
+      //   修: 仅 D > threshold 的号享受近重置加成 · D≤threshold 依然低分 · 一以贯之
+      if (h.daily > _threshold && h.daily <= 20 && hrsToDaily <= 2) s += 150;
+      if (h.daily > 50) s += 200;
+      if (h.staleMin >= 0 && h.staleMin < 5) s += 30;
+      return _applyInUse(Math.min(999999, Math.max(s + expBonus, 1)));
+    }
     if (effQ < _threshold) {
-      // 有效额度低于阈值 · 切入即刻触发耗尽保护 · 大幅降权
-      // 不封号 (Math.max 1) · 但远低于任何可用号 · 仅胜于 -Infinity
-      let s = effQ * 3; // 0-15 分极低区间
-      // 若临近重置 · 给微加分 (等待价值 · 重置后即变可用)
+      let s = effQ * 3;
       if (h.daily < _threshold && hrsToDaily <= 2) s += 20;
       if (!drought && h.weekly < _threshold && hrsToWeekly <= 2) s += 20;
-      return Math.max(s, 1); // 不封号 · 但极低
+      // v3.4.1 临期抢救: daysLeft<7 且 effQ>0 → 仍加 expBonus (不用即废)
+      if (_isExpiryRescue) return _applyInUse(Math.min(999999, Math.max(s + expBonus, 1)));
+      return _applyInUse(Math.max(s, 1));
     }
-    // effQ >= threshold · 真正可用 · 正常综合评分
+    // effQ >= threshold · 正常综合评分 + 临期加成
+    // v3.7.7: 道法自然 — 此block中 effQ>=5, 故 daily/weekly 至少一个 >=5
+    //   原 h.daily<=5 bonus 只在边界 daily=5 时触发 (因 effQ=min(d,w)>=5)
+    //   移除: 边界号不应获得额外奖励 · 配额越高分越高 · 一以贯之
     let s = Math.max(h.weekly, 0) * 8 + Math.max(h.daily, 0) * 3;
-    if (h.daily <= 5 && hrsToDaily <= 2) s += 250;
-    else if (h.daily <= 5 && hrsToDaily <= 6) s += 100;
-    if (h.weekly <= 5 && hrsToWeekly <= 4) s += 350;
     if (h.daily > 50 && h.weekly > 50) s += 200;
     if (h.staleMin >= 0 && h.staleMin < 5) s += 80;
     else if (h.staleMin >= 0 && h.staleMin < 30) s += 40;
     else if (h.staleMin < 0 || h.staleMin > 120) s -= 50;
-    return Math.min(9999, Math.max(s, 1)); // v3.3.0 · 上限 9_999 · 不破第三层
+    let finalS = Math.min(999999, Math.max(s + expBonus + creditsBonus, 1));
+    // v3.7.0 「二」锁止: 锁中号得分×0.01 → 降至最低但保留兜底资格
+    return _inUse ? Math.max(1, Math.round(finalS * 0.01)) : finalS;
   }
   getBestIndex(excludeIdx) {
     let best = -1,
@@ -2407,7 +4079,7 @@ class Store {
       exhausted = 0,
       overageAccounts = 0, // v2.8.4 · Extra Usage Active 账号数
       totalOverageDollars = 0, // v2.8.4 · 全池 Extra Usage 总额 (USD)
-      checkedNoOverage = 0; // v2.8.5 · 已验但未激活 Extra Usage (待激活)
+      checkedNoOverage = 0; // v2.8.5 · 已验但无 Extra Usage (仅展示用 · 不触发激活)
     for (const a of this.accounts) {
       const h = this.getHealth(a.email);
       if (!h.checked) {
@@ -2430,7 +4102,7 @@ class Store {
         overageAccounts++;
         totalOverageDollars += h.overageDollars || 0;
       } else {
-        checkedNoOverage++; // 已验 · 无 Extra Usage · 等待激活或未触发
+        checkedNoOverage++; // v2.8.5 · 已验 · 无 Extra Usage · 仅供展示计数
       }
     }
     const banned = Object.keys(this.blacklist).filter((k) =>
@@ -2457,7 +4129,7 @@ class Store {
       drought: checkedCount > 0 && totalW / checkedCount < 1,
       overageAccounts, // v2.8.4
       totalOverageDollars: Math.round(totalOverageDollars * 100) / 100, // v2.8.4
-      checkedNoOverage, // v2.8.5 · 已验但无Extra Usage · 待激活数量
+      checkedNoOverage, // v2.8.5 · 已验无 Extra Usage 账号数 (仅展示)
     };
   }
   setActive(idx, email, sessionToken, apiKey, apiServerUrl, injectPath) {
@@ -2977,69 +4649,6 @@ function _parsePlanStatusJson(j) {
   };
 }
 
-// ═══ $200 Extra Usage 激活引擎 · 道法自然 · 内化于一 · 太上下知有之 ═══════════
-// 触发: POST /api/{orgId}/schedules → checklist.automations=true
-// 发放: AdjustOverageBalanceInternal → overageBalanceMicros=200_000_000
-// 发现: GetUserStatus → overageActive=true → WAM 高优先选号
-const _pendingAct = new Set();
-
-async function _tryAllTriggers(auth1, orgId) {
-  const H = {
-    Authorization: "Bearer " + auth1,
-    "x-cog-org-id": orgId,
-    "Content-Type": "application/json",
-    "User-Agent": UA,
-    Origin: "https://app.devin.ai",
-    Referer: "https://app.devin.ai/",
-  };
-  const s = JSON.stringify({
-    name: "dao-init",
-    prompt: "echo ok",
-    schedule_type: "recurring",
-    frequency: "0 0 31 2 *",
-    interval_count: 1,
-    agent: "devin",
-    bypass_approval: true,
-    is_enabled: false,
-  });
-  for (const url of [
-    "https://app.devin.ai/api/" + orgId + "/schedules",
-    "https://app.devin.ai/api/v1/organizations/" + orgId + "/schedules",
-    "https://app.devin.ai/api/v3/organizations/" + orgId + "/schedules",
-    "https://app.devin.ai/api/" + orgId + "/automations",
-  ]) {
-    try {
-      const r = await httpsReq("POST", url, H, s, 8000);
-      if (r && (r.status === 200 || r.status === 201 || r.status === 202))
-        return { ok: true, url };
-    } catch {}
-  }
-  return { ok: false };
-}
-
-async function _pollForOverage(apiKey, apiServerUrl, n, ms) {
-  // v2.8.4 · 软编码: n/ms 参数可经 _cfg 覆盖 (autoActivate.pollN / autoActivate.pollMs)
-  // 默认 5×3s=15s 快验: $200 通常24-48h后到账 · 15s 足够检查"是否已有"/"刚触发到账"
-  const pollN =
-    n != null ? n : Math.max(1, _cfg("autoActivate.pollN", 5) | 0) || 5;
-  const pollMs =
-    ms != null
-      ? ms
-      : Math.max(500, _cfg("autoActivate.pollMs", 3000) | 0) || 3000;
-  for (let i = 0; i < pollN; i++) {
-    await new Promise((r) => setTimeout(r, pollMs));
-    try {
-      const q = await tryFetchPlanStatus(apiKey, {
-        apiServerUrl,
-        silent: true,
-      });
-      if (q && q.overageActive)
-        return { ok: true, overage: q.overageDollars, pollN: i + 1, q };
-    } catch {}
-  }
-  return { ok: false, reason: "timeout" };
-}
-
 async function _getOrgId(auth1) {
   try {
     const r = await jsonPost(
@@ -3099,35 +4708,6 @@ async function _tryDevinBillingFallback(auth1) {
     };
   } catch {
     return null;
-  }
-}
-
-async function _activateOverageFull(auth1, apiKey, apiServerUrl, email) {
-  if (!auth1 || !apiKey) return { ok: false };
-  if (_pendingAct.has(email)) return { ok: false, reason: "pending" };
-  _pendingAct.add(email);
-  try {
-    const q0 = await tryFetchPlanStatus(apiKey, { apiServerUrl, silent: true });
-    if (q0 && q0.overageActive)
-      return { ok: true, reason: "already", overage: q0.overageDollars, q: q0 };
-    const orgId = await _getOrgId(auth1);
-    if (!orgId) return { ok: false, reason: "no_orgId" };
-    const trig = await _tryAllTriggers(auth1, orgId);
-    log(
-      "activate [" +
-        email.split("@")[0].substring(0, 16) +
-        "] trigger:" +
-        (trig.ok ? "✓ " + trig.url : "✗"),
-    );
-    // v2.8.5 · 软编码: 不再硬传 20,3000 · 让 _cfg 软编码生效 (默认 5×3s)
-    const poll = await _pollForOverage(apiKey, apiServerUrl);
-    if (poll.ok) log("activate ✓ $" + poll.overage + " poll#" + poll.pollN);
-    else log("activate triggered:" + trig.ok + " $200 处理中(24-48h后到账)");
-    return { triggered: trig.ok, ...poll };
-  } catch (e) {
-    return { ok: false, reason: e.message };
-  } finally {
-    _pendingAct.delete(email);
   }
 }
 
@@ -3198,18 +4778,6 @@ async function verifyOneAccount(account) {
         error: "GetUserStatus 400 + billing fallback null",
       };
     }
-  }
-  // 内化激活: 若无 Extra Usage → 后台全链路激活 (5路触发+轮询) · 对用户透明
-  // v2.8.4 · 软编码门控: wam.autoActivate=false 可全局关闭 (默认开)
-  if (!q.overageActive && !q._source && _cfg("autoActivate", true)) {
-    _activateOverageFull(dl.auth1, apiKey, apiServerUrl, account.email)
-      .then((ar) => {
-        if (ar.ok && ar.q) {
-          _store.setHealth(account.email, ar.q);
-          _broadcastUI();
-        }
-      })
-      .catch(() => {});
   }
   // v3.0.3 · 🚀 验证阶段缓存 sessionToken · 下次切号可跳 devinLogin (道法自然·预赋)
   _cacheSession(account.email, pa.sessionToken, apiKey, apiServerUrl);
@@ -3687,6 +5255,9 @@ async function loginAccount(store, idx) {
     }
   }
   // planStatus 异步获取 (非关键路径 · 不阻塞切号)
+  // v3.10.1: 切入新号后立即拿真实额度 · 若发现 D=0/W=0 → 2s 后重触 _tick 紧急救场
+  //   根治: 旧逻辑仅依赖 10s scan interval → 切入零额度号后最多卡 10s "Trial - Quota Exhausted"
+  //   新逻辑: 切号成功后 2s 内验证额度 · D/W=0 即重触 · 用户无感
   if (_regApiKey) {
     tryFetchPlanStatus(_regApiKey, { apiServerUrl: _regApiServerUrl })
       .then((q) => {
@@ -3704,6 +5275,21 @@ async function loginAccount(store, idx) {
               "d",
           );
           _broadcastUI();
+          // v3.10.1 · 零额度紧急重触: 切入新号发现 D=0/W=0 且无credits → N ms后重触_tick换号
+          //   软编码: wam.zeroQuotaRetickMs (默 2000ms · 0=禁用)
+          const _dr = isWeeklyDrought();
+          const _isD0 = !_hasUsableCredits(q) && (_dr ? (q.daily <= 0) : (q.daily <= 0 || q.weekly <= 0));
+          if (_isD0) {
+            const _retickMs = Math.max(0, +_cfg('zeroQuotaRetickMs', 2000) || 0);
+            if (_retickMs > 0) {
+              log("  ⚠️ planStatus: 切入号额度归零(D=" + q.daily + "% W=" + q.weekly + "%) · " + _retickMs + "ms后重触_tick紧急换号");
+              setTimeout(() => {
+                if (_engine && !_switching && !_engine.rotating) {
+                  _engine._tick().catch((e) => log("retick: " + (e.message || e)));
+                }
+              }, _retickMs);
+            }
+          }
         }
       })
       .catch(() => {});
@@ -4075,18 +5661,15 @@ function _maybeTrigger(reason, hint) {
 //   · 普适: 所有 Windsurf 窗口共享 cascade 目录 · 任一窗口新对话均触发
 //   旧 v2.5.8: 双信号(pb·size + WAL) · 过触发 · v2.5.9 损之又损 → 唯一真信号
 function _resolveCascadePbDir() {
-  // v2.5.8: ~/.codeium/windsurf/cascade/ —— Cascade 对话直接存储
+  // v4.2 道法自然 · 跨平台自适应 · ~/.codeium/windsurf/cascade/
+  const home = os.homedir();
   const candidates = [
-    path.join(os.homedir(), ".codeium", "windsurf", "cascade"),
-    path.join(os.homedir(), ".codeium", "windsurf-nightly", "cascade"),
-    path.join(
-      os.homedir(),
-      "AppData",
-      "Local",
-      "codeium",
-      "windsurf",
-      "cascade",
-    ),
+    path.join(home, ".codeium", "windsurf", "cascade"),
+    path.join(home, ".codeium", "windsurf-nightly", "cascade"),
+    // Windows: AppData\Local 候选
+    path.join(home, "AppData", "Local", "codeium", "windsurf", "cascade"),
+    // Linux: XDG_DATA_HOME 候选 (若 ~/.codeium 不存在)
+    path.join(process.env.XDG_DATA_HOME || path.join(home, ".local", "share"), "codeium", "windsurf", "cascade"),
   ];
   for (const p of candidates) {
     try {
@@ -4431,7 +6014,7 @@ function openEditorPanel() {
     "wam.editor",
     "WAM 切号管理",
     vscode.ViewColumn.Active,
-    { enableScripts: true, retainContextWhenHidden: true },
+    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: (_ctx ? [_ctx.extensionUri] : []) },
   );
   _editorPanel.webview.html = buildHtml();
   _editorPanel.webview.onDidReceiveMessage((msg) => handleWebviewMessage(msg));
@@ -4447,7 +6030,7 @@ class WamViewProvider {
   }
   resolveWebviewView(webviewView) {
     this._view = webviewView;
-    webviewView.webview.options = { enableScripts: true };
+    webviewView.webview.options = { enableScripts: true, localResourceRoots: (_ctx ? [_ctx.extensionUri] : []) };
     webviewView.webview.html = buildHtml();
     webviewView.webview.onDidReceiveMessage((msg) => handleWebviewMessage(msg));
     webviewView.onDidChangeVisibility(() => {
@@ -4504,6 +6087,7 @@ function _buildExpTag(h) {
 }
 
 function buildHtml() {
+  if (!_store) return `<html><body style="color:#888;font:12px sans-serif;padding:12px">WAM 初始化中...</body></html>`;
   const store = _store,
     stats = store.getStats(),
     accounts = store.accounts,
@@ -4599,7 +6183,7 @@ function buildHtml() {
       <input type="checkbox" class="chk" data-i="${i}" />
       <span class="dm ${domainBadge}" title="${_esc(domain)}">${domainBadge}</span>
       <span class="em" title="${_esc(a.email)}">${_esc(emailShort)}</span>
-      ${expTag}${planTag}${h.checked && h.overageDollars > 0 ? (h.staleHours >= 6 ? `<span class="eua-stale" title="Extra Usage $${h.overageDollars.toFixed(0)} · 数据${h.staleHours}h前(可能已消耗·建议重验)">$${Math.round(h.overageDollars)}?</span>` : `<span class="eua" title="Extra Usage Active · $${h.overageDollars.toFixed(0)} · Cascade quota=0时仍完全可用${h.staleHours >= 1 ? " · " + h.staleHours + "h前验" : ""}">$${Math.round(h.overageDollars)}</span>`) : ""}${h.checked && !h.overageDollars ? `<span class="eua0" title="已验 · 无Extra Usage余额 · 激活处理中或未成功">$0</span>` : ""} ${claudeTag}${bnTag}${iuTag}${staleTag}${freshTag}${liveTag}${ucTag}
+      ${expTag}${planTag}${h.checked && h.overageDollars > 0 ? (h.staleHours >= 6 ? `<span class="eua-stale" title="Extra Usage $${h.overageDollars.toFixed(0)} · 数据${h.staleHours}h前(可能已消耗·建议重验)">$${Math.round(h.overageDollars)}?</span>` : `<span class="eua" title="Extra Usage Active · $${h.overageDollars.toFixed(0)} · Cascade quota=0时仍完全可用${h.staleHours >= 1 ? " · " + h.staleHours + "h前验" : ""}">$${Math.round(h.overageDollars)}</span>`) : ""}${h.checked && !h.overageDollars ? `<span class="eua0" title="已验 · 无Extra Usage余额">$0</span>` : ""} ${claudeTag}${bnTag}${iuTag}${staleTag}${freshTag}${liveTag}${ucTag}
       <span class="qt">
         <span class="mb"><span class="mf" style="width:${dPct}%;background:${dC}"></span></span>
         <span class="ql" style="color:${dC}">${isU ? "D?" : "D" + dPct}</span>
@@ -4678,7 +6262,7 @@ function buildHtml() {
     const switchAgeStr = switchAge > 0 ? switchAge + "min前切" : "";
     activeHtml = `<div class="act-info"><b>当前:</b> ${_esc(aa.email)}${ah.plan ? `<span class="tag">${_esc(ah.plan)}</span>` : ""}${planExpiryTag}${activeClaudeTag}<span style="color:${ec}">D${liveD}%·W${liveW}%</span>${switchHint}<br><small>token: ${_esc(store.activeTokenShort || "-")} · 路${_esc(store.lastInjectPath || "-")}${switchInfo} · ${ah.staleMin >= 0 ? ah.staleMin + "min前采样" : "无快照"}${switchAgeStr ? " · " + switchAgeStr : ""}</small></div>`;
   }
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; worker-src 'self' blob:;">
 <style>
 :root{--bg:var(--vscode-editor-background);--fg:var(--vscode-editor-foreground);--border:var(--vscode-panel-border,#2d2d2d);--input-bg:var(--vscode-input-background,#1e1e1e);--input-border:var(--vscode-input-border,#3c3c3c);--btn:var(--vscode-button-background,#0e639c);--btn-h:var(--vscode-button-hoverBackground,#1177bb);--green:#4ec9b0;--orange:#ce9178;--red:#f44;--blue:#9cdcfe}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -4768,11 +6352,53 @@ body{font:12px/1.5 -apple-system,'Segoe UI',sans-serif;background:var(--bg);colo
 @keyframes qflash{0%{background:#5a3a0a}100%{background:transparent}}
 .footer{margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:10px;color:#555;text-align:center;word-break:break-all}
 .footer .v{color:var(--blue)}
+/* v3.4.0 · 对话追踪区域样式 */
+.conv-section{margin:4px 0;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.conv-header{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:#1a1a2e;cursor:pointer;font-size:11px;user-select:none}
+.conv-header:hover{background:#22223a}
+.conv-body{padding:4px 8px;font-size:11px;overflow:hidden;max-height:600px;transition:max-height 0.18s ease,padding 0.18s ease,opacity 0.12s}
+.conv-body.collapsed{max-height:0!important;padding-top:0!important;padding-bottom:0!important;overflow:hidden;opacity:0}
+.conv-empty{color:#666;font-style:italic;padding:4px 0}
+.conv-actions{display:flex;gap:4px;margin:6px 0 2px}
+.conv-btn{padding:2px 8px;font-size:10px;background:#2a3a4a;color:#9cdcfe;border:1px solid #3a4a5a;border-radius:3px;cursor:pointer}
+.conv-btn:hover{background:#3a4a5a}
+.conv-btn-s{background:#2a2a3a;color:#bbb;border-color:#3a3a4a}
+.conv-backup-path{font-size:9px;color:#7a9ec2;padding:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace}
+.cv-summary{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
+.cv-summary b{margin-left:2px}
+.cv-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+.cv-dot.ok{background:#4ec9b0}
+.cv-dot.stuck{background:#f44;animation:cvpulse 1s infinite}
+.cv-dot.off{background:#555}
+@keyframes cvpulse{0%,100%{opacity:1}50%{opacity:.3}}
+.cv-stuck-n{color:#f44}
+.cv-err-n{color:#f88}
+.cv-current{padding:3px 0;border-bottom:1px solid #2a2a2a}
+.cv-streaming{color:#4ec9b0;font-size:10px}
+.cv-completed{color:#888;font-size:10px}
+.cv-other{color:#ce9178;font-size:10px}
+.cv-stuck-list{padding:2px 0}
+.cv-stuck-item{padding:2px 4px;border-radius:2px;margin:2px 0;display:flex;align-items:center;gap:4px;font-size:10px}
+.cv-dead{background:#3a1a1a;border-left:2px solid #f44}
+.cv-crit{background:#3a2a1a;border-left:2px solid #f88}
+.cv-warn{background:#2a2a1a;border-left:2px solid #eab308}
+.cv-level{font-weight:700;font-size:9px;min-width:50px}
+.cv-dead .cv-level{color:#f44}
+.cv-crit .cv-level{color:#f88}
+.cv-warn .cv-level{color:#eab308}
+.cv-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv-stale{color:#ce9178;flex-shrink:0}
+.cv-badge{background:#f44;color:#fff;font-size:9px;padding:0 4px;border-radius:8px;margin-left:4px;font-weight:700}
+.cv-size{color:#888;flex-shrink:0}
+/* v3.7.5 · 对话关闭按钮 · 反者道之动 */
+.cv-close{background:none;border:none;color:#444;cursor:pointer;font-size:10px;padding:0 3px;line-height:1;flex-shrink:0;margin-left:auto;border-radius:2px;transition:color 0.15s,background 0.15s}
+.cv-close:hover{color:#f66;background:#4a1a1a}
 </style></head><body>
 <div class="hd">
-<div class="st"><span style="color:${poolColor};font-weight:700">D${stats.totalD} W${stats.totalW}</span><span><b>${stats.available}</b>可用</span>${stats.exhausted > 0 ? `<span class="ex"><b>${stats.exhausted}</b>耗尽</span>` : ""}<span><b>${stats.pwCount}</b>号</span>${stats.unchecked > 0 ? `<span style="color:var(--blue)"><b>${stats.unchecked}</b>未验</span>` : ""}${stats.banned > 0 ? `<span style="color:var(--red)"><b>${stats.banned}</b>黑</span>` : ""}${stats.inUse > 0 ? `<span style="color:#6cb3ff" title="v2.3.0 使用中锁·120s后可再选"><b>${stats.inUse}</b>🔒</span>` : ""}${stats.checkedCount > 0 ? `<span style="color:${stats.overageAccounts > 0 ? "#4ec9b0" : "#555"};font-size:10px" title="Extra Usage: ${stats.overageAccounts}已激活 / ${stats.checkedCount}已验 · $${Math.round(stats.totalOverageDollars)} · $0账号将在下次验证时触发激活"><b>${stats.overageAccounts}/${stats.checkedCount}</b>激活${stats.overageAccounts > 0 ? " $" + Math.round(stats.totalOverageDollars) : ""}</span>` : ""}${stats.checkedNoOverage > 0 && !_verifyAllInProgress ? `<button onclick="doActivateAll()" style="background:#1e3a1e;color:#4ec9b0;border:1px solid #2a5a2a;padding:1px 7px;border-radius:3px;cursor:pointer;font-size:10px;margin-left:2px" title="一键激活全池 $200 (${stats.checkedNoOverage}个待激活账号)">⚡激活(${stats.checkedNoOverage})</button>` : ""}<span class="mode-sw"><button class="${_wamMode === "wam" ? "on" : ""}" onclick="setMode('wam')" title="WAM 自动切号">WAM</button><button class="${_wamMode === "official" ? "on" : ""}" onclick="setMode('official')" title="官方登录·停引擎">官方</button></span></div>
+<div class="st"><span style="color:${poolColor};font-weight:700">D${stats.totalD} W${stats.totalW}</span><span><b>${stats.available}</b>可用</span>${stats.exhausted > 0 ? `<span class="ex"><b>${stats.exhausted}</b>耗尽</span>` : ""}<span><b>${stats.pwCount}</b>号</span>${stats.unchecked > 0 ? `<span style="color:var(--blue)"><b>${stats.unchecked}</b>未验</span>` : ""}${stats.banned > 0 ? `<span style="color:var(--red)"><b>${stats.banned}</b>黑</span>` : ""}${stats.inUse > 0 ? `<span style="color:#6cb3ff" title="v2.3.0 使用中锁·120s后可再选"><b>${stats.inUse}</b>🔒</span>` : ""}${stats.checkedCount > 0 ? `<span style="color:${stats.overageAccounts > 0 ? "#4ec9b0" : "#555"};font-size:10px" title="Extra Usage: ${stats.overageAccounts}已激活 / ${stats.checkedCount}已验 · $${Math.round(stats.totalOverageDollars)}"><b>${stats.overageAccounts}/${stats.checkedCount}</b>激活${stats.overageAccounts > 0 ? " $" + Math.round(stats.totalOverageDollars) : ""}</span>` : ""}<span class="mode-sw"><button class="${_wamMode === "wam" ? "on" : ""}" onclick="setMode('wam')" title="WAM 自动切号">WAM</button><button class="${_wamMode === "official" ? "on" : ""}" onclick="setMode('official')" title="官方登录·停引擎">官方</button></span></div>
 <div class="pool-bar"><div class="pool-fill" style="width:${poolPct}%"></div></div>
 ${activeHtml}${monitorBar}
+${_getConvTrackingHtml()}
 ${_wamMode === "official" ? '<div style="background:#2a1a1a;border:1px solid #4a2a2a;border-radius:4px;padding:6px 10px;margin:4px 0;font-size:11px;color:#f87171"><b>&#128274; 官方登录模式</b><br>WAM 引擎已停 (扫描/切号/心跳)<br>切回 WAM 模式可恢复自动轮转</div>' : ""}
 ${stats.drought ? '<div style="background:#2a2a1a;border:1px solid #4a4a2a;border-radius:4px;padding:4px 10px;margin:4px 0;font-size:11px;color:#eab308">&#127964;&#65039; <b>Weekly 干旱</b> 全池W耗尽·D重置 ' + stats.hrsToDaily.toFixed(1) + "h后 · 自动换号仅看D</div>" : ""}
 ${_verifyAllInProgress ? '<div style="background:#1a2a3a;border:1px solid #2a3a5a;border-radius:4px;padding:4px 10px;margin:4px 0;font-size:11px;color:#9cdcfe">&#9203; <b>正在批量验证</b> · 见 Output 实时进度</div>' : ""}
@@ -4801,7 +6427,10 @@ function cp(i){_clickFb(event);vscode.postMessage({type:'copyAccount',index:i});
 function rm(i){_clickFb(event);send('remove',i);}
 function copyAll(){vscode.postMessage({type:'copyAllAccounts'});}
 function setMode(m){vscode.postMessage({type:'setMode',mode:m});}
-function doActivateAll(){vscode.postMessage({type:'activateAll'});}
+function toggleConv(){const b=document.getElementById('convBody');if(!b)return;b.classList.toggle('collapsed');const arr=document.getElementById('convArrow');const ic=b.classList.contains('collapsed');if(arr)arr.textContent=ic?'\u25BC':'\u25B2';try{localStorage.setItem('dao-conv-collapsed',ic?'1':'0');}catch(e){}}
+function doSetBackupDir(){vscode.postMessage({type:'selectBackupDir'});}
+// v3.7.5+3.7.6 · 对话手动关闭 · 反者道之动 · 即时本地消除+持久化
+function dismissConv(uuid){if(!uuid)return;const btn=document.querySelector('.cv-close[data-uuid="'+uuid+'"]');if(btn){const item=btn.closest('.cv-stuck-item');if(item)item.remove();}vscode.postMessage({type:'dismissConv',uuid:uuid});}
 function toggleAdd(){const b=document.getElementById('addBody');b.classList.toggle('open');const isOpen=b.classList.contains('open');document.getElementById('addArrow').textContent=isOpen?'\\u25B2':'\\u25BC';const s=vscode.getState()||{};vscode.setState({...s,addOpen:isOpen});vscode.postMessage({type:'setAddOpen',open:isOpen});}
 function doAdd(){const ta=document.getElementById('addInput');const t=ta.value.trim();if(!t)return;vscode.postMessage({type:'addBatch',text:t});ta.value='';const s=vscode.getState()||{};vscode.setState({...s,addText:''});}
 function showToast(m,cls){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(cls?' '+cls:'');setTimeout(()=>{t.className='toast';},2200);}
@@ -4809,12 +6438,15 @@ function updateBatchBar(){const c=document.querySelectorAll('.chk:checked');docu
 function batchDelete(){const ix=[...document.querySelectorAll('.chk:checked')].map(c=>parseInt(c.dataset.i));if(ix.length===0)return;vscode.postMessage({type:'removeBatch',indices:ix});}
 function clearSelection(){document.querySelectorAll('.chk:checked').forEach(c=>c.checked=false);updateBatchBar();}
 document.addEventListener('change',e=>{if(e.target.classList.contains('chk'))updateBatchBar();});
-(function(){const s=vscode.getState()||{};if(s.addText){const ta=document.getElementById('addInput');if(ta)ta.value=s.addText;}const ta=document.getElementById('addInput');if(ta)ta.addEventListener('input',function(){const st=vscode.getState()||{};vscode.setState({...st,addText:this.value});});})();
+(function(){const s=vscode.getState()||{};if(s.addText){const ta=document.getElementById('addInput');if(ta)ta.value=s.addText;}const ta=document.getElementById('addInput');if(ta)ta.addEventListener('input',function(){const st=vscode.getState()||{};vscode.setState({...st,addText:this.value});});
+// Fix4: 恢复 conv 区块 collapsed 状态
+try{if(localStorage.getItem('dao-conv-collapsed')==='1'){const cb=document.getElementById('convBody');const ca=document.getElementById('convArrow');if(cb){cb.classList.add('collapsed');if(ca)ca.textContent='\u25BC';}}}catch(e){}})();
 window.addEventListener('message',e=>{const m=e.data;
 if(m.type==='toast'){const cls=m.text&&m.text.startsWith('\\u2713')?'ok':m.text&&m.text.startsWith('\\u2717')?'fail':'';showToast(m.text,cls);}
 if(m.type==='switching'){const r=document.querySelector('.row[data-i=\"'+m.index+'\"]');if(r){r.classList.add('switching');showToast('\\u26A1 \\u5207\\u6362\\u4E2D...');}}
 if(m.type==='verifying'){const r=document.querySelector('.row[data-i=\"'+m.index+'\"]');if(r){r.classList.add('verifying');}}
 if(m.type==='quotaChange'){const r=document.querySelector('.row[data-email=\"'+(m.email||'').toLowerCase()+'\"]');if(r){r.classList.add('quota-flash');setTimeout(()=>r.classList.remove('quota-flash'),700);}}
+if(m.type==='convUpdate'&&m.html){const old=document.querySelector('.conv-section');if(old){const ic=!!(old.querySelector('.conv-body')&&old.querySelector('.conv-body').classList.contains('collapsed'));const tmp=document.createElement('div');tmp.innerHTML=m.html;const nw=tmp.querySelector('.conv-section');if(nw){old.replaceWith(nw);if(ic){const nb=nw.querySelector('.conv-body');const na=nw.querySelector('#convArrow');if(nb){nb.classList.add('collapsed');if(na)na.textContent='\u25BC';}}}}}
 });
 </script></body></html>`;
 }
@@ -4830,6 +6462,147 @@ function _toast(text) {
       _editorPanel.webview.postMessage({ type: "toast", text });
     } catch {}
   }
+}
+
+// v4.0 · 导出对话备份目录为 MD 文档 · 道法自然 · 万物负阴而抱阳
+// 从 _index.json + _meta.json 提取对话元数据 → 生成可读 Markdown
+function _exportConversationsMd() {
+  try {
+    const bkRoot = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+    if (!fs.existsSync(bkRoot)) return { ok: false, error: "备份目录不存在" };
+    const batches = fs.readdirSync(bkRoot).filter(d => d.startsWith("backup_")).sort().reverse();
+    // 合并所有 _index.json
+    const allConv = {};
+    for (const batch of batches) {
+      const idxFile = path.join(bkRoot, batch, "_index.json");
+      if (fs.existsSync(idxFile)) {
+        try {
+          const idx = JSON.parse(fs.readFileSync(idxFile, "utf8"));
+          for (const [uuid, info] of Object.entries(idx)) {
+            if (!allConv[uuid]) allConv[uuid] = { ...info, batch, uuid };
+          }
+        } catch {}
+      }
+      // 补充: 扫描无 _index 批次中的 .pb 文件
+      try {
+        for (const f of fs.readdirSync(path.join(bkRoot, batch)).filter(x => x.endsWith(".pb"))) {
+          const uuid = f.replace(".pb", "");
+          if (!allConv[uuid]) {
+            const sz = (()=>{ try { return fs.statSync(path.join(bkRoot, batch, f)).size; } catch { return 0; } })();
+            allConv[uuid] = { title: "", sizeBytes: sz, backedUpAt: "", batch, uuid };
+          }
+        }
+      } catch {}
+    }
+    const entries = Object.values(allConv).sort((a, b) => (b.backedUpAt || "").localeCompare(a.backedUpAt || ""));
+    // cascade/ 中的 UUID 集合
+    const cascadeSet = new Set(fs.existsSync(PB_DIR) ? fs.readdirSync(PB_DIR).filter(f => f.endsWith(".pb")).map(f => f.replace(".pb", "")) : []);
+    // 生成 MD
+    let md = "# Windsurf Cascade 对话备份目录\n\n";
+    md += "> 生成时间: " + new Date().toISOString() + "\n";
+    md += "> 源目录: `" + PB_DIR + "`\n";
+    md += "> 备份目录: `" + bkRoot + "`\n";
+    md += "> 对话总数: " + entries.length + " | 批次: " + batches.length + "\n\n";
+    md += "## 对话列表\n\n";
+    md += "| # | 标题 | UUID | 大小 | MD | @可引用 | 备份时间 |\n";
+    md += "|---|------|------|------|----|---------|----------|\n";
+    let idx = 1;
+    let mdGenerated = 0;
+    const hasKey = !!_loadDecryptKey();
+    for (const e of entries) {
+      const title = (e.title || "无标题").replace(/\|/g, "/").substring(0, 40);
+      const uuid = e.uuid.substring(0, 8) + "...";
+      const size = e.sizeBytes ? Math.round(e.sizeBytes / 1024) + "KB" : "?";
+      const inCascade = cascadeSet.has(e.uuid) ? "Y" : "-";
+      const time = (e.backedUpAt || "-").substring(0, 19);
+      // v3.8.2: 检查/补生成 MD
+      let mdStatus = "-";
+      if (hasKey && e.batch) {
+        const batchDir2 = path.join(bkRoot, e.batch);
+        const pbPath2 = path.join(batchDir2, e.uuid + ".pb");
+        const mdPath2 = path.join(batchDir2, e.uuid + ".md");
+        if (fs.existsSync(mdPath2)) {
+          mdStatus = "✓";
+        } else if (fs.existsSync(pbPath2)) {
+          const ok = _writePbMd(pbPath2, mdPath2, e);
+          if (ok) { mdStatus = "✓(新)"; mdGenerated++; }
+          else mdStatus = "✗";
+        }
+      }
+      md += "| " + idx + " | " + title + " | `" + uuid + "` | " + size + " | " + mdStatus + " | " + inCascade + " | " + time + " |\n";
+      idx++;
+    }
+    if (mdGenerated > 0) log("export-md: 补生成 " + mdGenerated + " 个 MD 文件");
+    md += "\n## 备份批次\n\n";
+    for (const batch of batches) {
+      const dir = path.join(bkRoot, batch);
+      const pbCount = (()=>{ try { return fs.readdirSync(dir).filter(f => f.endsWith(".pb")).length; } catch { return 0; } })();
+      md += "- **" + batch + "**: " + pbCount + " 个对话 · `" + dir + "`\n";
+    }
+    md += "\n## 加密与恢复说明\n\n";
+    md += "- `.pb` 文件格式: AES-256-GCM 加密 (Go LS 管理密钥)\n";
+    md += "- 恢复方法: 将备份 `.pb` 复制回 `cascade/` 目录即可被 `@conversation` 引用\n";
+    md += "- WAM 插件: 侧边栏 > 对话追踪 > 恢复对话 按钮可一键恢复\n";
+    md += "- 限制: 官方 LS 保留最近 ~50 个对话 · 恢复后可能被下次启动清理\n";
+    const mdFile = path.join(bkRoot, "对话备份目录_" + new Date().toISOString().replace(/[:.]/g, "-").substring(0, 19) + ".md");
+    fs.writeFileSync(mdFile, md, "utf8");
+    log("export-md: " + entries.length + " 条 → " + mdFile);
+    return { ok: true, file: mdFile, count: entries.length };
+  } catch (e) {
+    log("export-md err: " + (e.message || e));
+    return { ok: false, error: e.message || String(e) };
+  }
+}
+
+// Fix2: @conversation突破 — 从备份恢复对话到cascade/ (vscdb还有元数据→可被@引用)
+// 官方50限制原因: LS清理策略保留最近~50个.pb; vscdb仍有~101条元数据
+// 突破: 备份.pb复制回cascade/ → LS立即感知 → @conversation可引用历史对话
+async function _restoreConversationFromBackup() {
+  const bkRoot = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+  if (!fs.existsSync(bkRoot)) { _toast("备份目录不存在"); return; }
+  // 收集所有备份.pb (从最新备份优先)
+  const bkDirs = fs.readdirSync(bkRoot).filter(d => d.startsWith("backup_")).sort().reverse();
+  if (bkDirs.length === 0) { _toast("无可用备份"); return; }
+  const seen = new Set();
+  const items = [];
+  // 加载最新backup的_index.json获取标题
+  let idxData = {};
+  try { idxData = JSON.parse(fs.readFileSync(path.join(bkRoot, bkDirs[0], "_index.json"), "utf8")); } catch {}
+  for (const d of bkDirs) {
+    const dir = path.join(bkRoot, d);
+    try {
+      for (const f of fs.readdirSync(dir).filter(x => x.endsWith(".pb"))) {
+        const uuid = f.replace(".pb", "");
+        if (seen.has(uuid)) continue;
+        seen.add(uuid);
+        const inCascade = fs.existsSync(path.join(PB_DIR, f));
+        if (!inCascade) {
+          const title = (idxData[uuid] && idxData[uuid].title) || "";
+          const sz = Math.round((idxData[uuid] && idxData[uuid].sizeBytes || 0) / 1024);
+          items.push({ label: title ? title.substring(0, 40) : uuid.substring(0, 8) + "...",
+            description: sz ? sz + "KB" : "", detail: uuid, srcFile: path.join(dir, f) });
+        }
+      }
+    } catch {}
+  }
+  if (items.length === 0) { _toast("所有备份对话均已在cascade/中，无需恢复"); return; }
+  const pick = await vscode.window.showQuickPick(items, {
+    placeHolder: "选择要恢复的对话 (恢复后可在 @conversation 中引用)",
+    title: "从备份恢复对话 (" + items.length + "个可恢复)",
+  });
+  if (!pick) return;
+  try {
+    fs.copyFileSync(pick.srcFile, path.join(PB_DIR, path.basename(pick.srcFile)));
+    _toast("✓ 已恢复: " + pick.label + " → 现可在 @conversation 中引用");
+    log("restore-conv: " + pick.detail + " from " + pick.srcFile);
+  } catch (e) {
+    _toast("✗ 恢复失败: " + (e.message || e));
+  }
+}
+// Fix4: 对话追踪区块 targeted update (不触发全量 sidebar 重建)
+function _broadcastConvSection() {
+  const html = _getConvTrackingHtml();
+  _broadcastMsg({ type: 'convUpdate', html });
 }
 
 function _broadcastMsg(msg) {
@@ -4901,9 +6674,9 @@ async function handleWebviewMessage(msg) {
         if (i < 0 || i >= _store.accounts.length) return;
         const a = _store.accounts[i];
         const vt0 = Date.now();
-        // v2.8.3 · 统一走 verifyOneAccount (内含 activate) · 一码归一 · 无为而无以为
+        // v2.8.3 · 统一走 verifyOneAccount · 一码归一 · 无为而无以为
         _broadcastMsg({ type: "verifying", index: i });
-        _toast("🔍 验证+激活中: " + a.email.split("@")[0]);
+        _toast("🔍 验证中: " + a.email.split("@")[0]);
         const vr = await verifyOneAccount(a);
         const vms = Date.now() - vt0;
         if (vr.ok && vr.q) {
@@ -5132,19 +6905,30 @@ async function handleWebviewMessage(msg) {
         else _toast(_wamMode === "official" ? "已切官方模式 · WAM 已登出 · 可用官方登录" : "已切 WAM 切号模式 · 引擎启");
         break;
       }
-      // ── 对齐本源: refresh (刷新视图 + 后台触发 onlyStale 验证) ──
+      // ── 对齐本源: refresh (刷新视图 + 后台触发验证) ──
       // v3.0.2 · 手动 refresh 不再只是 reloadAccounts · 同步触发 stale 验证刷新额度
+      // v3.7.4 · 手动刷新也先查未验号 · 有则全量 · 无则 onlyStale
       case "refresh": {
         _store.reloadAccounts();
         _broadcastUI();
-        // 后台触发 onlyStale 验证 (不阻塞 · 不重复 · 用户点刷新即更新额度)
+        // 后台触发验证 (不阻塞 · 不重复 · 用户点刷新即更新额度)
         if (!_verifyAllInProgress && _wamMode === "wam") {
           setTimeout(() => {
             if (_verifyAllInProgress) return;
-            log("refresh: 触发后台 onlyStale 验证");
-            verifyAllAccounts({ onlyStale: true }).catch((e2) =>
-              log("refresh-verify err: " + (e2.message || e2)),
-            );
+            const _refreshUnchecked = _store.accounts.filter(
+              a => !_store.getHealth(a.email).checked
+            ).length;
+            if (_refreshUnchecked > 0) {
+              log("refresh: " + _refreshUnchecked + " 未验 · 全量验证");
+              verifyAllAccounts({ onlyStale: false }).catch((e2) =>
+                log("refresh-verify err: " + (e2.message || e2)),
+              );
+            } else {
+              log("refresh: 无未验号 · 触发后台 onlyStale 验证");
+              verifyAllAccounts({ onlyStale: true }).catch((e2) =>
+                log("refresh-verify err: " + (e2.message || e2)),
+              );
+            }
           }, 300);
         }
         break;
@@ -5211,50 +6995,6 @@ async function handleWebviewMessage(msg) {
         _broadcastUI();
         break;
       }
-      // ── v2.8.4 · activateAll: 一键激活全池未激活账号 $200 Extra Usage ──
-      // 道法自然: 触发验证即触发激活 · 激活内化于验证之中 · 无需独立激活路径
-      case "activateAll": {
-        if (_verifyAllInProgress) {
-          _toast("验证中自动激活...请稍候");
-          break;
-        }
-        const needAct = _store.accounts.filter((a) => {
-          const h = _store.getHealth(a.email);
-          return h.checked && !h.overageActive && !_store.isBanned(a.email);
-        });
-        const uncheckedAll = _store.accounts.filter((a) => {
-          const h = _store.getHealth(a.email);
-          return !h.checked && !_store.isBanned(a.email);
-        });
-        const total = needAct.length + uncheckedAll.length;
-        if (total === 0) {
-          _toast("✓ 所有已验账号均已激活 Extra Usage Balance");
-          break;
-        }
-        _toast("⚡ 后台激活 " + total + " 个账号 Extra Usage (验证+触发)...");
-        log(
-          "activateAll: 启动 · 需激活 " +
-            needAct.length +
-            " · 未验 " +
-            uncheckedAll.length,
-        );
-        // 触发全量验证 (内含自动激活) · onlyStale=false 确保全部刷新
-        verifyAllAccounts({ onlyStale: false })
-          .then((r2) => {
-            const st = _store.getStats();
-            _toast(
-              "⚡ 激活批次完成: $" +
-                Math.round(st.totalOverageDollars || 0) +
-                " (" +
-                (st.overageAccounts || 0) +
-                " 账号 Extra Usage) · 验证 " +
-                (r2 ? r2.ok + "/" + r2.total : "?"),
-            );
-            _broadcastUI();
-          })
-          .catch((e2) => log("activateAll err: " + (e2.message || e2)));
-        break;
-      }
       // ── 对齐本源: openEditor (从侧栏打开大窗口) ──
       case "openEditor": {
         openEditorPanel();
@@ -5264,6 +7004,92 @@ async function handleWebviewMessage(msg) {
       // 客户端 toggleAdd() 点击时上报 → 服务端记住 → 下次 buildHtml() 正确渲染初始态
       case "setAddOpen": {
         _uiAddOpen = !!msg.open;
+        break;
+      }
+      // v3.4.0 · 对话备份 · 道法自然
+      case "backupConversations": {
+        const result = _backupConversations();
+        if (result.ok) {
+          _toast("备份完成: " + result.copied + " 个对话 → " + result.dir);
+          _notify("info", "对话备份完成: " + result.copied + " 个文件 → " + (result.dir || ""));
+        } else {
+          _toast("备份失败: " + (result.error || "未知错误"));
+        }
+        break;
+      }
+      // v3.6.0 · 选择备份目录 + 自动迁移已有备份 + 重新增量监视
+      case "selectBackupDir": {
+        const picked = await vscode.window.showOpenDialog({
+          canSelectFolders: true, canSelectFiles: false, canSelectMany: false,
+          openLabel: "选择对话备份目录",
+          title: "选择 Cascade 对话备份存储位置 (已有备份将自动迁移)",
+        });
+        if (picked && picked.length > 0) {
+          const newDir = picked[0].fsPath;
+          const oldDir = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+          // ★ 自动迁移: 将旧目录所有备份移动到新目录
+          if (oldDir !== newDir && fs.existsSync(oldDir)) {
+            ensureDir(newDir);
+            let moved = 0;
+            try {
+              for (const e of fs.readdirSync(oldDir)) {
+                const src = path.join(oldDir, e);
+                const dst = path.join(newDir, e);
+                if (!fs.existsSync(dst)) { fs.renameSync(src, dst); moved++; }
+              }
+              log("backup-migrate: " + moved + " 项 " + oldDir + " → " + newDir);
+            } catch (e) { log("backup-migrate err: " + (e.message || e)); }
+          }
+          await vscode.workspace.getConfiguration("wam").update(
+            "conversationBackupDir", newDir, vscode.ConfigurationTarget.Global);
+          // 重置今日备份标记·立即在新目录做一次全量
+          _autoBackupDone = false;
+          _lastBackupDate = "";
+          const r = _backupConversations(newDir);
+          _toast("备份目录: " + newDir + (r.ok ? " · 全量备份: " + r.copied + "个" : ""));
+          log("conv-backup-dir: " + newDir);
+          _broadcastUI();
+        }
+        break;
+      }
+      // Fix2: @conversation突破 — 从备份恢复.pb到cascade/供@引用
+      case "restoreConversation": {
+        await _restoreConversationFromBackup();
+        break;
+      }
+      // v4.0 · 打开 cascade 源目录 · 道法自然
+      case "openPbDir": {
+        try { await vscode.env.openExternal(vscode.Uri.file(PB_DIR)); } catch (e) { log("openPbDir err: " + (e.message||e)); }
+        break;
+      }
+      // v4.0 · 打开备份目录 · 道法自然
+      case "openBackupDir": {
+        const _bkDir = _cfg("conversationBackupDir", "") || CONV_BACKUP_DEFAULT;
+        try { await vscode.env.openExternal(vscode.Uri.file(_bkDir)); } catch (e) { log("openBackupDir err: " + (e.message||e)); }
+        break;
+      }
+      // v4.0 · 导出对话目录为 MD · 道法自然
+      case "exportConvMd": {
+        const mdResult = _exportConversationsMd();
+        if (mdResult.ok) {
+          _toast("\u2713 MD导出: " + mdResult.file);
+          try { const doc = await vscode.workspace.openTextDocument(mdResult.file); await vscode.window.showTextDocument(doc); } catch {}
+        } else {
+          _toast("\u2717 MD导出失败: " + (mdResult.error || "未知"));
+        }
+        break;
+      }
+      // v3.7.5 · 对话手动关闭 · 反者道之动 · 道法自然
+      // v3.7.6 · 关闭即持久化 · 多窗口同步 · 小邦寺民·各得其欲
+      // 用户点 × 关闭某条卡住对话提醒 → 本地静默 10min → 面板立即消失
+      case "dismissConv": {
+        if (msg.uuid) {
+          _dismissedConvUuids.set(msg.uuid, Date.now());
+          _saveDismissedToDisk(); // v3.7.6: 持久化 · 多窗同步 (A窗dismiss→写盘→B窗watchFile触发)
+          log("conv-dismiss: " + msg.uuid.substring(0, 8) + " (10min静默 · 已写盘)");
+          _broadcastConvSection(); // 立即更新面板 · 移除该条目
+          _toast("✓ 已关闭对话提醒 (10min后若仍卡住将恢复)");
+        }
         break;
       }
     }
@@ -5344,6 +7170,8 @@ class Engine {
       const RE_RATE_LIMIT = /rate.?limit|too.?many.?request|429/i;
       let rateLimitHit = false;
       for (const idx of order) {
+        // v3.7.6 「一」 rotateNext 守门 — 跳过 D=0/W=0/过期账号 (道: 知止所以不殺)
+        if (!_isValidAutoTarget(idx)) continue;
         const r = await loginAccount(this.store, idx);
         if (r.ok) return r;
         if (r.error && RE_RATE_LIMIT.test(String(r.error))) {
@@ -5605,15 +7433,72 @@ class Engine {
     }
     if (effQuota >= predictiveThreshold) _predictiveCandidate = -1;
 
-    // ── 耗尽保护: 额度极低时强制切号 ──
-    const isExhausted = effQuota < threshold;
+    // ── 耗尽保护 v3.9.1: 双层防卡死 (道法自然·知止不殆) ──
+    //
+    // v3.7.6 credits 豁免保留: credits 充裕时不视为耗尽 (与 quota% 独立的资源池)
+    // v3.9.1 双层分离 (移植自冷分支 v3.5.1/v3.5.3·去芜存精入活分支):
+    //   旧逻辑将 D=0% 与 D=3% 同等对待 → 走 reset 等待 → D=0% 时彻底卡死 ← Bug
+    //   修复:
+    //     硬耗尽 (D≤0 或 W≤0): 账号已死 → bypass 冷却 / 重置等待 / skipAutoSwitch
+    //     软耗尽 (>0% 且 <阈值): 仍可用 → 尊重所有守卫 (用户主动消耗权)
+    //
+    // 道义辨别:
+    //   锁 (skipAutoSwitch) = 用户「主动消耗权」· 1%-100% 范围内尊重之
+    //   0% 时账号已死 · 「主动消耗权」自然失效 (无可消耗) · 锁成困局 → 必须越权接替
+    //   损之又损，以至于无为. 损至零，则强为之，非违心，乃顺势 (《老子》四十八)
+    const _hActive = this.store.getHealth(acc.email);
+    const _hasCreditsActive = _hasUsableCredits(_hActive);
+    const isHardExhausted = !_hasCreditsActive && (drought
+      ? (q.daily <= 0)                       // 干旱模式: D 归零即彻底卡死
+      : (q.daily <= 0 || q.weekly <= 0));    // 正常模式: D 或 W 任一归零均需切
+    const isSoftExhausted = !isHardExhausted && !_hasCreditsActive && effQuota < threshold;
     const switchCooldown = Date.now() - _lastSwitchTime < switchCooldownMs;
-    if (isExhausted && !_switching && !switchCooldown && !acc.skipAutoSwitch) {
-      // 重置等待: Daily/Weekly 即将重置 → 不切号
-      if (q.daily < threshold && hrsToDaily <= waitResetHours) {
+
+    // ─── 硬耗尽: 账号已死 · bypass 冷却 · bypass 重置等待 · bypass skipAutoSwitch ───
+    if (isHardExhausted && !_switching) {
+      const reason = drought
+        ? "Daily硬耗尽(0%)"
+        : (q.daily <= 0 ? "Daily耗尽(0%)" : "Weekly耗尽(0%)");
+      // v3.9.1 越权日志: 让用户透明看到锁被绕过的真因
+      if (acc.skipAutoSwitch) {
         log(
-          "⏳ Daily耗尽(" +
-            q.daily +
+          "🚨 硬耗尽越权 skipAutoSwitch: " + reason +
+          " · 当前号 🔒 已锁 · 但 0% 已无消耗权 · 强制接替救场",
+        );
+      }
+      // v3.1.3 守门贯通: 预选 + 候补均需验证有效额度
+      let bestI = _isValidAutoTarget(_predictiveCandidate)
+        ? _predictiveCandidate
+        : this.store.getBestIndex(activeI);
+      if (bestI >= 0 && !_isValidAutoTarget(bestI)) bestI = -1;
+      if (bestI >= 0) {
+        log(
+          "🚨 硬耗尽强切: " + reason + " → " +
+          this.store._tierOf(bestI) + " " + // v3.3.0 池层标
+          this.store.accounts[bestI].email.substring(0, 20),
+        );
+        await this._doAutoSwitch(bestI, activeI, "hard-exhaust");
+      } else {
+        log("硬耗尽: " + reason + ", 无可用账号");
+        _notify("warn", "WAM: ⚠️ " + reason + "，全部账号额度已耗尽");
+      }
+    // ─── 软耗尽: 仍有余量 · 感知 reset 时间 · 尊重冷却 · 尊重用户锁 ───
+    //   1%-100% 范围内 skipAutoSwitch 守卫保留 (用户主动消耗权 · 道法自然)
+    } else if (isSoftExhausted && !_switching && !switchCooldown && !acc.skipAutoSwitch) {
+      // v3.4.1 · 临期保留: 当前号是临期抢救目标 → 不触发耗尽保护 (第四重冲突根治)
+      const _hCur = this.store.getHealth(acc.email);
+      const _expiryFirstCfg = _cfg('expiryFirst', true);
+      if (_expiryFirstCfg && _hCur.planEnd > 0 && _hCur.planEnd >= Date.now() && _hCur.daysLeft < 7 && effQuota > 0) {
+        if (this.lastScanAt % 10 === 0) {
+          log("⏳ 临期保留: daysLeft=" + _hCur.daysLeft + " effQ=" + effQuota.toFixed(0) + "% → 不触发耗尽保护");
+        }
+        return;
+      }
+      // 重置等待: Daily/Weekly 即将重置 → 不切号 (v3.9.1: 加 >0 守卫 — 仅 >0% 时等待才有意义)
+      if (q.daily > 0 && q.daily < threshold && hrsToDaily <= waitResetHours) {
+        log(
+          "⏳ Daily低额(" +
+            q.daily.toFixed(1) +
             "%) 但" +
             hrsToDaily.toFixed(1) +
             "h后重置 → 等待",
@@ -5623,12 +7508,13 @@ class Engine {
       if (
         !drought &&
         q.daily >= threshold &&
+        q.weekly > 0 &&
         q.weekly < threshold &&
         hrsToWeekly <= waitResetHours
       ) {
         log(
-          "⏳ Weekly耗尽(" +
-            q.weekly +
+          "⏳ Weekly低额(" +
+            q.weekly.toFixed(1) +
             "%) 但" +
             hrsToWeekly.toFixed(1) +
             "h后重置 → 等待",
@@ -5636,19 +7522,18 @@ class Engine {
         return;
       }
       const reason = drought
-        ? "Daily耗尽(" + q.daily + "%)"
+        ? "Daily低额(" + q.daily.toFixed(0) + "%)"
         : q.weekly < threshold
-          ? "Weekly耗尽(" + q.weekly + "%)"
-          : "Daily耗尽(" + q.daily + "%)";
-      // v3.1.3 · effQuota 守门贯通: 预选+候补均需验证有效额度
+          ? "Weekly低额(" + q.weekly.toFixed(0) + "%)"
+          : "Daily低额(" + q.daily.toFixed(0) + "%)";
+      // v3.1.3 · effQuota 守门贯通: 预选 + 候补均需验证有效额度
       let bestI = _isValidAutoTarget(_predictiveCandidate)
         ? _predictiveCandidate
         : this.store.getBestIndex(activeI);
-      // v3.1.3 · getBestIndex 返回的候选也需守门 (低分号 effQ 可能仍不足)
       if (bestI >= 0 && !_isValidAutoTarget(bestI)) bestI = -1;
       if (bestI >= 0) {
         log(
-          "⚡ 耗尽保护: " +
+          "⚡ 软耗尽切号: " +
             reason +
             " → " +
             this.store._tierOf(bestI) + " " + // v3.3.0 池层标
@@ -5656,10 +7541,10 @@ class Engine {
         );
         await this._doAutoSwitch(bestI, activeI, "exhaust");
       } else {
-        log("耗尽保护: " + reason + ", 无可用账号");
+        log("软耗尽: " + reason + ", 无可用账号");
         _notify("warn", "WAM: " + reason + "，无空闲账号");
       }
-    } else if (!isExhausted) {
+    } else if (!isHardExhausted && !isSoftExhausted) {
       // ── 时间轮转: rotatePeriodMs > 0 时 · 定期换号防检测 (兵无常势) ──
       const rotatePeriodMs = Math.max(0, _cfg("rotatePeriodMs", 0) | 0);
       if (
@@ -5869,6 +7754,28 @@ async function activate(context) {
   } catch (e) {
     log("lockWatcher init err: " + (e.message || e));
   }
+  // v3.5.0 · 道法自然 · 卡住状态栏 (持久可见 · 永不消失直到恢复)
+  // 独立于主 statusBar · 左对齐最高优先级 · 红色醒目 · 用户一眼可见
+  _stuckStatusBar = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    1000,
+  );
+  _stuckStatusBar.command = "wam.openEditor";
+  _stuckStatusBar.hide(); // 初始隐藏 (无卡住时不显示)
+  context.subscriptions.push(_stuckStatusBar);
+
+  // v3.5.0 · Hub 总线监视器 + 轮询保底 (dao_stuck → _hub.json → WAM 扩展)
+  _installHubWatcher(context);
+  // v3.10.0 · 归一 · 卡住检测引擎自动启动 (道生之·德畜之)
+  // 延迟3秒启动 (让 Hub watcher 先就绪 · 引擎写 _hub.json 时 watcher 立即响应)
+  setTimeout(() => _launchStuckEngine(), 3000);
+  context.subscriptions.push({ dispose: () => _stopStuckEngine() });
+  // v4.0 · 密钥自动发现 (异步 · 不阻塞)
+  _initDecryptKey();
+  // v3.6.0 · 自动备份系统 (启动即备+增量监视+目录迁移)
+  _initAutoBackup(context);
+  // v3.6.0 · Agent API 接口文件 (供外部 Agent 直接调用)
+  _writeAgentApi();
   _engine = new Engine(_store);
 
   _statusBar = vscode.window.createStatusBarItem(
@@ -6325,16 +8232,29 @@ async function activate(context) {
       const tv = setTimeout(() => {
         if (_wamMode !== "wam") return;
         if (_verifyAllInProgress) return;
-        // v3.1.2 · _cacheOnly 模式 · 仅 verify cache 内号 (零 devinLogin·零限速)
-        //   cache 空时跳过 · 避免首次部署批量 devinLogin 雪崩
-        //   cache 内号走 tryFetchPlanStatus(apiKey) fast-path · quota 验证仅需 apiKey
-        //   未 cache 号: lazy on user switch · 反正必走 devinLogin · 现按需不批量
-        if (_sessionCache.size === 0) {
+        // v3.7.4 · 根治: 先查未验号 · 有则全量 · 不受 cache 状态影响
+        //   病灶: v3.7.2 用 _sessionCache.size===0 作门 · 但 loadSessionCacheFromDisk
+        //         在 activate 时已预加载 → size 永远 > 0 → 全量验证路径永远不走
+        //   修法: 先查 unchecked 数量 → >0 则全量 → =0 才走 _cacheOnly 快路
+        const _uncheckedOnStart = _store.accounts.filter(
+          a => !_store.getHealth(a.email).checked
+        ).length;
+        if (_uncheckedOnStart > 0) {
+          // 有未验号 → 全量验证 (无论 cache 多满 · isFirstTime 保护自动激活)
           log(
-            "auto-verify(stale): cache 空 · 跳过 (避免首次 batch devinLogin 触限速)",
+            "🔄 auto-verify: " + _uncheckedOnStart + "/" + _store.accounts.length +
+            " 未验 · 全量加速验证 · isFirstTime保护已激活"
           );
+          verifyAllAccounts({ onlyStale: false })
+            .catch(e => log("startup-verify err: " + (e.message || e)));
           return;
         }
+        // 无未验号 → 走原路
+        if (_sessionCache.size === 0) {
+          log("auto-verify(stale): cache空 · 无未验号 · 跳过");
+          return;
+        }
+        // cache非空 · 无未验号 → stale 快路 (v3.7.1 兼容)
         log(
           "auto-verify(stale): _cacheOnly · cache=" +
             _sessionCache.size +
@@ -6362,8 +8282,18 @@ async function activate(context) {
         if (_wamMode !== "wam") return;
         if (_verifyAllInProgress) return;
         // v3.1.2 · _cacheOnly 模式 · 与启动同步 · 零 devinLogin
+        // v3.7.4 · 周期验证同步根治: 先查未验号
+        const _uncheckedPeriodic = _store.accounts.filter(
+          a => !_store.getHealth(a.email).checked
+        ).length;
+        if (_uncheckedPeriodic > 0) {
+          log("🔄 auto-verify(periodic): " + _uncheckedPeriodic + " 未验 · 全量验证");
+          verifyAllAccounts({ onlyStale: false })
+            .catch((e) => log("periodic-verify err: " + (e.message || e)));
+          return;
+        }
         if (_sessionCache.size === 0) {
-          log("auto-verify(stale): cache 空 · 周期跳过");
+          log("auto-verify(stale): cache 空 · 无未验号 · 周期跳过");
           return;
         }
         log(
@@ -6585,6 +8515,7 @@ async function activate(context) {
 }
 
 function deactivate() {
+  _stopStuckEngine(); // v3.10.0 · 归一 · 优雅停止卡住引擎
   if (_engine) _engine.stopMonitor();
   if (_store) _store.save();
   log("WAM deactivate");

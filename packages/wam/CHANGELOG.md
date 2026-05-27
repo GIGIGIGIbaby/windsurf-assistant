@@ -2,7 +2,504 @@
 
 > 反者道之动 · 弱者道之用 · 天下之物生于有 · 有生于无. —— 帛书《老子》德经
 
-## v3.3.0 (2026-05-24) · 💎 额度绝对优先分层 · 反者道之动 · 存量先于流量 · 当前
+## v3.10.1 (2026-05-27) · ⚡ 零额度紧急重触 · 切号防御双完善 · 道法自然 · 当前
+
+> *损之又损，以至于无为。无为而无不为。—— 帛书《老子》四十八章*
+
+### 两大完善
+
+#### 问题一：切到零额度账号后仍卡 10s 才换号
+
+**根因**: `loginAccount` 切号成功后，旧逻辑仅异步更新健康数据 → 下次 `_tick`（最多 10s 后）才能发现 D=0/W=0 → 用户在此期间看到 "Trial - Quota Exhausted"
+
+**修复 (v3.10.1 `loginAccount`)**:
+```js
+// planStatus 异步回调中，若发现 D=0/W=0 且无 credits
+const _isD0 = !_hasUsableCredits(q) && (drought ? (q.daily<=0) : (q.daily<=0 || q.weekly<=0));
+if (_isD0) {
+  setTimeout(() => {
+    if (_engine && !_switching && !_engine.rotating) {
+      _engine._tick().catch(...);  // 2s 后重触，而非等最多 10s
+    }
+  }, 2000);
+}
+```
+
+**效果**: 切到零额度账号 → 2s 内自动检测并继续换号 · 用户无感知
+
+#### 问题二：切号时仍可能选到 D<5% 或 W≤3% 账号
+
+**现状** (v3.8.4 / v3.10.0 已有基本过滤):
+- `_isValidAutoTarget`: D<5 → false · W≤3 (非干旱) → false ✓
+- `_scoreOf`: D<5 或 W≤3 → -Infinity ✓
+
+**残余边缘**: 未验证账号 (`!h.checked`) 在 `_isValidAutoTarget` 返回 `true` (无法预判) · 若全量已验账号均为 D0，系统会轮转尝试未验号 → 可能切到真实也是 D0 的账号 → 被「零额度紧急重触」立即捞救
+
+**两层协同防御 (最终体系)**:
+
+| 层次 | 机制 | 时机 | 覆盖场景 |
+|------|------|------|---------|
+| **预防层** | `_isValidAutoTarget` D<5/W≤3 过滤 | 选号时 | 已知低额账号不入候选 |
+| **评分层** | `_scoreOf` D<5/W≤3 → -Infinity | `getBestIndex` | 已验低额账号彻底排除 |
+| **救火层** | `_tick` `isHardExhausted` | 10s 巡检 | D=0/W=0 当前号 → 必切 |
+| **紧急层** ★ | `loginAccount` 异步验额 | 切号后 2s | 切入即 D=0 → 2s 再切 |
+
+**道义**: 损之又损，以至于无为。两层过滤尽量「不切」低额号；切了之后若发现是 D=0，「2s 紧急重触」即为顺势补救，非违心，乃自然之道。
+
+### 改动文件
+
+- `packages/wam/extension.js` (VERSION → 3.10.1, `loginAccount` 新增零额度紧急重触)
+- `packages/wam/package.json` (3.10.0 → 3.10.1)
+- `packages/wam/CHANGELOG.md` (本条目)
+
+---
+
+## v3.10.0 (2026-05-27) · 归一 · 卡住引擎集成 · 道法自然 · 当前
+
+> *道生一，一生二，二生三，三生万物。万物负阴而抱阳，中气以为和。—— 帛书《老子》道经*
+
+### 归一 · 万法归宗 — 卡住检测从独立进程集成到 WAM 扩展
+
+**根因**: 之前卡住检测引擎 (`dao_stuck_v9.js`) 作为独立 Node.js 进程运行在 `110-对话追踪_Trace/` 目录：
+- 需手动启动/管理生命周期
+- 代码分散两处，修改需同步
+- 崩溃无自动恢复
+
+**归一治法**: 引擎归入 WAM 扩展包，由 extension.js 自动管理：
+
+| 改动 | 说明 |
+|------|------|
+| `dao_stuck.js` | 引擎脚本打入 VSIX 包 · 路径改为 `~/.wam/stuck-detect/` |
+| `_launchStuckEngine()` | activate 时自动启动子进程 · 3秒延迟 (让 Hub watcher 先就绪) |
+| 崩溃自动重启 | 非正常退出 5s 后重启 · 滑动窗口限流 (5min内最多3次) |
+| `_stopStuckEngine()` | deactivate 时优雅关闭 · SIGTERM |
+| `--toast false` | 通知由 extension.js 统一管理 · 引擎不弹 Windows toast |
+| stdout/stderr → Output Channel | 引擎输出实时转发到 WAM 日志面板 |
+
+**架构图**:
+```
+extension.js (VS Code 宿主)
+  ├─ activate → _launchStuckEngine()
+  │    └─ dao_stuck.js (子进程 · 独立 Node.js)
+  │         ├─ 读 .pb + vscdb → 判定卡住状态
+  │         └─ 写 ~/.wam/_hub.json
+  ├─ _installHubWatcher → 监听 _hub.json 变化
+  │    └─ _processHubStuck → 通知/状态栏
+  └─ deactivate → _stopStuckEngine()
+```
+
+### v12.9 卡住检测核心改进 (状态驱动 · 识别用户行为)
+
+**去掉 POST_STREAM_GRACE (10分钟时间延迟)**，改为 `_awaitingUser` 状态标志：
+
+| 状态 | 条件 | 行为 |
+|------|------|------|
+| AI 从未响应 | `_turnGrowth < 4KB` | 60s WARNING · 120s STUCK |
+| AI 已完成回复 | `_turnGrowth > 4KB` + 停止增长 | `_awaitingUser=true` · 永不误报 |
+| 用户发新提示词 | `USER_PROMPT_DETECT` | `_awaitingUser=false` · 恢复检测 |
+
+**实战验证**: v12.9 运行 51分钟 · stuck=0 · 零 WARN_STUCK · 零误报。
+
+---
+
+## v3.9.1 (2026-05-27) · 🚨 硬耗尽越权 + 双层耗尽分离 · 损之又损归一活分支
+
+> *损之又损，以至于无为。损至零，则强为之，非违心，乃顺势 — 道德经第四十八章*
+
+### 反者道之动 · 反向审视上次对话成果
+
+上次对话在 `_build_v321` 冷分支上完成的 v3.5.2 / v3.5.3 改动，反向审视发现：
+
+| 成果 | 评 | 处置 |
+|------|----|----|
+| v3.5.2 `_convScan` 跨 turn 修复 | `dao_stuck_v9.js (v12.7)` 早已有 `INITIAL_SEND_GRACE` + `prevVscdbStatus` 转换 + `activeSinceTs` 重置 + 重启清零 + WAL 保护 | **废弃** — 重复劳动 |
+| v3.5.3 硬耗尽越权 `skipAutoSwitch` | 真正的新逻辑 · 活分支 v3.9.0 仍是单层 `isExhausted` 尊重锁 → 0% 时卡死 | **保留** — 移植入活 |
+| `_build_v321` 整个冷分支 | 早分叉自 v3.3.x · 与活分支 v3.9.0 架构差异巨大 · 已不可融合 | **归档** |
+| `_test_v351/v352.cjs` 镜像测试 | 复制实现到测试 · 不验证真实代码 · 反模式 | **归档** |
+
+「上德不德，是以有德」—— 真正的成果不在写了多少代码，而在多少代码真正运行、真正击中需求。
+
+### 核心修复 (移植自 v3.5.1 / v3.5.3 · 适配活分支)
+
+**根因**: v3.9.0 `_tick()` 耗尽分支仍是**单层** `isExhausted`：
+
+```js
+const isExhausted = effQuota < threshold && !_hasCreditsActive;
+if (isExhausted && !_switching && !switchCooldown && !acc.skipAutoSwitch) {
+  if (q.daily < threshold && hrsToDaily <= waitResetHours) return;  // Bug: 0% 也等待
+}
+```
+
+→ D=0% 与 D=3% 同等对待 → 走 reset 等待 → **0% 用户彻底卡死最多 3 小时**
+
+### 道义辨别
+
+| 额度状态 | 锁 (skipAutoSwitch) | 含义 | 处置 |
+|---------|--------------------|------|------|
+| 1% ~ 100% | 锁住 | 用户「主动消耗权」· 我要用光这个号 | **尊重锁** · 不切 |
+| 0% (硬耗尽) | 锁住 | 「主动消耗权」自然失效（无可消耗）· 锁成困局 | **越权接替** · 必切 |
+
+道理：损之又损，损至零则强为之。锁住 1%-100% 是「为」的过程，归用户；
+损至 0% 已是「无为」之境，再固执反成执念，此时强切非违心，乃顺势救人。
+
+### 双层耗尽分离
+
+```js
+// v3.9.1 双层 (取代 v3.7.6 单层 isExhausted)
+const isHardExhausted = !_hasCreditsActive && (drought
+  ? (q.daily <= 0)
+  : (q.daily <= 0 || q.weekly <= 0));
+const isSoftExhausted = !isHardExhausted && !_hasCreditsActive && effQuota < threshold;
+
+// ─── 硬耗尽: 账号已死 · bypass 一切守卫 ───
+if (isHardExhausted && !_switching) {
+  if (acc.skipAutoSwitch) log("🚨 硬耗尽越权 skipAutoSwitch: ...");
+  // 强切, 不查 cooldown/reset/锁
+}
+// ─── 软耗尽: 仍有余量 · 尊重所有守卫 ───
+else if (isSoftExhausted && !_switching && !switchCooldown && !acc.skipAutoSwitch) {
+  // 临期保留 / reset等待 (加 >0 守卫) / 切号
+}
+```
+
+### 整体自动切号体系 (v3.9.1 全图)
+
+| 触发源 | 时机 | 阈值 | skipAutoSwitch | 冷却 | 重置等待 |
+|--------|------|------|---------------|------|---------|
+| **预防层 · per-msg 轮转** | 用户每发一条消息 | `autoSwitchThreshold` | 尊重 | 尊重 | 尊重 |
+| **预防层 · W% 脉动边缘** | quota 变化检测 | 当前下降 ≥0.3% | 尊重 | 尊重 | 尊重 |
+| **预防层 · ⚖额度变动** | daily%/credits 下降 | `quotaDeltaCreditsMin` 等 | 尊重 | 尊重 | 尊重 |
+| **救火层 · 软耗尽** | `_tick()` 10s 巡检 | `effQ < threshold` 且 >0 | 尊重 | 尊重 | 尊重 |
+| **救火层 · 硬耗尽** ★ | `_tick()` 10s 巡检 | `effQ <= 0` (D 或 W) | **越权** | bypass | bypass |
+| **定时层 · 周期轮转** | `rotatePeriodMs` 到期 | — | 尊重 | 尊重 | 尊重 |
+| **拦截层 · 429 rate-limit** | HTTP 拦截 | rate-limit 文本 | — | 尊重 | — |
+
+**层层防御 · 道法自然**：
+
+1. 预防层在 quota 下降时就预切，避免触底
+2. 救火层是兜底，账号在 AI 响应中突然耗尽时接替
+3. 硬耗尽越权是终极防线，确保 0% 不困死用户
+4. 用户「主动消耗权」在 1%-100% 范围内完全保留
+5. credits 充裕时 ($promptCredits + $flowCredits ≥ creditsThreshold) 一切耗尽判定失效（v3.7.6 保留）
+
+### 改动文件 (本版 · 活分支)
+
+- `_github_src/packages/wam/extension.js` (VERSION → 3.9.1, _tick() 双层耗尽)
+- `_github_src/packages/wam/package.json` (3.9.0 → 3.9.1)
+- `_github_src/packages/wam/CHANGELOG.md` (本条目)
+
+### 整理目录 (反向审视的副产品)
+
+冷分支与镜像测试归档：
+
+- `_build_v321/` → `_archive/_build_v321_obsolete_v3.5.3/`
+- `_test_v351_exhaust_dual_layer.cjs` → `_archive/_tests_镜像_obsolete/`
+- `_test_v352_conv_turn_grace.cjs` → `_archive/_tests_镜像_obsolete/`
+- `_deployed_v3xx.js.bak_pre_*` → `_archive/_deployed_backups/`
+
+---
+
+## v3.8.7 (2026-05-26) · 道法自然 · 对话备份MD彻底重推
+
+> *反者道之动，弱者道之用* —— 帛书《老子》
+
+### 实证根因 (diag_pb.js 实证 · 字段级别)
+
+通过诊断脚本对真实PB逐字段扫描，确认：
+
+- `fn=2@depth=0` = 对话步骤容器
+- `fn=19@depth=1` = 用户输入子消息（其 `fn=3@depth=2` 字段存放干净文本）
+- `fn=72@depth=1` = AI 轨迹（`CORTEX_STEP_TYPE_PLANNER_RESPONSE` 标记 AI 文本输出）
+- **覆盖率根因**: 316 PB / 19 MD → 密钥发现在初始备份之后，大量 PB 永远没有等到 MD 生成
+
+### 修复 (四项重构)
+
+**① `_extractBestStringFromMsg` (新增)**
+- 从 fn=19 子消息扫一层子字段，取最长可读字符串 = 干净用户文本
+- URL编码路径过滤：`%XX` 占比 > 8% → 跳过（文件路径引用，非用户输入）
+- 效果：`file:///e%3A/...` 这类路径不再被误识为用户消息
+
+**② `_extractAiResponseFromTrajectory` (新增)**
+- 从 fn=72@depth=1 提取 `CORTEX_STEP_TYPE_PLANNER_RESPONSE` 后的文本
+- 去重：多个 context snapshot 中相同段落只保留一次
+- 取最后一条（轨迹末尾 = 最新 AI 响应）
+
+**③ `_parsePbConversation` 重构**
+- 用户消息：`fn=19@depth=1` → `_extractBestStringFromMsg(f.data)`
+- AI 响应：`fn=72@depth=1` → `_extractAiResponseFromTrajectory(f.data)`
+- 按字节偏移排序 → 对话顺序正确
+- 返回 `turns[]`（user/ai 交织）+ `userMsgs[]`（向后兼容）
+
+**④ `_retroactiveMdGeneration` (新增) + 全覆盖补全**
+- 密钥缓存命中时调用（每次启动）
+- 密钥首次发现时调用
+- 扫全部批次所有 PB，对缺失 MD 的逐一补生成
+- 实测：296 个缺失 MD 将被自动补全
+
+**`_pbToMdContent` 格式升级**
+- 显示完整对话（👤 用户 N / 🤖 AI N 交织轮次）
+- 标头增加 AI响应条数统计
+
+---
+
+## v3.8.6 (2026-05-26) · 反者道之动 · 三处根本修复 · 大道至简
+
+> *道法自然，无为而无以为* —— 帛书《老子》
+
+### 修复 (反向审视 v3.8.5 · 从根本底层)
+
+**① `_cleanPbText` 大道至简 (形式归一)**
+- 12行字符循环 → 1行正则，行为完全等价
+- 正则引擎底层JIT比逐字符循环更快
+- 覆盖范围不变: ASCII可见 + CJK统一 + 全角/半角 + 通用标点 + 换行
+
+**② `_pbToMdContent` 消除双重IO + 中文对话标题盲区 (根本性修复)**
+- 根因: `_extractPbTitle` 只扫 ASCII(0x20-0x7E)，中文字符(U+4E00+)完全不可见
+  → 中文对话MD标题一直是UUID前缀如 `# 2f867281`
+- 根因: `_extractPbTitle(pbPath)` 在 `_pbToMdContent` 内第2次 readFileSync + 第2次 decryptPb
+- 修复: 三级兜底，利用已有 `conv.userMsgs[0]` (无需额外IO)
+  ```
+  ① meta.title (调用方已提供) → 直接使用
+  ② conv.userMsgs[0].text[:60]  → 中/英文对话均适用 · 零额外开销
+  ③ uuid[:8]                    → 无消息的空对话兜底
+  ```
+- 效果: 中文对话MD标题从 `# 2f867281` → `# 道法自然，审视本对话的所有核心成果...`
+
+**③ `_initDecryptKey` 加单次重试 (覆盖竞争条件)**
+- 根因: 启动期杀软锁住LS二进制时，5s扫描失败后永不重试
+  → 密钥为null → 所有备份仅有PB无MD，直到重启
+- 修复: 扫描无结果时，60s后单次重试（`setTimeout(_initDecryptKey, 60000)`）
+- 覆盖场景: 杀软延迟释放 / LS二进制延迟写入 / 首次安装就绪竞争
+
+---
+
+## v3.8.3 (2026-05-26) · 额度链路回溯 · 道法自然 · 当前
+
+> *反者道之动 · 无为而无以为* —— 帛书《老子》
+
+### 修复 (回溯早期错误隔离)
+
+**额度显示与切号链路完整恢复**
+- `getStats()` 恢复 `checkedNoOverage` 字段 — 已验但无 Extra Usage 账号统计
+- 侧边栏统计栏恢复 `X/Y激活 $Z` 展示 — 每个账号 Extra Usage 激活状态一目了然
+- 正确隔离边界: 仅移除「领取$200」激活按钮 + 激活函数，保留全部显示与切号逻辑
+
+**已验证完整额度链路 (五路)**
+- `tick` 每30s轮询 `tryFetchPlanStatus` → 实时拉取 D%/W%
+- `verify` 完成后 D%/W% 写入 health → 账号旁实时显示
+- ⚡W%脉动信号 (ΔW≥0.3%) → `_maybeTrigger` → 自动切号
+- 🔮 预判: 额度<25% 时预选下一健康号
+- `_scheduleResetRefresh` 精准等到重置时刻 → 自动触发 verify 复活
+
+### 保持隔离
+- ~~`_activateOverageFull`~~ · ~~`_pollForOverage`~~ · ~~`_tryAllTriggers`~~ · ~~`doActivateAll`~~ — 领取$200 激活按钮，不需要
+
+---
+
+## v3.8.2 (2026-05-26) · PB→MD 彻底贯通
+
+**备份对话全自动解密为可读 Markdown**
+- raw protobuf 解析 (无需 schema) — `_protoReadVarint` / `_protoFields` / `_parsePbConversation`
+- AES-256-GCM 解密 → f19@depth1 提取用户消息 → 格式化为 MD
+- 全自动触发: 全量备份 + 增量备份均同步生成 .md
+- `_exportConversationsMd` 增强: 补生成历史未 MD 的 .pb + 索引含 MD 状态列
+
+---
+
+## v3.8.1 (2026-05-26) · 道极归一 · 版本归正 · 软编码完备
+
+> *知止不殆 · 可以长久* —— 帛书《老子》
+
+### 版本号归正
+
+v3.8.0 之后迭代过快（4.0/4.1/4.2），统一回归 v3.8.1 语义版本规范。
+
+### 新增 (相对 v3.8.0)
+
+**v3.8.1 · 自动消失通知**
+- `_notifyTimed(level, msg, ttlMs)` — 卡住/死亡通知 10min 后自动从通知中心消失
+- 有时效性的通知不再永久积压，用户无感知清洁
+
+**对话解密引擎**
+- `_decryptPb(ciphertext, key)` — AES-256-GCM 解密 .pb 文件
+- `_extractPbTitle(pbPath)` — 从二进制扫描用户可读标题（v4.1 扩展过滤：排除模型名/AI推理/路径/JSON）
+- `_initDecryptKey()` — 启动时异步自动发现解密密钥（扫 LS 二进制）
+- `_resolveLanguageServerBin()` — 跨平台 LS 路径自适应（扫全盘符/平台候选/vscode.env.appRoot）
+
+**备份增强**
+- `_exportConversationsMd()` — 导出备份目录为 Markdown 文档（含标题/UUID/大小/@引用状态）
+- webview handler `openPbDir` / `openBackupDir` / `exportConvMd` — 后端已就绪
+
+**跨平台修正**
+- `PB_DIR` 改用 `os.homedir()` 替代 `process.env.USERPROFILE`（Linux/macOS 更干净）
+- `_initDecryptKey` 内 `HOME → os.homedir()`（修复潜在 ReferenceError）
+
+### 移除 (相对 v3.8.0)
+
+- `_activateOverageFull` / `_tryAllTriggers` / `_pollForOverage` — 自动激活200额度链路整体删除
+- `_pendingAct` / `wam.autoActivate` 配置项 — 随激活链路一并删除
+- `verifyOneAccount` 不再自动触发激活，只做被动探额（`_tryDevinBillingFallback` 保留）
+
+### 对话追踪完备 (v3.7.3 ~ v3.8.0 累积)
+
+- v3.7.3: .pb 健康检测 + 断电防护
+- v3.7.4: 根治「未验号永远未验」三处修复
+- v3.7.5: 对话追踪前端关闭按钮 + 提醒频率根治
+- v3.7.6: 切号守门 + dismiss持久化 + 多窗口同步
+- v3.7.7: 启动围栏（预启动卡住对话自动清零）
+- v3.8.0: 四根修（10min静默 + 通知次数限制 + 有效计数修正 + 启动围栏）
+
+---
+
+## v3.7.2 (2026-05-25) · 两向根治「未验证」· 无为而无不为 · 当前
+
+> *无为而无不为 · 民莫之令而自均焉* —— 帛书《老子》
+
+### 病灶
+
+断电/崩溃后全部账号显示「未验证」，用户须手动逐一重验，极大干扰体验。
+
+### 两向并进（最小化）
+
+**正向（防止）**
+- `store.load()` 备份恢复链：主文件损坏/缺失 → 自动降级 `~/.wam/backups/` 日备份 → 无感恢复
+- `_persistSessionCache` 防抖 500ms→100ms：缩短断电丢 token 时间窗口
+
+**反向（出现即自动修复）**
+- startup auto-verify：不管何因，只要检测到未验号 → 立即 `verifyAllAccounts({onlyStale:false})` 全量加速
+- 现有 `isFirstTime` 保护（>50% 未验 → parallel=2 · 1500ms gap）自动激活，天网恢恢疏而不失
+- 用户启动 IDE → 后台自动验 → 2-5min 全池复活 · 无需任何手动操作
+- cache 非空 → 走原 `_cacheOnly` 快路，v3.7.1 行为完全兼容，零退化
+
+### 守门
+
+```
+_test_v372_bidir.cjs · 25/25 全通
+§A版本 · §B备份恢复(4静态+4vm) · §C启动反向(5静态+4vm) · §D sessionCache
+```
+
+---
+
+## v3.7.1 (2026-05-25) · 大道至简 · 软编码归一 · 整合对话追踪全链路成果
+
+> *为学者日益，为道者日损，损之又损，以至于无为，无为而无不为*
+
+### 软编码完善 (7处硬编码→可配置)
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `wam.expiryFirst` | `true` | 临期账号优先加分开关 (v3.3.1已用，首次声明) |
+| `wam.hubNotifyCooldownMs` | `300000` | 同一对话5min内只通知一次 |
+| `wam.hubNotifyGlobalCdMs` | `5000` | 全局通知最小间隔5s |
+| `wam.hubRenotifyIntervalMs` | `300000` | 持续卡住周期再通知间隔 |
+| `wam.hubDataStaleMs` | `60000` | Hub引擎数据过期阈值 |
+| `wam.autoBackupStartDelayMs` | `8000` | 启动后备份延迟 |
+| `wam.incrementalBackupDebounceMs` | `3000` | 增量备份防抖延迟 |
+
+### 归档整合 (对话追踪对话成果确认已全部集成)
+
+以下功能均已在 v3.5.0-v3.6.0 期间完整集成，本版本确认并补全配置声明：
+
+- `_hubLastStuckUuids` Map带时间戳 · 5min自动过期 · 允许重复通知
+- `streamingList` 多对话逐行展示 (不再只显示1个)
+- `_truncTitle(t,25)` 标题超长自动截断
+- `_autoBackupDone` 今日已备份时立即标记(不误显"待备份")
+- `_broadcastConvSection()` 定向更新conv区块(不全量重建sidebar)
+- `dao-conv-collapsed` localStorage持久化折叠状态
+- `convUpdate` 消息类型 — webview侧收到后保持折叠状态
+- `_restoreConversationFromBackup()` @conversation 50限制突破
+- `_writeAgentApi()` → `~/.wam/_api.json` 7个Agent能力接口
+- RECOVER通知已移除 (减少密度，面板可见)
+
+---
+
+## v3.7.0 (2026-05-25) · 三维度归一 · 锁止复元 · 道法自然 · 彻底完善自动切号底层
+
+> *大成若缺·其用不敝·大盈若盅·其用不窘 · 知止所以不殆 · 知常·明也*
+
+### 五大根治
+
+#### 「一」三维度归一 · promptCredits/flowCredits 余额入场
+
+**根因**: `_scoreOf` / `_isValidAutoTarget` / `_tick` 三处完全忽略 `promptCredits` + `flowCredits` 独立资源池
+
+**现象**: quota% 耗尽但余额充裕的账号被误判「不可用」→ 不用即废（不可逆损失）
+
+**治法**:
+- 新增 `_hasUsableCredits(h)` 辅助函数（门控: `wam.creditsThreshold` 默 1000）
+- `_isValidAutoTarget`: credits 可用 → 放行（quota% 耗但 credits 在，仍可服务 flow/prompt 类请求）
+- `_scoreOf`: `creditsBonus = min(500, totalCredits/200)` · 10K credits → +50分 · 100K → +500分（门控: `wam.creditsInScore`）
+- `_tick` 耗尽判定: `isExhausted = effQuota < threshold && !_creditsStillOk` · credits 充裕时不触发切号
+
+#### 「二」锁止机制复元 · isInUse 降分回归 `_scoreOf`
+
+**根因**: v3.0 以「全号平等」为由移除 `isInUse` 检查 → 锁止形存实亡
+
+**现象**: A→B 切号后 A 立即可回选 → 来回震荡 · `inUseLockMs` 配置有名无实
+
+**治法**: `_applyInUse(s) = isInUse ? max(1, round(s×0.01)) : s` · 降至1%分值 · 非 -∞ 仍可作最后兜底
+
+#### 「三」周日边沿修正 · `hoursUntilWeeklyReset` 精准化
+
+**根因**: `(7-0)%7=0 → ||7` 强制跳7天 → 周日 UTC 07:59（距重置1分钟）却算7天后
+
+**现象**: 周日16:00前（BJT）`waitResetHours` 判断失准 → 应等重置却误判为距重置遥远
+
+**治法**: `dts=(7-day)%7` · 若算出时刻 `<=now` 再 `+7天` · 正确定位当前轮次
+
+#### 「四」临期+余额协同 · 双重加持
+
+`daysLeft<7` 且 credits 充裕 → `expBonus + creditsBonus` 同时叠加 → 即将过期且余额充裕的账号分值极高，优先被消耗
+
+#### 「五」三维度状态可视化
+
+`tick` 日志由 `D%/W%` 扩展为 `D%/W%/PC/FC` · Output:WAM 可实时观测三个维度消耗情况
+
+### 新增配置项
+
+| 配置 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `wam.creditsThreshold` | number | 1000 | credits 视为「可用」的最低总量 |
+| `wam.creditsInScore` | boolean | true | credits 是否纳入 `_scoreOf` 评分 |
+
+### 评分层级（更新后）
+
+```
+第三层 💎 overage   [1_000_000, 1_099_950]  存量·绝对优先（不变）
+第二层 📊 pct+credits [1, 999_999]          quota% + expBonus + creditsBonus 三维综合
+候补层 ⏳ 未验号     1~100                  inUse时×0.01降至1（v3.7.0复元）
+-∞   永禁           无密码 / skipAutoSwitch / planEnd已过期
+```
+
+---
+
+## v3.3.1 (2026-05-25) · 📅 临期优先微调 · 反者道之动 · 最小不侵入
+
+> *反者道之动 · 不用即废先消耗 · 道法自然 · 无为而无不为*
+
+**底层目标 (反向解构·只一句)**: `daysLeft` 升序作主键、quota 作次键、锁号已豁免。
+
+**最小化改动 (3 处·共 ~5 行)**:
+
+1. `_scoreOf` 末尾加 `expBonus = max(0, (60-daysLeft)) × 2000`
+2. `planEnd < Date.now()` → 返 `-Infinity` (过期号不浪费切号)
+3. 百分比层封顶 `9_999 → 999_999` (容纳临期分·仍远低于 overage 1_000_000)
+
+**数学守门**:
+
+- 1日差 = 2000 分 > quota 最大差 ~1880 → 临期维度**主导** quota 维度
+- `daysLeft ≥ 60` 或 `planEnd=0` (永久/Pro) → bonus = 0 · **完全等同 v3.3.0**
+- `daysLeft = 2` (截图红色): bonus = 116_000 · 远超普通账号 ~1500 总分
+
+**新软门控**: `wam.expiryFirst` (默认 `true`) · `false` 则关闭临期主导 · 回退 v3.3.0 完整行为
+
+**回归保护**: v3.3.0 overage 绝对优先逻辑、effQ 守门、`skipAutoSwitch=-∞`、未验号=100 **全部不变**
+
+**守门测试**: `_test_v331_expiry_priority.cjs`
+
+---
+
+## v3.3.0 (2026-05-24) · 💎 额度绝对优先分层 · 反者道之动 · 存量先于流量
 
 > *天之至私 · 用之至公 · 禽之制在炁*
 

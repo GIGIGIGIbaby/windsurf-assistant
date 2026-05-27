@@ -1,4 +1,4 @@
-﻿// WAM · 万法归宗 v3.0.0 · 道极版 · 道法自然 · 太上下知有之
+﻿// WAM · 万法归宗 v3.10.1 · 切号防御双完善 · 零额度紧急重触 · 道法自然 · 太上下知有之
 //
 // 本源需求: 用户在 Cascade panel 发消息 → WAM 自动切健康号 (用户无为 · 插件无不为)
 //
@@ -797,14 +797,42 @@ function isClaudeAvailable(h) {
   //   新法: 一切返 true · 让登录/API实际失败说话 · 不作茧自缚
   return true;
 }
-// v3.0 · 道法自焸 · 极简入余候选判定 · 不以任何健康数据预判
+// v3.7.0 · 三维度归一: credits 资源池可用性检测 · quota%耗尽但credits充裕时仍可使用
+function _hasUsableCredits(h) {
+  if (!h) return false;
+  const enable = (typeof _cfg === 'function') ? !!_cfg('creditsInScore', true) : true;
+  if (!enable) return false;
+  const thr = (typeof _cfg === 'function') ? (+_cfg('creditsThreshold', 1000) || 1000) : 1000;
+  const total = (h.promptCredits || 0) + (h.flowCredits || 0);
+  return total >= thr;
+}
+// v3.10.1 · 道法自然 · 切号守门 · 绝对最低门槛 · 任一维度低于阈值即拒绝
+//   D<5 或 W≤3 (非干旱) → false · 防切入即低额号
+//   !h.checked → true (无法预判·放行·等真实登录说话)
+//   overage/credits 充裕 → 放行 (独立资源池)
 function _isValidAutoTarget(i) {
   if (i < 0 || !_store) return false;
   const acc = _store.accounts[i];
-  if (!acc || !acc.password) return false; // 无密码真无法登录
-  if (acc.skipAutoSwitch) return false; // 用户主动设置的锁 · 尊重意愿
-  // v3.0 · 不再检查 isBanned/isInUse/isClaudeAvailable · 有密码即候选
-  return true;
+  if (!acc || !acc.password) return false;
+  if (acc.skipAutoSwitch) return false;
+  const h = _store.getHealth(acc.email);
+  if (!h.checked) return true;                    // 未验号: 无法预判 · 放行
+  if (h.overageActive) return true;               // Extra Usage 可用 · 放行
+  if (_hasUsableCredits(h)) return true;          // credits 充裕 · 放行
+  if (h.planEnd > 0 && h.planEnd < Date.now()) return false; // 已过期 · 拒绝
+  const _drought = isWeeklyDrought();
+  // 绝对最低门槛 (任一维度低于阈值 · 不论临期与否 · 均拒绝)
+  const _dailyMin  = (typeof _cfg === 'function') ? (+_cfg('autoSwitchDailyMin',  5) || 5) : 5;
+  const _weeklyMin = (typeof _cfg === 'function') ? (+_cfg('autoSwitchWeeklyMin', 3) || 3) : 3;
+  if (h.daily < _dailyMin) return false;                     // D<5 → 拒绝
+  if (!_drought && h.weekly <= _weeklyMin) return false;     // W≤3 (非干旱) → 拒绝
+  const _effQ = _drought ? h.daily : Math.min(h.daily, h.weekly);
+  const _thr = (typeof _cfg === 'function') ? (+_cfg('autoSwitchThreshold', 5) || 5) : 5;
+  if (_effQ >= _thr) return true;
+  // 临期感知: daysLeft<7 且 effQ>0 → 放行 (不用即废先消耗)
+  const _expiryFirst = (typeof _cfg === 'function') ? !!_cfg('expiryFirst', true) : true;
+  if (_expiryFirst && h.planEnd > 0 && h.daysLeft < 7 && _effQ > 0) return true;
+  return false;
 }
 
 function httpsReq(method, urlStr, headers, body, timeoutMs) {
@@ -1961,27 +1989,36 @@ class Store {
       else if (h.staleMin >= 360) s -= 150;
       return s;
     }
+    // v3.10.1 · credits 加成 (独立于 quota%)
+    const _creditsOk = _hasUsableCredits(h);
+    const creditsBonus = _creditsOk ? Math.min(500, ((h.promptCredits||0)+(h.flowCredits||0))/100) : 0;
+    // v3.10.1 · 真耗尽守门 (与 _isValidAutoTarget 一以贯之)
+    //   D<dailyMin 或 W≤weeklyMin(非干旱) → -Infinity · 防 getBestIndex 选中低额号
+    if (!_creditsOk) {
+      const _dMin = (typeof _cfg === 'function') ? (+_cfg('autoSwitchDailyMin',  5) || 5) : 5;
+      const _wMin = (typeof _cfg === 'function') ? (+_cfg('autoSwitchWeeklyMin', 3) || 3) : 3;
+      if (h.daily < _dMin) return -Infinity;
+      if (!drought && h.weekly <= _wMin) return -Infinity;
+    }
     if (drought) {
       // ── 干旱模式: 只看 Daily ──
-      // v3.0 · D=0 也不 -Infinity · 给最低正分
-      let s = Math.max(h.daily, 0) * 15;
-      if (h.daily <= 5 && hrsToDaily <= 2) s += 300;
-      else if (h.daily <= 5 && hrsToDaily <= 6) s += 120;
+      let s = Math.max(h.daily, 0) * 15 + creditsBonus;
+      if (h.daily > 0 && h.daily <= 5 && hrsToDaily <= 2) s += 300;
+      else if (h.daily > 0 && h.daily <= 5 && hrsToDaily <= 6) s += 120;
       if (h.daily > 50) s += 200;
       if (h.staleMin >= 0 && h.staleMin < 5) s += 30;
-      return Math.max(s, 1); // 至少 1 分 · 不封号
+      return Math.max(s, 1);
     }
     // ── 正常模式: D+W 综合评分 ──
-    // v3.0 · W=0/D=100 不封 · 双零才给最低分
-    let s = Math.max(h.weekly, 0) * 8 + Math.max(h.daily, 0) * 3;
-    if (h.daily <= 5 && hrsToDaily <= 2) s += 250;
-    else if (h.daily <= 5 && hrsToDaily <= 6) s += 100;
-    if (h.weekly <= 5 && hrsToWeekly <= 4) s += 350;
+    let s = Math.max(h.weekly, 0) * 8 + Math.max(h.daily, 0) * 3 + creditsBonus;
+    if (h.daily > 0 && h.daily <= 5 && hrsToDaily <= 2) s += 250;
+    else if (h.daily > 0 && h.daily <= 5 && hrsToDaily <= 6) s += 100;
+    if (h.weekly > 0 && h.weekly <= 5 && hrsToWeekly <= 4) s += 350;
     if (h.daily > 50 && h.weekly > 50) s += 200;
     if (h.staleMin >= 0 && h.staleMin < 5) s += 80;
     else if (h.staleMin >= 0 && h.staleMin < 30) s += 40;
     else if (h.staleMin < 0 || h.staleMin > 120) s -= 50;
-    return Math.max(s, 1); // 至少 1 分 · 封冻穷尽号也有机会
+    return Math.max(s, 1);
   }
   getBestIndex(excludeIdx) {
     let best = -1,
@@ -2015,8 +2052,7 @@ class Store {
       available = 0,
       exhausted = 0,
       overageAccounts = 0, // v2.8.4 · Extra Usage Active 账号数
-      totalOverageDollars = 0, // v2.8.4 · 全池 Extra Usage 总额 (USD)
-      checkedNoOverage = 0; // v2.8.5 · 已验但未激活 Extra Usage (待激活)
+      totalOverageDollars = 0; // v2.8.4 · 全池 Extra Usage 总额 (USD)
     for (const a of this.accounts) {
       const h = this.getHealth(a.email);
       if (!h.checked) {
@@ -2034,8 +2070,6 @@ class Store {
       if (h.overageActive) {
         overageAccounts++;
         totalOverageDollars += h.overageDollars || 0;
-      } else {
-        checkedNoOverage++; // 已验 · 无 Extra Usage · 等待激活或未触发
       }
     }
     const banned = Object.keys(this.blacklist).filter((k) =>
@@ -2062,7 +2096,6 @@ class Store {
       drought: checkedCount > 0 && totalW / checkedCount < 1,
       overageAccounts, // v2.8.4
       totalOverageDollars: Math.round(totalOverageDollars * 100) / 100, // v2.8.4
-      checkedNoOverage, // v2.8.5 · 已验但无Extra Usage · 待激活数量
     };
   }
   setActive(idx, email, sessionToken, apiKey, apiServerUrl, injectPath) {
@@ -2551,69 +2584,6 @@ function _parsePlanStatusJson(j) {
   };
 }
 
-// ═══ $200 Extra Usage 激活引擎 · 道法自然 · 内化于一 · 太上下知有之 ═══════════
-// 触发: POST /api/{orgId}/schedules → checklist.automations=true
-// 发放: AdjustOverageBalanceInternal → overageBalanceMicros=200_000_000
-// 发现: GetUserStatus → overageActive=true → WAM 高优先选号
-const _pendingAct = new Set();
-
-async function _tryAllTriggers(auth1, orgId) {
-  const H = {
-    Authorization: "Bearer " + auth1,
-    "x-cog-org-id": orgId,
-    "Content-Type": "application/json",
-    "User-Agent": UA,
-    Origin: "https://app.devin.ai",
-    Referer: "https://app.devin.ai/",
-  };
-  const s = JSON.stringify({
-    name: "dao-init",
-    prompt: "echo ok",
-    schedule_type: "recurring",
-    frequency: "0 0 31 2 *",
-    interval_count: 1,
-    agent: "devin",
-    bypass_approval: true,
-    is_enabled: false,
-  });
-  for (const url of [
-    "https://app.devin.ai/api/" + orgId + "/schedules",
-    "https://app.devin.ai/api/v1/organizations/" + orgId + "/schedules",
-    "https://app.devin.ai/api/v3/organizations/" + orgId + "/schedules",
-    "https://app.devin.ai/api/" + orgId + "/automations",
-  ]) {
-    try {
-      const r = await httpsReq("POST", url, H, s, 8000);
-      if (r && (r.status === 200 || r.status === 201 || r.status === 202))
-        return { ok: true, url };
-    } catch {}
-  }
-  return { ok: false };
-}
-
-async function _pollForOverage(apiKey, apiServerUrl, n, ms) {
-  // v2.8.4 · 软编码: n/ms 参数可经 _cfg 覆盖 (autoActivate.pollN / autoActivate.pollMs)
-  // 默认 5×3s=15s 快验: $200 通常24-48h后到账 · 15s 足够检查"是否已有"/"刚触发到账"
-  const pollN =
-    n != null ? n : Math.max(1, _cfg("autoActivate.pollN", 5) | 0) || 5;
-  const pollMs =
-    ms != null
-      ? ms
-      : Math.max(500, _cfg("autoActivate.pollMs", 3000) | 0) || 3000;
-  for (let i = 0; i < pollN; i++) {
-    await new Promise((r) => setTimeout(r, pollMs));
-    try {
-      const q = await tryFetchPlanStatus(apiKey, {
-        apiServerUrl,
-        silent: true,
-      });
-      if (q && q.overageActive)
-        return { ok: true, overage: q.overageDollars, pollN: i + 1, q };
-    } catch {}
-  }
-  return { ok: false, reason: "timeout" };
-}
-
 async function _getOrgId(auth1) {
   try {
     const r = await jsonPost(
@@ -2673,35 +2643,6 @@ async function _tryDevinBillingFallback(auth1) {
     };
   } catch {
     return null;
-  }
-}
-
-async function _activateOverageFull(auth1, apiKey, apiServerUrl, email) {
-  if (!auth1 || !apiKey) return { ok: false };
-  if (_pendingAct.has(email)) return { ok: false, reason: "pending" };
-  _pendingAct.add(email);
-  try {
-    const q0 = await tryFetchPlanStatus(apiKey, { apiServerUrl, silent: true });
-    if (q0 && q0.overageActive)
-      return { ok: true, reason: "already", overage: q0.overageDollars, q: q0 };
-    const orgId = await _getOrgId(auth1);
-    if (!orgId) return { ok: false, reason: "no_orgId" };
-    const trig = await _tryAllTriggers(auth1, orgId);
-    log(
-      "activate [" +
-        email.split("@")[0].substring(0, 16) +
-        "] trigger:" +
-        (trig.ok ? "✓ " + trig.url : "✗"),
-    );
-    // v2.8.5 · 软编码: 不再硬传 20,3000 · 让 _cfg 软编码生效 (默认 5×3s)
-    const poll = await _pollForOverage(apiKey, apiServerUrl);
-    if (poll.ok) log("activate ✓ $" + poll.overage + " poll#" + poll.pollN);
-    else log("activate triggered:" + trig.ok + " $200 处理中(24-48h后到账)");
-    return { triggered: trig.ok, ...poll };
-  } catch (e) {
-    return { ok: false, reason: e.message };
-  } finally {
-    _pendingAct.delete(email);
   }
 }
 
@@ -2772,18 +2713,6 @@ async function verifyOneAccount(account) {
         error: "GetUserStatus 400 + billing fallback null",
       };
     }
-  }
-  // 内化激活: 若无 Extra Usage → 后台全链路激活 (5路触发+轮询) · 对用户透明
-  // v2.8.4 · 软编码门控: wam.autoActivate=false 可全局关闭 (默认开)
-  if (!q.overageActive && !q._source && _cfg("autoActivate", true)) {
-    _activateOverageFull(dl.auth1, apiKey, apiServerUrl, account.email)
-      .then((ar) => {
-        if (ar.ok && ar.q) {
-          _store.setHealth(account.email, ar.q);
-          _broadcastUI();
-        }
-      })
-      .catch(() => {});
   }
   // v3.0.3 · 🚀 验证阶段缓存 sessionToken · 下次切号可跳 devinLogin (道法自然·预赋)
   _cacheSession(account.email, pa.sessionToken, apiKey, apiServerUrl);
@@ -4247,7 +4176,7 @@ function buildHtml() {
       <input type="checkbox" class="chk" data-i="${i}" />
       <span class="dm ${domainBadge}" title="${_esc(domain)}">${domainBadge}</span>
       <span class="em" title="${_esc(a.email)}">${_esc(emailShort)}</span>
-      ${expTag}${planTag}${h.checked && h.overageDollars > 0 ? (h.staleHours >= 6 ? `<span class="eua-stale" title="Extra Usage $${h.overageDollars.toFixed(0)} · 数据${h.staleHours}h前(可能已消耗·建议重验)">$${Math.round(h.overageDollars)}?</span>` : `<span class="eua" title="Extra Usage Active · $${h.overageDollars.toFixed(0)} · Cascade quota=0时仍完全可用${h.staleHours >= 1 ? " · " + h.staleHours + "h前验" : ""}">$${Math.round(h.overageDollars)}</span>`) : ""}${h.checked && !h.overageDollars ? `<span class="eua0" title="已验 · 无Extra Usage余额 · 激活处理中或未成功">$0</span>` : ""} ${claudeTag}${bnTag}${iuTag}${staleTag}${freshTag}${liveTag}${ucTag}${unavailTag}
+      ${expTag}${planTag}${h.checked && h.overageDollars > 0 ? (h.staleHours >= 6 ? `<span class="eua-stale" title="Extra Usage $${h.overageDollars.toFixed(0)} · 数据${h.staleHours}h前(可能已消耗·建议重验)">$${Math.round(h.overageDollars)}?</span>` : `<span class="eua" title="Extra Usage Active · $${h.overageDollars.toFixed(0)} · Cascade quota=0时仍完全可用${h.staleHours >= 1 ? " · " + h.staleHours + "h前验" : ""}">$${Math.round(h.overageDollars)}</span>`) : ""} ${claudeTag}${bnTag}${iuTag}${staleTag}${freshTag}${liveTag}${ucTag}${unavailTag}
       <span class="qt">
         <span class="mb"><span class="mf" style="width:${dPct}%;background:${dC}"></span></span>
         <span class="ql" style="color:${dC}">${isU ? "D?" : "D" + dPct}</span>
@@ -4416,7 +4345,7 @@ body{font:12px/1.5 -apple-system,'Segoe UI',sans-serif;background:var(--bg);colo
 .footer .v{color:var(--blue)}
 </style></head><body>
 <div class="hd">
-<div class="st"><span style="color:${poolColor};font-weight:700">D${stats.totalD} W${stats.totalW}</span><span><b>${stats.available}</b>可用</span>${stats.exhausted > 0 ? `<span class="ex"><b>${stats.exhausted}</b>耗尽</span>` : ""}<span><b>${stats.pwCount}</b>号</span>${stats.unchecked > 0 ? `<span style="color:var(--blue)"><b>${stats.unchecked}</b>未验</span>` : ""}${stats.banned > 0 ? `<span style="color:var(--red)"><b>${stats.banned}</b>黑</span>` : ""}${stats.inUse > 0 ? `<span style="color:#6cb3ff" title="v2.3.0 使用中锁·120s后可再选"><b>${stats.inUse}</b>🔒</span>` : ""}${stats.checkedCount > 0 ? `<span style="color:${stats.overageAccounts > 0 ? "#4ec9b0" : "#555"};font-size:10px" title="Extra Usage: ${stats.overageAccounts}已激活 / ${stats.checkedCount}已验 · $${Math.round(stats.totalOverageDollars)} · $0账号将在下次验证时触发激活"><b>${stats.overageAccounts}/${stats.checkedCount}</b>激活${stats.overageAccounts > 0 ? " $" + Math.round(stats.totalOverageDollars) : ""}</span>` : ""}${stats.checkedNoOverage > 0 && !_verifyAllInProgress ? `<button onclick="doActivateAll()" style="background:#1e3a1e;color:#4ec9b0;border:1px solid #2a5a2a;padding:1px 7px;border-radius:3px;cursor:pointer;font-size:10px;margin-left:2px" title="一键激活全池 $200 (${stats.checkedNoOverage}个待激活账号)">⚡激活(${stats.checkedNoOverage})</button>` : ""}<span class="mode-sw"><button class="${_wamMode === "wam" ? "on" : ""}" onclick="setMode('wam')" title="WAM 自动切号">WAM</button><button class="${_wamMode === "official" ? "on" : ""}" onclick="setMode('official')" title="官方登录·停引擎">官方</button></span></div>
+<div class="st"><span style="color:${poolColor};font-weight:700">D${stats.totalD} W${stats.totalW}</span><span><b>${stats.available}</b>可用</span>${stats.exhausted > 0 ? `<span class="ex"><b>${stats.exhausted}</b>耗尽</span>` : ""}<span><b>${stats.pwCount}</b>号</span>${stats.unchecked > 0 ? `<span style="color:var(--blue)"><b>${stats.unchecked}</b>未验</span>` : ""}${stats.banned > 0 ? `<span style="color:var(--red)"><b>${stats.banned}</b>黑</span>` : ""}${stats.inUse > 0 ? `<span style="color:#6cb3ff" title="v2.3.0 使用中锁·120s后可再选"><b>${stats.inUse}</b>🔒</span>` : ""}<span class="mode-sw"><button class="${_wamMode === "wam" ? "on" : ""}" onclick="setMode('wam')" title="WAM 自动切号">WAM</button><button class="${_wamMode === "official" ? "on" : ""}" onclick="setMode('official')" title="官方登录·停引擎">官方</button></span></div>
 <div class="pool-bar"><div class="pool-fill" style="width:${poolPct}%"></div></div>
 ${activeHtml}${monitorBar}
 ${_wamMode === "official" ? '<div style="background:#2a1a1a;border:1px solid #4a2a2a;border-radius:4px;padding:6px 10px;margin:4px 0;font-size:11px;color:#f87171"><b>&#128274; 官方登录模式</b><br>WAM 引擎已停 (扫描/切号/心跳)<br>切回 WAM 模式可恢复自动轮转</div>' : ""}
@@ -4447,7 +4376,6 @@ function cp(i){_clickFb(event);vscode.postMessage({type:'copyAccount',index:i});
 function rm(i){_clickFb(event);send('remove',i);}
 function copyAll(){vscode.postMessage({type:'copyAllAccounts'});}
 function setMode(m){vscode.postMessage({type:'setMode',mode:m});}
-function doActivateAll(){vscode.postMessage({type:'activateAll'});}
 function toggleAdd(){const b=document.getElementById('addBody');b.classList.toggle('open');const isOpen=b.classList.contains('open');document.getElementById('addArrow').textContent=isOpen?'\\u25B2':'\\u25BC';const s=vscode.getState()||{};vscode.setState({...s,addOpen:isOpen});vscode.postMessage({type:'setAddOpen',open:isOpen});}
 function doAdd(){const ta=document.getElementById('addInput');const t=ta.value.trim();if(!t)return;vscode.postMessage({type:'addBatch',text:t});ta.value='';const s=vscode.getState()||{};vscode.setState({...s,addText:''});}
 function showToast(m,cls){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(cls?' '+cls:'');setTimeout(()=>{t.className='toast';},2200);}
@@ -4547,9 +4475,9 @@ async function handleWebviewMessage(msg) {
         if (i < 0 || i >= _store.accounts.length) return;
         const a = _store.accounts[i];
         const vt0 = Date.now();
-        // v2.8.3 · 统一走 verifyOneAccount (内含 activate) · 一码归一 · 无为而无以为
+        // v2.8.3 · 统一走 verifyOneAccount · 一码归一 · 无为而无以为
         _broadcastMsg({ type: "verifying", index: i });
-        _toast("🔍 验证+激活中: " + a.email.split("@")[0]);
+        _toast("🔍 验证中: " + a.email.split("@")[0]);
         const vr = await verifyOneAccount(a);
         const vms = Date.now() - vt0;
         if (vr.ok && vr.q) {
@@ -4874,50 +4802,6 @@ async function handleWebviewMessage(msg) {
         }
         _toast("有效期扫描: " + fetched2 + " ✓ / " + failed2 + " ✗");
         _broadcastUI();
-        break;
-      }
-      // ── v2.8.4 · activateAll: 一键激活全池未激活账号 $200 Extra Usage ──
-      // 道法自然: 触发验证即触发激活 · 激活内化于验证之中 · 无需独立激活路径
-      case "activateAll": {
-        if (_verifyAllInProgress) {
-          _toast("验证中自动激活...请稍候");
-          break;
-        }
-        const needAct = _store.accounts.filter((a) => {
-          const h = _store.getHealth(a.email);
-          return h.checked && !h.overageActive && !_store.isBanned(a.email);
-        });
-        const uncheckedAll = _store.accounts.filter((a) => {
-          const h = _store.getHealth(a.email);
-          return !h.checked && !_store.isBanned(a.email);
-        });
-        const total = needAct.length + uncheckedAll.length;
-        if (total === 0) {
-          _toast("✓ 所有已验账号均已激活 Extra Usage Balance");
-          break;
-        }
-        _toast("⚡ 后台激活 " + total + " 个账号 Extra Usage (验证+触发)...");
-        log(
-          "activateAll: 启动 · 需激活 " +
-            needAct.length +
-            " · 未验 " +
-            uncheckedAll.length,
-        );
-        // 触发全量验证 (内含自动激活) · onlyStale=false 确保全部刷新
-        verifyAllAccounts({ onlyStale: false })
-          .then((r2) => {
-            const st = _store.getStats();
-            _toast(
-              "⚡ 激活批次完成: $" +
-                Math.round(st.totalOverageDollars || 0) +
-                " (" +
-                (st.overageAccounts || 0) +
-                " 账号 Extra Usage) · 验证 " +
-                (r2 ? r2.ok + "/" + r2.total : "?"),
-            );
-            _broadcastUI();
-          })
-          .catch((e2) => log("activateAll err: " + (e2.message || e2)));
         break;
       }
       // ── 对齐本源: openEditor (从侧栏打开大窗口) ──
@@ -5263,14 +5147,41 @@ class Engine {
     }
     if (effQuota >= predictiveThreshold) _predictiveCandidate = -1;
 
-    // ── 耗尽保护: 额度极低时强制切号 ──
-    const isExhausted = effQuota < threshold;
+    // ── 耗尽保护: 双层分离 (v3.10.1 · 道法自然 · 损至零则强为之) ──
+    //   硬耗尽 (D=0% 或 W=0%): 账号已死 → bypass 冷却/skipAutoSwitch · 必须接替救场
+    //   软耗尽 (>0% 且 <阈值): 仍可用 → 尊重所有守卫 (用户主动消耗权)
+    const _hActive = this.store.getHealth(acc.email);
+    const _hasCreditsActive = _hasUsableCredits(_hActive);
+    const isHardExhausted = !_hasCreditsActive && (drought
+      ? (q.daily <= 0)
+      : (q.daily <= 0 || q.weekly <= 0));
+    const isSoftExhausted = !isHardExhausted && !_hasCreditsActive && effQuota < threshold;
     const switchCooldown = Date.now() - _lastSwitchTime < switchCooldownMs;
-    if (isExhausted && !_switching && !switchCooldown && !acc.skipAutoSwitch) {
+    // ─── 硬耗尽: 账号已死 · bypass 冷却 · bypass skipAutoSwitch ───
+    if (isHardExhausted && !_switching) {
+      const reason = drought
+        ? "Daily硬耗尽(0%)"
+        : (q.daily <= 0 ? "Daily耗尽(0%)" : "Weekly耗尽(0%)");
+      if (acc.skipAutoSwitch) {
+        log("🚨 硬耗尽越权 skipAutoSwitch: " + reason + " · 当前号 🔒 已锁 · 0% 无可消耗 · 强制接替救场");
+      }
+      let bestI = _isValidAutoTarget(_predictiveCandidate)
+        ? _predictiveCandidate
+        : this.store.getBestIndex(activeI);
+      if (bestI >= 0 && !_isValidAutoTarget(bestI)) bestI = -1;
+      if (bestI >= 0) {
+        log("🚨 硬耗尽强切: " + reason + " → " + this.store.accounts[bestI].email.substring(0, 20));
+        await this._doAutoSwitch(bestI, activeI, "hard-exhaust");
+      } else {
+        log("硬耗尽: " + reason + ", 无可用账号");
+        _notify("warn", "WAM: ⚠️ " + reason + "，全部账号额度已耗尽");
+      }
+    // ─── 软耗尽: 仍有余量 · 感知 reset 时间 · 尊重冷却 · 尊重用户锁 ───
+    } else if (isSoftExhausted && !_switching && !switchCooldown && !acc.skipAutoSwitch) {
       // 重置等待: Daily/Weekly 即将重置 → 不切号
-      if (q.daily < threshold && hrsToDaily <= waitResetHours) {
+      if (q.daily > 0 && q.daily < threshold && hrsToDaily <= waitResetHours) {
         log(
-          "⏳ Daily耗尽(" +
+          "⏳ Daily低额(" +
             q.daily +
             "%) 但" +
             hrsToDaily.toFixed(1) +
@@ -5281,11 +5192,12 @@ class Engine {
       if (
         !drought &&
         q.daily >= threshold &&
+        q.weekly > 0 &&
         q.weekly < threshold &&
         hrsToWeekly <= waitResetHours
       ) {
         log(
-          "⏳ Weekly耗尽(" +
+          "⏳ Weekly低额(" +
             q.weekly +
             "%) 但" +
             hrsToWeekly.toFixed(1) +
@@ -5294,27 +5206,27 @@ class Engine {
         return;
       }
       const reason = drought
-        ? "Daily耗尽(" + q.daily + "%)"
+        ? "Daily低额(" + q.daily + "%)"
         : q.weekly < threshold
-          ? "Weekly耗尽(" + q.weekly + "%)"
-          : "Daily耗尽(" + q.daily + "%)";
-      // v17.42.7 锁🔒贯通: 统一由 _isValidAutoTarget 四辨
+          ? "Weekly低额(" + q.weekly + "%)"
+          : "Daily低额(" + q.daily + "%)";
       let bestI = _isValidAutoTarget(_predictiveCandidate)
         ? _predictiveCandidate
         : this.store.getBestIndex(activeI);
+      if (bestI >= 0 && !_isValidAutoTarget(bestI)) bestI = -1;
       if (bestI >= 0) {
         log(
-          "⚡ 耗尽保护: " +
+          "⚡ 软耗尽切号: " +
             reason +
             " → " +
             this.store.accounts[bestI].email.substring(0, 20),
         );
         await this._doAutoSwitch(bestI, activeI, "exhaust");
       } else {
-        log("耗尽保护: " + reason + ", 无可用账号");
+        log("软耗尽: " + reason + ", 无可用账号");
         _notify("warn", "WAM: " + reason + "，无空闲账号");
       }
-    } else if (!isExhausted) {
+    } else if (!isHardExhausted && !isSoftExhausted) {
       // ── 时间轮转: rotatePeriodMs > 0 时 · 定期换号防检测 (兵无常势) ──
       const rotatePeriodMs = Math.max(0, _cfg("rotatePeriodMs", 0) | 0);
       if (
