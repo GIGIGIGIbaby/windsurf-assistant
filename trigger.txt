@@ -1,16 +1,1 @@
-# trigger.txt · 印 95 第三触发钥 · 帛书四十「反者道之动」
-#
-# 此文之意:
-#   ① workflow_dispatch (gh CLI / Web)  ← 一径
-#   ② schedule cron 5h (永真自续)        ← 二径
-#   ③ push 此文 (echo + commit + push)   ← 三径 (主公无 gh CLI 时之路)
-#
-# 用法:
-#   echo "$(date -u +%FT%TZ) · <主公备注>" >> trigger.txt
-#   git add trigger.txt && git commit -m "trigger: dao-fleet-cloud" && git push
-#   → .github/workflows/dao-fleet-cloud.yml on.push.paths 即触
-#
-# 帛书廿二「圣人执一·以为天下牧」 — 一文即一钥.
-
-2026-05-14T08:22Z · 印 95 真本源闭环 · 立此第三触发钥 · 道法自然
-2026-05-27T06:13Z · 印 211 v3.10.1 · 切号防御双完善 · 零额度紧急重触 · 软编码完备 · README归一 · 道法自然
+印272 dao-vm-free-loop trigger 2026-05-28T17:15
