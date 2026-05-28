@@ -1,0 +1,140 @@
+{
+	"name": "dao-proxy-min",
+	"displayName": "道Agent · 反者道之动 · 弱者道之用",
+	"description": "v9.4.5 · 底层之底 · 时序一切 · 反之又反. proxy 加 _rawTape 16 槽 ringbuf · 任何过 inference body 皆记 (含 before/after/all_fields 全文). /origin/tape 端点返时序. webview 加 ◀▶ 切条 + [原/实/全] 切视. 不依 mode 分支 · 观真注入 agent 之一切文字. 道义: 一章 无名万物始 · 十四章 执今之道御今之有 · 四十章 反之又反.",
+	"version": "9.4.5",
+	"publisher": "dao-agi",
+	"license": "Apache-2.0",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/zhouyoukang/windsurf-assistant.git"
+	},
+	"homepage": "https://github.com/zhouyoukang/windsurf-assistant",
+	"icon": "media/icon.png",
+	"categories": [
+		"AI",
+		"Other"
+	],
+	"keywords": [
+		"windsurf",
+		"cascade",
+		"system-prompt",
+		"dao",
+		"proxy",
+		"minimal",
+		"道德经",
+		"反代",
+		"essence"
+	],
+	"activationEvents": [
+		"*"
+	],
+	"main": "./extension.js",
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": true,
+			"description": "dao-proxy-min runs in all workspaces"
+		},
+		"virtualWorkspaces": true
+	},
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "dao-container",
+					"title": "道Agent",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"dao-container": [
+				{
+					"id": "dao.essence",
+					"name": "本源观照",
+					"type": "webview"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "wam.originInvert",
+				"title": "道Agent: 启 (invert · 道德经前置 · 彻删官方着相)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.originPassthrough",
+				"title": "官方Agent: 启 (passthrough · 锚归云 · 直连)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.toggleMode",
+				"title": "道Agent: 切换模式 (道 ⇄ 官方)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.openPreview",
+				"title": "道Agent: 浏览器观真 SP (/origin/preview)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.verifyEndToEnd",
+				"title": "全链路自检 (E2E)",
+				"category": "道Agent"
+			},
+			{
+				"command": "wam.selftest",
+				"title": "闭环自检 (L1 + L2)",
+				"category": "道Agent"
+			},
+			{
+				"command": "dao.purge",
+				"title": "了事拂衣去 · 净卸 (停反代 · 清设置 · 卸插件 · 归本源)",
+				"category": "道Agent"
+			}
+		],
+		"configuration": {
+			"title": "道Agent",
+			"properties": {
+				"dao.origin.port": {
+					"type": "number",
+					"default": 0,
+					"minimum": 0,
+					"maximum": 65535,
+					"description": "源.js 反代端口 (0=自动 per-user FNV-1a hash · 8889..8988 · 多账号自然隔离). 非0则覆盖."
+				},
+				"dao.origin.defaultMode": {
+					"type": "string",
+					"default": "invert",
+					"enum": [
+						"invert",
+						"passthrough"
+					],
+					"enumDescriptions": [
+						"invert — 道Agent · 道德经直为前置 + 彻删官方一切着相之名 (身份/风格/规训) · 工具本身全保不动",
+						"passthrough — 官方Agent · 锚归云 · 直连"
+					],
+					"description": "首激默模 (二态互斥 · 无off)"
+				},
+				"dao.origin.banner": {
+					"type": "boolean",
+					"default": false,
+					"description": "启动时显道德经横幅 (默认 false · 不言之教)"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"test:l1": "node --preserve-symlinks --preserve-symlinks-main tests/L1_unit.js",
+		"test:l2": "node --preserve-symlinks --preserve-symlinks-main tests/L2_replay.js",
+		"package": "vsce package --no-dependencies --allow-missing-repository"
+	},
+	"devDependencies": {
+		"@types/node": "^20.14.0",
+		"@types/vscode": "^1.84.0",
+		"@vscode/vsce": "^3.6.0"
+	}
+}

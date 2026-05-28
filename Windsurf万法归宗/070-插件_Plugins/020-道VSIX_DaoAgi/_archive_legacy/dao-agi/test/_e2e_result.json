@@ -1,0 +1,285 @@
+{
+  "ts": "2026-04-23T16:31:32.840Z",
+  "pass": 55,
+  "fail": 0,
+  "skip": 0,
+  "ws": "D:\\道\\道生一\\一生二",
+  "port": 8889,
+  "results": [
+    {
+      "ok": true,
+      "label": "require 源.js",
+      "detail": "模块加载成功"
+    },
+    {
+      "ok": true,
+      "label": "道德经载入",
+      "detail": "6776 字"
+    },
+    {
+      "ok": true,
+      "label": "TAO_HEADER",
+      "detail": "89 字 · 以 'You are Cascade' 起"
+    },
+    {
+      "ok": true,
+      "label": "invertSP",
+      "detail": "官方SP 556字 → 道德经 6865字"
+    },
+    {
+      "ok": true,
+      "label": "invertSP 保护",
+      "detail": "非官方文本返回 null (不误伤)"
+    },
+    {
+      "ok": true,
+      "label": "isLikelyOfficialSP",
+      "detail": "官方=true · 短文=false"
+    },
+    {
+      "ok": true,
+      "label": "stripSideChannelBlocks",
+      "detail": "72字 → 12字 · 侧信道已剥"
+    },
+    {
+      "ok": true,
+      "label": "proto 编解码",
+      "detail": "serialize → parse 幂等"
+    },
+    {
+      "ok": true,
+      "label": "Connect-RPC 帧",
+      "detail": "buildFrame → parseFrames 幂等"
+    },
+    {
+      "ok": true,
+      "label": "modifySPProto 全链路",
+      "detail": "nested role=0: 556B → 6865B · 含道德经"
+    },
+    {
+      "ok": true,
+      "label": "modifyRawSP",
+      "detail": "field[3]: 556B → 6865B"
+    },
+    {
+      "ok": true,
+      "label": "deepStripRequestBody",
+      "detail": "user msg 侧信道: 1 处剥除 · 正常内容保留"
+    },
+    {
+      "ok": true,
+      "label": "dissectSP",
+      "detail": "5 块 · 身份=56字 · 尾=300字"
+    },
+    {
+      "ok": true,
+      "label": "classifyRPC",
+      "detail": "4 路径全正确"
+    },
+    {
+      "ok": true,
+      "label": "routeUpstream",
+      "detail": "inference + mgmt 路由正确"
+    },
+    {
+      "ok": true,
+      "label": "ping",
+      "detail": "mode=invert pid=51164 dao=6776字 uptime=2607s reqs=762"
+    },
+    {
+      "ok": true,
+      "label": "GET mode",
+      "detail": "当前=invert"
+    },
+    {
+      "ok": true,
+      "label": "selftest",
+      "detail": "道=6776字 · 4路径全通"
+    },
+    {
+      "ok": true,
+      "label": "preview",
+      "detail": "mode=invert after=6865字 before=0字 source=at_rest"
+    },
+    {
+      "ok": true,
+      "label": "preview 道德经验证",
+      "detail": "after 含 '道可道' · 注入正确"
+    },
+    {
+      "ok": true,
+      "label": "lastinject",
+      "detail": "无注入记录 (首次启动 · 等首问即有)"
+    },
+    {
+      "ok": true,
+      "label": "require ls-client",
+      "detail": "模块加载成功"
+    },
+    {
+      "ok": true,
+      "label": "discoverLS",
+      "detail": "port=13735 pid=2264 csrf=97a62ea3..."
+    },
+    {
+      "ok": true,
+      "label": "Heartbeat",
+      "detail": "status=200"
+    },
+    {
+      "ok": true,
+      "label": "gatherAll",
+      "detail": "9 端点数据已获"
+    },
+    {
+      "ok": true,
+      "label": "GetAllRules",
+      "detail": "2 字节 · keys=[]"
+    },
+    {
+      "ok": true,
+      "label": "GetMcpServerStates",
+      "detail": "2 字节 · keys=[]"
+    },
+    {
+      "ok": true,
+      "label": "GetUserSettings",
+      "detail": "153131 字节 · keys=[userSettings]"
+    },
+    {
+      "ok": true,
+      "label": "GetWorkspaceInfos",
+      "detail": "151 字节 · keys=[homeDirPath,workspaceInfos,homeDirUri]"
+    },
+    {
+      "ok": true,
+      "label": "GetCascadeMemories",
+      "detail": "2 字节 · keys=[]"
+    },
+    {
+      "ok": true,
+      "label": "GetUserMemories",
+      "detail": "2 字节 · keys=[]"
+    },
+    {
+      "ok": true,
+      "label": "GetAllSkills",
+      "detail": "2 字节 · keys=[]"
+    },
+    {
+      "ok": true,
+      "label": "GetAllWorkflows",
+      "detail": "2 字节 · keys=[]"
+    },
+    {
+      "ok": true,
+      "label": "GetAllCascadeTrajectories",
+      "detail": "157982 字节 · keys=[trajectorySummaries]"
+    },
+    {
+      "ok": true,
+      "label": "gatherQuick",
+      "detail": "快速3端点正常"
+    },
+    {
+      "ok": true,
+      "label": "require isolator",
+      "detail": "模块加载成功"
+    },
+    {
+      "ok": true,
+      "label": "DAO_ALLOWED_RULES",
+      "detail": "7 条: [dao-de-jing.md, dao-de-jing-xia.md, 000-dao.md, dao.md, 道德经.md, 道德经-上.md, 道德经-下.md]"
+    },
+    {
+      "ok": true,
+      "label": "status",
+      "detail": "mode=dao active=2 quarantined=0 dao_kept=2 non_dao=0"
+    },
+    {
+      "ok": true,
+      "label": "readState",
+      "detail": "mode=dao ts=2026/4/23 22:53:50"
+    },
+    {
+      "ok": true,
+      "label": "scanAgentsMd",
+      "detail": "找到 0 个 AGENTS.md"
+    },
+    {
+      "ok": true,
+      "label": "enter (临时区)",
+      "detail": "moved=2 kept=1"
+    },
+    {
+      "ok": true,
+      "label": "enter 验证",
+      "detail": "rules/: [dao-de-jing.md] · 非道已移"
+    },
+    {
+      "ok": true,
+      "label": "enter 后 status",
+      "detail": "quarantined=2"
+    },
+    {
+      "ok": true,
+      "label": "enter 幂等",
+      "detail": "二次 enter · 无文件移动"
+    },
+    {
+      "ok": true,
+      "label": "exit (恢复)",
+      "detail": "restored=2"
+    },
+    {
+      "ok": true,
+      "label": "exit 验证",
+      "detail": "rules/: [another-rule.md, custom-rule.md, dao-de-jing.md] · 全部归位"
+    },
+    {
+      "ok": true,
+      "label": "exit 幂等",
+      "detail": "二次 exit · 无文件恢复"
+    },
+    {
+      "ok": true,
+      "label": "切 invert",
+      "detail": "previous=invert → invert"
+    },
+    {
+      "ok": true,
+      "label": "invert preview",
+      "detail": "after=6865字 · 含道德经+TAO_HEADER"
+    },
+    {
+      "ok": true,
+      "label": "切 passthrough",
+      "detail": "previous=invert → passthrough"
+    },
+    {
+      "ok": true,
+      "label": "passthrough preview",
+      "detail": "source=at_rest · after=0字"
+    },
+    {
+      "ok": true,
+      "label": "无效模式拒绝",
+      "detail": "status=400 · 正确拒绝"
+    },
+    {
+      "ok": true,
+      "label": "require essence",
+      "detail": "模块加载成功"
+    },
+    {
+      "ok": true,
+      "label": "gatherEssence (仅LS)",
+      "detail": "ts=2026-04-23T16:31:32.695Z · proxy=false · lsFragments=0"
+    },
+    {
+      "ok": true,
+      "label": "gatherEssence (proxy)",
+      "detail": "proxy.mode=invert · after=6865字"
+    }
+  ]
+}

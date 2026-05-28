@@ -1,0 +1,10 @@
+# 印267 · 根治封印 · 2026-05-27
+# 旧异本三向永封 —— 已归档于 _archive_legacy/, 根目录不再出现
+/dao-agi/
+/dao-agi-min/
+/dao-proxy-min/
+
+# 超大调试输出文件（不入 git）
+_archive_debug/_git2_out.txt
+_archive_debug/_git3_out.txt
+_archive_debug/*.out.txt

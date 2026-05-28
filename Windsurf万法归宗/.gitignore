@@ -1,0 +1,54 @@
+# ── 印266 安全封印 · 道法自然 ──────────────────────────────
+# 敏感凭据与账号数据（永不提交 GitHub）
+030-额度_Credits/data/
+*_creds.txt
+*_creds.json
+*_accounts*.json
+*_warmup_accounts.json
+*_cloud_pool_keys.json
+keypool.json
+secrets.env
+_apikey.txt
+_idtoken.txt
+_fresh_key.txt
+_keys.json
+windsurf-login-accounts.json
+
+# 大型二进制/存档（避免 GitHub 50MB 限制）
+*.vsix
+*.zip
+*.exe
+130_legacy_*.zip
+
+# 调试输出日志（含潜在凭据）
+_archive_debug/
+*_out.txt
+*_out2.txt
+*_out3.txt
+*_out4.txt
+_diag_output*.txt
+
+# Node modules
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# 含 GitHub PAT 的文件
+060-修复_Repair/deploy_mcp_to_179.ps1
+060-修复_Repair/_archive_20260527_道法CSP/
+*byok_cfg.json
+
+# 印271 hdougle 测试运行时日志 + 临时脚本（含 mask 过的 token 等敏感信息）
+130-道独立体_Standalone/05-GitHub/_hdougle_测试/_*.log
+130-道独立体_Standalone/05-GitHub/_hdougle_测试/_*.json
+130-道独立体_Standalone/05-GitHub/_hdougle_测试/_*.txt
+130-道独立体_Standalone/05-GitHub/_hdougle_测试/_commit.js
+130-道独立体_Standalone/05-GitHub/_hdougle_测试/_status.js
+130-道独立体_Standalone/05-GitHub/_hdougle_测试/_tmp_*.js
+
+
+
+130-道独立体_Standalone/05-GitHub/_hdougle_测试/_finalize_*.js
+130-道独立体_Standalone/05-GitHub/_hdougle_测试/rename_*.js

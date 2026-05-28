@@ -1,0 +1,78 @@
+# === Exclude everything not needed in VSIX ===
+.vscode/**
+.vscode-test/**
+.gitignore
+**/*.map
+**/.git/**
+**/*.bak
+*.vsix
+test/**
+package-lock.json
+node_modules/**
+**/*.log
+_*
+
+# v17.86.1 · 万法归宗 · 去芜存菁 · 历史档不入 VSIX
+_archive/**
+**/_archive/**
+**/*legacy*
+CHANGELOG.archive.md
+
+# v18.1.2 · 道法自然 · 不夺天工 · _* glob 不递归 · 必明列子目录
+# 病: vsce minimatch 之 `_*` 只配根件 · 不入 `_remote/**` 致 141 事故脚本入 VSIX
+# 治: 显式 `_remote/**` 损 7 件 · 反者道之动
+_remote/**
+**/_remote/**
+
+# TS legacy (pure JS now)
+src/**
+dist/**
+**/*.ts
+**/*.tsx
+
+# Runtime state (never ship · v17.86.4 · 179 事故根治 · 跨户污染防)
+# 痼疾: VSIX 误打 Administrator 户测试残留 (_settings_backup.json original=8889,
+#       _owner.lock TEST SID, _anchor_backup secret blob, _multistore_backup) ·
+#       zhouyoukang 户安装即继承 · deactivate.anchorRestore 复 8889 致 settings/proxy
+#       端口背离 · Cascade 全瘫. 此处穷尽列举杜绝.
+**/_lastinject.json
+**/_origin_mode.txt
+**/_settings_backup.json
+**/_settings_backup_*.json
+**/_settings_apiserver_backup.json
+**/_settings_apiserver_backup_*.json
+**/_anchor_backup.json
+**/_anchor_backup_*.json
+**/_multistore_backup.json
+**/_owner.lock
+**/_lsgate_fingerprint.json
+**/*.bak.*
+**/.extension.js.was_symlink_to.txt
+
+# === Whitelist: vendor WAM core + bundled-origin ===
+!vendor/wam/extension.js
+!vendor/wam/package.json
+!vendor/wam/bundled-origin/VERSION
+!vendor/wam/bundled-origin/_dao_81.txt
+!vendor/wam/bundled-origin/anchor.py
+!vendor/wam/bundled-origin/source.js
+!vendor/wam/bundled-origin/源.js
+!vendor/wam/bundled-origin/锚.py
+!media/**
+
+# === 道 · 运行时下划线文件 · v18.0 进程内化后皆出 ===
+# v17.88 · _pre_launch_sanitize 移出 (纯独立 CLI · 0 import)
+# v18.0 · _water_virtues / _uninstall_sentinel 移出 (extension.js 写死 null · 0 require)
+#   病根: spawn detached → 多 ext-host 争 proxy → 需选举/卸载守护
+#   治根: 进程内化 → 一 ext-host 一 in-process server → 无须选举/守护
+# (此二件 _archive/scripts_v18_0/ 留 · 历史 reference)
+
+# === v17.88 · v18.0 · 死码出 VSIX ===
+# storage-guard.js (extension.js 0 调用 · v17.88 require 已去)
+storage-guard.js
+# sp-scaffold.js (essence.js _buildReconstructedSP 已删 · 0 调用)
+sp-scaffold.js
+# v18.0 · _water_virtues + _uninstall_sentinel 进程内化后归芜 (~40 KB)
+_water_virtues.js
+_uninstall_sentinel.js
+assets/**

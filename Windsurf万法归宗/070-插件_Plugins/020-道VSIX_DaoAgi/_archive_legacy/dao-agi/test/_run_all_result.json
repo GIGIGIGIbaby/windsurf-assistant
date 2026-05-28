@@ -1,0 +1,158 @@
+{
+  "ts": "2026-04-27T05:44:48.456Z",
+  "totalPass": 481,
+  "totalFail": 6,
+  "elapsed": 107.2,
+  "results": [
+    {
+      "tier": "L0_PROTO",
+      "file": "v1766.spec.js",
+      "desc": "summary-agent SP 识别",
+      "status": "PASS",
+      "pass": 12,
+      "fail": 0,
+      "ms": 249,
+      "code": 0
+    },
+    {
+      "tier": "L0_PROTO",
+      "file": "v17_76.spec.js",
+      "desc": "主辅分槽 + SSE + observeSPFromBody",
+      "status": "PASS",
+      "pass": 35,
+      "fail": 0,
+      "ms": 232,
+      "code": 0
+    },
+    {
+      "tier": "L0_PROTO",
+      "file": "v17_78.spec.js",
+      "desc": "v18.5 + trajectory + HTTP",
+      "status": "PASS",
+      "pass": 64,
+      "fail": 0,
+      "ms": 992,
+      "code": 0
+    },
+    {
+      "tier": "L1_INPROC",
+      "file": "v18_inproc.spec.js",
+      "desc": "v18 进程内化 require/start",
+      "status": "PASS",
+      "pass": 22,
+      "fail": 0,
+      "ms": 1165,
+      "code": 0
+    },
+    {
+      "tier": "L2_ISOLATION",
+      "file": "v17_86_isolation.spec.js",
+      "desc": "多账号隔离",
+      "status": "PASS",
+      "pass": 45,
+      "fail": 0,
+      "ms": 101,
+      "code": 0
+    },
+    {
+      "tier": "L3_DEFENSE",
+      "file": "v17_87_three_lines.spec.js",
+      "desc": "三道防线",
+      "status": "FAIL",
+      "pass": 32,
+      "fail": 4,
+      "ms": 86,
+      "code": 1
+    },
+    {
+      "tier": "L3_DEFENSE",
+      "file": "v17_87_2_l5.spec.js",
+      "desc": "L5 防线",
+      "status": "FAIL",
+      "pass": 20,
+      "fail": 1,
+      "ms": 168,
+      "code": 1
+    },
+    {
+      "tier": "L3_DEFENSE",
+      "file": "_test_uninstall_sentinel.js",
+      "desc": "卸载守",
+      "status": "PASS",
+      "pass": 25,
+      "fail": 0,
+      "ms": 174,
+      "code": 0
+    },
+    {
+      "tier": "L4_WATER",
+      "file": "water_hot_reload.spec.js",
+      "desc": "水德热重载",
+      "status": "PASS",
+      "pass": 12,
+      "fail": 0,
+      "ms": 114,
+      "code": 0
+    },
+    {
+      "tier": "L4_WATER",
+      "file": "water_elect_pidalive.spec.js",
+      "desc": "水德选举 pidAlive",
+      "status": "PASS",
+      "pass": 7,
+      "fail": 0,
+      "ms": 156,
+      "code": 0
+    },
+    {
+      "tier": "L5_WATCH",
+      "file": "watcher.spec.js",
+      "desc": "五层事件驱动",
+      "status": "PASS",
+      "pass": 22,
+      "fail": 0,
+      "ms": 1301,
+      "code": 0
+    },
+    {
+      "tier": "L6_E2E",
+      "file": "v18_1_1_e2e_backend.spec.js",
+      "desc": "v18.1.1 E2E 后端",
+      "status": "PASS",
+      "pass": 34,
+      "fail": 0,
+      "ms": 1780,
+      "code": 0
+    },
+    {
+      "tier": "L7_BOTTOM_UP",
+      "file": "dao_bottom_up.spec.js",
+      "desc": "九层直连 · 自下而上 · L1源.js→L9 extension.js",
+      "status": "PASS",
+      "pass": 129,
+      "fail": 0,
+      "ms": 9224,
+      "code": 0
+    },
+    {
+      "tier": "L8_ADMIN",
+      "file": "admin_layer5_activate.spec.js",
+      "desc": "Admin 场景 activate · L5 安装/卸载链",
+      "status": "FAIL",
+      "pass": 0,
+      "fail": 0,
+      "ms": 90011,
+      "code": null
+    },
+    {
+      "tier": "L9_VSIX",
+      "file": "dao_l10_vsix.spec.js",
+      "desc": "大归宗 · 道末步 · VSIX 装态 = 源态 byte-for-byte",
+      "status": "PASS",
+      "pass": 22,
+      "fail": 0,
+      "ms": 1428,
+      "code": 0
+    }
+  ]
+}
