@@ -1,0 +1,41 @@
+name: dao-vm-loop-d
+# ═══════════════════════════════════════════════════════════════
+# 印273 · 万源VM · slot-D · 永续Loop · schedule +0h (与free-loop错开)
+# 「无为而无不为」── 自动触发 · 永续在线
+# ═══════════════════════════════════════════════════════════════
+on:
+  workflow_dispatch:
+    inputs:
+      duration_min:
+        description: 'Keep-alive minutes (max 330)'
+        default: '300'
+  schedule:
+    - cron: '0 3,7,11,15,19,23 * * *'
+  push:
+    paths:
+      - 'trigger-d.txt'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dao-vm-loop-d-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  vm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: dao-vm slot-d
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/dao_vm_gha_bootstrap.sh d ${{ github.event.inputs.duration_min || '300' }}
