@@ -2,7 +2,12 @@
 # 旧异本三向永封 —— 已归档于 _archive_legacy/, 根目录不再出现
 /dao-agi/
 /dao-agi-min/
-/dao-proxy-min/
+
+# VSIX分发文件 (不入git · 本地分发用)
+*.vsix
+
+# 存档 (不入git)
+_archive/
 
 # 超大调试输出文件（不入 git）
 _archive_debug/_git2_out.txt

@@ -1,0 +1,8 @@
+[
+  {
+    "port": 8937,
+    "mode": "invert",
+    "dao_chars": 0,
+    "tao_header_chars": 36
+  }
+]
